@@ -1,9 +1,11 @@
 *.gdb*
 
-/testing/*
-
 /c-compiler/*
 !/c-compiler/includes/
 !/c-compiler/src/
+!/c-compiler/CMakeLists.txt
+!/c-compiler/start.sh
+!/c-compiler/
+
 /examples/*
 !/examples/*.fe
