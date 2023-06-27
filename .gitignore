@@ -1,0 +1,9 @@
+*.gdb*
+
+/testing/*
+
+/c-compiler/*
+!/c-compiler/includes/
+!/c-compiler/src/
+/examples/*
+!/examples/*.fe
