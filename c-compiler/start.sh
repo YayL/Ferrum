@@ -2,7 +2,6 @@
 
 cd ./build
 if [ "$1" == "c" ] ; then
-    git submodule update -f
 	rm -rf CMakeFiles
 	rm CMakeCache.txt
 	cmake -DCMAKE_BUILD_TYPE=Debug ..
