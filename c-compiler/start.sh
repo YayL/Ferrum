@@ -1,8 +1,7 @@
 #!/bin/sh
 
 set -e
-cd /home/zimon/Projects/ferrum/c-compiler/build
-cp ../submodule/String-Formatter/include/fmt.h ../include
+cd ./build
 if [ "$1" == "c" ] ; then
 	rm -rf CMakeFiles
 	rm CMakeCache.txt
