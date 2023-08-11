@@ -1,9 +1,7 @@
-#include "list.h"
-
 #include <memory.h>
 
-#include "AST.h"
-#include "list.h"
+#include "codegen/AST.h"
+#include "common/list.h"
 
 
 struct List * init_list(size_t item_size) {
@@ -16,12 +14,14 @@ struct List * init_list(size_t item_size) {
 	return list;
 }
 
-void free_list(struct List * list) {
-
-	for(size_t i = 0; i < list->size; ++i) {
-		memset(list->items[i], 0, list->item_size);
-		free(list->items[i]);
-	}
+void free_list(struct List * list, char free_items) {
+    
+    if (free_items) {
+        for(size_t i = 0; i < list->size; ++i) {
+            memset(list->items[i], 0, list->item_size);
+            free(list->items[i]);
+        }
+    }
 	free(list->items);
 	free(list);
 
@@ -58,12 +58,8 @@ void list_shrink(struct List * list, unsigned int new_size) {
 }
 
 void* list_at(struct List * list, int index) {
-
-	if(0 <= index && index < list->size)
-		return list->items[index];
-
-	return NULL;
-
+    const unsigned int size = list->size;
+    return list->items[(size + (index % size)) % size];
 }
 
 /* void print_list(struct List * list) { */

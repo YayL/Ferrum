@@ -1,24 +1,32 @@
-#include "parser.h"
+#include "parser/parser.h"
 
-/*
- * Example:
- *
- * if 1 == 1 {
- * 
- *
- */
+// TODO:
+//
+// Make all operators have a left and right side (well unless they are unary of course)
+// so that it is easier to recognize LHS and RHS for assignments[??]
 
-struct Operator * get_operator(const char * str, struct Token * token, enum OP_mode mode) {
-    // Can differentiate Unary and Binary operators 
-    // by checking the parser->prev value to 
-    // see whether an ID or integer preceeded 
-    // it to get a binary operator
+struct Ast * parser_parse_statement_expr(struct Parser * parser) {
+    struct Ast * expr = parser_parse_expr(parser);
 
+    struct Ast * statement = list_at(expr->nodes, 0);
+    statement = list_at(statement->nodes, 0);
+
+    free_ast(list_at(expr->nodes, 0));
+    free_ast(expr);
+
+    statement->left = init_ast(AST_EXPR);
+    statement->left->nodes = statement->nodes;
+    statement->nodes = NULL;
+
+    return statement;
+}
+
+struct Operator * get_operator(const char * str, struct Token * token, enum OP_mode mode, char * enclosed_flag) {
     struct Operator * op = malloc(sizeof(struct Operator));
-    *op = str_to_operator(str, mode);
+    *op = str_to_operator(str, mode, enclosed_flag);
 
     if (op->key == OP_NOT_FOUND) {
-        print("[Parser]: Operator '{s}' not found around: ", str);
+        print("[Parser]: {s} operator '{s}' not found: ", mode == BINARY ? "Binary" : "Unary", str);
         print_token("{s}\n", token);
         exit(1);
     }
@@ -33,33 +41,24 @@ void add_operator_from_expr(struct Operator * op, struct List * list) {
     list_push(list, node);
 }
 
-// function that actually does the parsing of the expression
-//
-// let a: i32 = 123 - 2 * pow(1, 2, 3);
-
-struct List * _parser_parse_expr(struct Parser * parser, struct List * output, struct Deque * operators, char end_on_last_rparen) {
+struct List * _parser_parse_expr(struct Parser * parser, struct List * output, struct Deque * operators) {
     struct Ast * node, * temp;
     struct List * expressions = init_list(sizeof(struct Ast *));
-
-    size_t offset = 0;
     
     enum OP_mode mode = UNARY;
     struct Operator * op1, * op2;
+
+    char enclosed_flag;
 
     while (1) {
         switch (parser->token->type) {
             case TOKEN_ID:
             {
-                node = parser_parse_id(parser);
-                if (parser->token->type == TOKEN_LPAREN) {
-                    // free deque
-                    struct Deque * temp_d = init_deque(sizeof(struct Operator *));
-                    struct List * temp_l = init_list(sizeof(struct Ast *));
-                    node->nodes = _parser_parse_expr(parser, temp_l, temp_d, 1);
-
-                    node->type = AST_CALL;
+                if (mode == BINARY) {
+                    print_token("[Parser] Invalid expression token: {s}\n", parser->token);
+                    exit(1);
                 }
-
+                node = parser_parse_id(parser);
                 list_push(output, node);
                 mode = BINARY;
                 break;
@@ -73,10 +72,51 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
             }
             case TOKEN_OP:
             {
-                op1 = get_operator(parser->token->value, parser->token, mode);
+                op1 = get_operator(parser->token->value, parser->token, mode, &enclosed_flag);
+
+                if (op1->enclosed == ENCLOSED) {
+                    if (!enclosed_flag) {
+                        parser_eat(parser, parser->token->type);
+                        
+                        struct Deque * temp_d = init_deque(sizeof(struct Operator *));
+                        push_back(temp_d, op1);
+                        struct List * temp_l = init_list(sizeof(struct Ast *));
+
+                        node = init_ast(op1->ast_type);
+                        temp = init_ast(AST_EXPR);
+                        node->operator = op1;
+
+                        if (op1->mode == BINARY) {
+                            node->left = list_at(output, -1);
+                            list_pop(output);
+                        }
+                        
+                        temp->nodes = _parser_parse_expr(parser, temp_l, temp_d);
+                        node->value = temp;
+                        
+                        list_push(output, node);
+                        
+                        mode = BINARY;
+                        break;
+                    } else {
+                        while (strcmp(op1->str, (op2 = deque_back(operators))->str)) {
+                            if (operators->size == 1) {
+                                print_token("[Parser] Unmatched enclosed operator: {s}\n", parser->token);
+                                exit(1);
+                            }
+                            add_operator_from_expr(op2, output);
+                            pop_back(operators);
+                        }
+                       
+                        pop_back(operators);
+                        parser_eat(parser, parser->token->type);
+                        goto exit;
+                    }
+                }
+
                 op2 = deque_back(operators);
 
-                while (op2 && (op2->key != LPAREN && 
+                while (op2 && (op2->enclosed != ENCLOSED && 
                                 (op2->precedence < op1->precedence 
                                  || (op1->precedence == op2->precedence && op2->associativity == LEFT))))
                 {
@@ -84,26 +124,22 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                     pop_back(operators);
                     op2 = deque_back(operators);
                 }
+
                 push_back(operators, op1);
 
                 mode = UNARY;
-                parser_eat(parser, TOKEN_OP);
+                parser_eat(parser, parser->token->type);
                 break;
             }
             case TOKEN_SEMI:
             case TOKEN_COMMA:
             {
-                while (operators->size && (op1 = deque_back(operators))->key != LPAREN) {
-                    add_operator_from_expr(op1, output);
+                while (operators->size && (op2 = deque_back(operators))->enclosed != ENCLOSED) {
+                    add_operator_from_expr(op2, output);
                     pop_back(operators);
                 }
 
-                if (operators->size > 1) {
-                    print_token("[Parser] Invalid level of token: {s}\n", parser->token);
-                    exit(1);
-                }
-
-                temp = init_ast(AST_OP);
+                temp = init_ast(AST_EXPR);
                 temp->nodes = output;
                 list_push(expressions, temp);
                 output = init_list(sizeof(struct Ast *));
@@ -112,36 +148,10 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                 parser_eat(parser, parser->token->type);
                 break;
             }
-            case TOKEN_LPAREN:
-            {
-                op1 = get_operator("(", parser->token, UNARY);
-                push_back(operators, op1);
-
-                mode = UNARY;
-                parser_eat(parser, TOKEN_LPAREN);
-                break;
-            }
-            case TOKEN_RPAREN:
-            {
-                while ((op1 = deque_back(operators))->key != LPAREN) {
-                    if (operators->size == 1) {
-                        print_token("[Parser] Unmatched right parenthesis: \n{s}\n", parser->token);
-                        exit(1);
-                    }
-                    add_operator_from_expr(op1, output);
-                    pop_back(operators);
-                }
-                pop_back(operators);
-                parser_eat(parser, TOKEN_RPAREN);
-
-                if (end_on_last_rparen && operators->size == 0)
-                    goto exit;
-                
-                mode = BINARY;
-                break;
-            }
-            case TOKEN_EOF:
             case TOKEN_LINE_BREAK:
+                if (parser->prev->type == TOKEN_BACKSLASH)
+                    break;
+            case TOKEN_EOF:
             case TOKEN_LBRACE:
                 goto exit;
             default:
@@ -154,15 +164,15 @@ exit:
 
     while (operators->size) {
         op1 = deque_back(operators);
-        if (op1->key == LPAREN) {
-            print_token("[Parser] Unmatched left parenthesis near:\n{s}\n", parser->token);
+        if (op1->enclosed == ENCLOSED) {
+            print_token("[Parser] Unmatched enclosed operator near: {s}\n", parser->token);
             exit(1);
         }
         add_operator_from_expr(op1, output);
         pop_back(operators);
     }
 
-    temp = init_ast(AST_OP);
+    temp = init_ast(AST_EXPR);
     temp->nodes = output;
     list_push(expressions, temp);
 
@@ -176,7 +186,11 @@ struct Ast * parser_parse_expr(struct Parser * parser) {
     struct List * output = init_list(sizeof(struct Ast *));
     struct Deque * operators = init_deque(sizeof(struct Operator *));
 
-    node->nodes = _parser_parse_expr(parser, output, operators, 0);
+    node->nodes = _parser_parse_expr(parser, output, operators);
+
+    if (parser->prev->type == TOKEN_SEMI) {
+        print_token("[Warning] Unnecessary semicolon\n{s}\n", parser->prev);
+    }
 
     /* struct Ast * e; */
     /*  */

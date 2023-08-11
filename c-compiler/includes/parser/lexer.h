@@ -1,7 +1,7 @@
 #pragma once
 
-#include "token.h"
-#include "common.h"
+#include "parser/token.h"
+#include "common/common.h"
 
 struct Lexer {
     char * src;

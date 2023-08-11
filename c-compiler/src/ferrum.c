@@ -1,8 +1,9 @@
 #include "ferrum.h"
 
-#include "io.h"
-#include "lexer.h"
-#include "parser.h"
+#include "common/io.h"
+#include "parser/lexer.h"
+#include "parser/parser.h"
+#include "codegen/checker.h"
 
 void _indent(size_t indent) {
     for (size_t i = 0; i < indent; ++i)
@@ -12,6 +13,20 @@ void _indent(size_t indent) {
 void print_root(struct Ast * node, size_t indent) {
     if (indent == 0)
         print_ast("{s}\n", node);
+
+    if (node->nodes) {
+        struct Ast * temp;
+        for (int i = 0; i < node->nodes->size; ++i) {
+            _indent(indent);
+            temp = list_at(node->nodes, i);
+            if (temp == NULL) {
+                println("NULL");
+                continue;
+            }
+            print_ast("*|{s}\n", temp);
+            print_root(temp, indent + 1);
+        }
+    }
 
     if (node->left) {
         _indent(indent);
@@ -28,39 +43,21 @@ void print_root(struct Ast * node, size_t indent) {
         print_ast("V|{s}\n", node->right);
         print_root(node->value, indent + 1);
     }
-    if (node->nodes) {
-        struct Ast * temp;
-        for (int i = 0; i < node->nodes->size; ++i) {
-            _indent(indent);
-            temp = list_at(node->nodes, i);
-            if (temp == NULL) {
-                println("NULL");
-                continue;
-            }
-            print_ast("*|{s}\n", temp);
-            print_root(temp, indent + 1);
-        }
-    }
 
 }
 
-void ferrum_compile(char * src, size_t length) {
+void ferrum_compile(char * file_path) {
 
-    struct Lexer * lexer = init_lexer(src, length);
+    struct Ast * root = init_ast(AST_ROOT);
+    root->nodes = init_list(sizeof(struct Ast *));
+    
+    char * abs_path = get_abs_path(file_path);
 
-    struct Parser * parser = init_parser(lexer);
-    struct Ast * root = parser_parse_module(parser);
+    parser_parse(root, abs_path);
+    checker_check(root);
 
     print_root(root, 0);
 
-}
-
-void ferrum_compile_file(char * path) {
-    
-    size_t length;
-    char * src = read_file(path, &length);
-    
-    ferrum_compile(src, length);
-    free(src);
+    println("\nFinished!");
 }
 

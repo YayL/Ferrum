@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "common/common.h"
 
 struct List {
 	void** items;
@@ -23,7 +23,7 @@ struct List * init_list(size_t);
  * @brief Free an initialized list
  * 
  */
-void free_list(struct List *);
+void free_list(struct List *, char free_items);
 
 /**
  * @brief Push a new item to the top of the list

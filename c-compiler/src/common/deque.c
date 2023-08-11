@@ -1,5 +1,5 @@
 #pragma once
-#include "deque.h"
+#include "common/deque.h"
 
 struct Deque * init_deque (size_t item_size) {
 

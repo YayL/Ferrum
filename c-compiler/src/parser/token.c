@@ -1,6 +1,6 @@
-#include "token.h"
+#include "parser/token.h"
 
-#include "common.h"
+#include "common/common.h"
 
 struct Token * init_token(char * value, unsigned int length, enum token_t type, unsigned int line, unsigned int pos) {
 
@@ -18,12 +18,8 @@ const char* token_type_to_str(enum token_t type) {
 	switch(type) {
 		case TOKEN_ID: return "TOKEN_ID";
 		case TOKEN_SEMI: return "TOKEN_SEMI";
-		case TOKEN_LPAREN: return "TOKEN_LPAREN";
-		case TOKEN_RPAREN: return "TOKEN_RPAREN";
 		case TOKEN_LBRACE: return "TOKEN_LBRACE";
 		case TOKEN_RBRACE: return "TOKEN_RBRACE";
-		case TOKEN_LBRACKET: return "TOKEN_LBRACKET";
-		case TOKEN_RBRACKET: return "TOKEN_RBRACKET";
 		case TOKEN_COLON: return "TOKEN_COLON";
 		case TOKEN_COMMA: return "TOKEN_COMMA";
 		case TOKEN_INT: return "TOKEN_INT";
