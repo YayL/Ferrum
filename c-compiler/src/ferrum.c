@@ -7,7 +7,7 @@
 
 void ferrum_compile(char * file_path) {
 
-    struct Ast * ast = init_ast(AST_ROOT);
+    struct Ast * ast = init_ast(AST_ROOT, NULL);
     
     char * abs_path = get_abs_path(file_path);
 

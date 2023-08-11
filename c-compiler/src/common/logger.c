@@ -1,5 +1,10 @@
 #include "common/logger.h"
 
+/* TODO:
+ * Change all print calls to logger calls instead
+ * Add better color support for logger?
+ */
+
 void logger_log(char * msg, enum LOG_SOURCE source, enum LOG_LEVEL level) {
     if (level > MAX_LOG_LEVEL)
         return;
