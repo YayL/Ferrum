@@ -23,13 +23,12 @@ struct Operator str_to_operator(const char * str, enum OP_mode mode, char * encl
 }
 
 void print_operator(const char * template, struct Operator * operator) {
-    char * op_str = format("<op='{s}', precedence='{u}', mode='{s}', enclosed='{b}', associativity='{s}', ast_type='{s}'>",
+    char * op_str = format("<op='{s}', precedence='{u}', mode='{s}', enclosed='{b}', associativity='{s}'>",
                             operator->str,
                             operator->precedence,
                             operator->mode == UNARY ? "Unary" : "Binary",
                             operator->enclosed == ENCLOSED,
-                            operator->associativity == LEFT ? "Left" : "Right",
-                            ast_type_to_str(operator->ast_type)
+                            operator->associativity == LEFT ? "Left" : "Right"
                             );
     
     print(template, op_str);

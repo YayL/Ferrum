@@ -1,8 +1,6 @@
 fn pow(base: i32, pow: i32) -> i64 {
     
-    let a: i32 = 2 + 2
-
-    a[2,2] = 2
+    let a = 2 + 2
 
     if base == 0 {
         return 0
