@@ -7,6 +7,7 @@ if [ "$1" == "c" ] ; then
 	cmake -DCMAKE_BUILD_TYPE=Debug ..
 	make
 else
+    set -e
 	make
 	cd ..
     echo "-------------------------------------------------"

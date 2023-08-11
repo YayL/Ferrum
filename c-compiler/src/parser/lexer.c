@@ -1,6 +1,6 @@
-#include "lexer.h"
+#include "parser/lexer.h"
+#include "parser/operators.h"
 
-#include "operators.h"
 #include <ctype.h>
 
 
@@ -91,7 +91,7 @@ struct Token * lexer_parse_id(struct Lexer * lexer) {
     memcpy(id, lexer->src + start_index, length);
     id[length] = 0;
 
-    if (str_to_operator(id, OP_TYPE_ANY).key != OP_NOT_FOUND)
+    if (str_to_operator(id, OP_TYPE_ANY, NULL).key != OP_NOT_FOUND)
         return init_token(id, length + 1, TOKEN_OP, lexer->line, _start);
 
     return init_token(id, length + 1, TOKEN_ID, lexer->line, _start);
@@ -187,6 +187,10 @@ op_loop:
         case '=':
         case '<':
         case '>':
+        case '(':
+        case ')':
+        case '[':
+        case ']':
         case '*':
         case '^':
         case '&':
@@ -231,18 +235,10 @@ struct Token * lexer_next_token(struct Lexer * lexer) {
             lexer->pos = 0;
             lexer->line += 1;
             return lexer_advance_current(lexer, TOKEN_LINE_BREAK);
-        case '(':
-            return lexer_advance_current(lexer, TOKEN_LPAREN);
-        case ')':
-            return lexer_advance_current(lexer, TOKEN_RPAREN);
         case '{':
             return lexer_advance_current(lexer, TOKEN_LBRACE);
         case '}':
             return lexer_advance_current(lexer, TOKEN_RBRACE);
-        case '[':
-            return lexer_advance_current(lexer, TOKEN_LBRACKET);
-        case ']':
-            return lexer_advance_current(lexer, TOKEN_RBRACKET);
         case ',':
             return lexer_advance_current(lexer, TOKEN_COMMA);
         case ':':
@@ -253,7 +249,11 @@ struct Token * lexer_next_token(struct Lexer * lexer) {
             return lexer_advance_with(lexer, lexer_parse_string_literal(lexer));
         case '\'':
             return lexer_advance_current(lexer, TOKEN_SINGLE_QUOTE);
+        case '\\':
+            return lexer_advance_current(lexer, TOKEN_BACKSLASH);
         case '/':
+            // TODO:
+            // Comments do not appear to be removed so fix that
             peek = lexer_peek(lexer, 1);
             
             if (peek == '/')
@@ -265,6 +265,10 @@ struct Token * lexer_next_token(struct Lexer * lexer) {
         case '=':
         case '<':
         case '>':
+        case '(':
+        case ')':
+        case '[':
+        case ']':
         case '*':
         case '^':
         case '&':

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common.h"
+#include "common/common.h"
 
-void ferrum_compile(char * src, size_t length);
-void ferrum_compile_file(char * path);
+void ferrum_compile(char * path);

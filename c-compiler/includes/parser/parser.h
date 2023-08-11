@@ -1,18 +1,25 @@
 #pragma once
 
-#include "lexer.h"
-#include "keywords.h"
-#include "operators.h"
-#include "deque.h"
-#include "AST.h"
+#include "common/common.h"
+#include "common/io.h"
+#include "parser/lexer.h"
+#include "parser/keywords.h"
+#include "parser/operators.h"
+
+#include "common/deque.h"
+
+#include "codegen/AST.h"
 
 typedef struct Parser {
     struct Lexer * lexer;
     struct Token * token;
     struct Token * prev;
+    struct Ast * root;
+    char * path;
+    char error;
 } * Parser;
 
-struct Parser * init_parser(struct Lexer * lexer);
+struct Parser * init_parser(char * path);
 struct Token * nth_token(struct Parser * parser, int offset);
 struct Token * next_token(struct Parser * parser);
 
@@ -20,7 +27,7 @@ unsigned int is_statement(char *);
 
 void parser_eat(struct Parser * parser, enum token_t type);
 
-struct Ast * parser_parse(struct Parser * parser);
+struct Ast * parser_parse(struct Ast * root, char * start_file);
 
 struct Ast * parser_parse_if(struct Parser * parser);
 struct Ast * parser_parse_for(struct Parser * parser);
@@ -40,6 +47,7 @@ struct Ast * parser_parse_statement(struct Parser * parser);
 
 struct Ast * parser_parse_identifier(struct Parser * parser);
 struct Ast * parser_parse_expr(struct Parser * parser);
+struct Ast * parser_parse_statement_expr(struct Parser * parser);
 
 struct Ast * parser_parse_scope(struct Parser * parser);
-struct Ast * parser_parse_module(struct Parser * parser);
+struct Ast * parser_parse_module(struct Parser * parser, struct Ast * module);

@@ -1,4 +1,4 @@
-#include "io.h"
+#include "common/io.h"
 
 FILE * open_file (const char * filename, const char * options) {
 	FILE * out = fopen(filename, options);
@@ -44,4 +44,17 @@ void write_file(const char * filename, char * write_buffer) {
 		exit(1);
 	}
 	fclose(fp);
+}
+
+char * get_abs_path(const char * path) {
+
+    char buf[PATH_MAX + 1] = {0};
+    realpath(path, buf);
+
+    unsigned long length = strlen(buf);
+    char * ptr = malloc(sizeof(char) * (length + 1));
+    memcpy(ptr, buf, length);
+    ptr[length] = '\0';
+
+    return ptr;
 }

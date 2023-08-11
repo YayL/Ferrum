@@ -1,9 +1,7 @@
-#include "list.h"
-
 #include <memory.h>
 
-#include "AST.h"
-#include "list.h"
+#include "codegen/AST.h"
+#include "common/list.h"
 
 
 struct List * init_list(size_t item_size) {
@@ -16,15 +14,14 @@ struct List * init_list(size_t item_size) {
 	return list;
 }
 
-void free_list(struct List * list) {
-
-	for(size_t i = 0; i < list->size; ++i) {
-		memset(list->items[i], 0, list->item_size);
-		free(list->items[i]);
-	}
+void free_list(struct List * list, char free_items) { 
+    if (free_items) {
+        for(size_t i = 0; i < list->size; ++i) {
+            free(list->items[i]);
+        }
+    }
 	free(list->items);
 	free(list);
-
 }
 
 void list_push(struct List * list, void* item) {
@@ -44,26 +41,21 @@ void list_push(struct List * list, void* item) {
 void list_pop(struct List * list) {
 	if(!list->size) 
 		return;
-
-	list->items[list->size] = NULL;
-	free(list->items[list->size--]);
+    
+	list->items[--list->size] = NULL;
 }
 
 void list_shrink(struct List * list, unsigned int new_size) {	
 	if (list->size == 0)
 		return;
 
-	while (list->size != new_size) list_pop(list);
-
+	while (list->size != new_size)
+        list_pop(list);
 }
 
 void* list_at(struct List * list, int index) {
-
-	if(0 <= index && index < list->size)
-		return list->items[index];
-
-	return NULL;
-
+    const int size = list->size; // needs to be signed for the "anti-negative" index thing to work
+    return list->items[(size + (index % size)) % size];
 }
 
 /* void print_list(struct List * list) { */
