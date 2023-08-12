@@ -364,7 +364,7 @@ void print_ast(const char * template, struct Ast * ast) {
         case AST_FUNCTION:
         {
             a_function * func = ast->value;
-            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Arguments" RESET ": {i}" GREY ">" RESET, ast_str, func->name, func->arguments->size);
+            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {s}," BLUE "Arguments" RESET ": {i}" GREY ">" RESET, ast_str, func->name, func->type, func->arguments->size);
             break;
         }
         case AST_SCOPE:

@@ -82,24 +82,6 @@ struct Ast * parser_parse_id(struct Parser * parser) {
     if (get_variable(ast))
         return ast;
 
-    switch (parser->current_scope->type) {
-        case AST_SCOPE:
-        {
-            list_push(((a_scope *) parser->current_scope->value)->variables, ast);
-            break;
-        }
-        case AST_MODULE:
-        {
-            list_push(((a_module *) parser->current_scope->value)->variables, ast);
-            break;
-        }
-        default:
-        {
-            logger_log(format("Unsupported type '{s}' as variable holder", ast_type_to_str(parser->current_scope->type)), PARSER, ERROR);
-            exit(1);
-        }
-    }
-
     return ast;
 }
 
@@ -270,6 +252,7 @@ struct Ast * parser_parse_scope(struct Parser * parser) {
     }
 
     parser_eat(parser, TOKEN_RBRACE);
+    parser->current_scope = ast->scope;
 
     return ast;
 }
@@ -316,6 +299,7 @@ function_loop:
     parser_eat(parser, TOKEN_ID);
 
     function->body = parser_parse_scope(parser);
+    parser->current_scope = ast->scope;
 
     return ast;
 }
@@ -398,6 +382,7 @@ struct Ast * parser_parse_module(struct Parser * parser, struct Ast * ast) {
         }
 
         node = parser_parse_identifier(parser);
+        parser->current_scope = ast;
 
         if (node == NULL)
             continue;

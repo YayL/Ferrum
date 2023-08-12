@@ -25,7 +25,7 @@ struct Ast * get_variable(struct Ast * variable) {
             }
             default:
             {
-                logger_log(format("get_variable unrecognized type: {s}", ast_type_to_str(scope->type)), PARSER, ERROR);
+                logger_log(format("get_variable unrecognized type: {s}", ast_type_to_str(scope->type)), CHECKER, ERROR);
                 exit(1);
             }
         }
@@ -40,6 +40,22 @@ struct Ast * get_variable(struct Ast * variable) {
     }
     
     return NULL;
+}
+
+char is_declared_function(char * name, struct Ast * scope) {
+    while (scope->type != AST_ROOT) {
+        if (scope->type == AST_MODULE) {
+            a_module * module = scope->value;
+            for (int i = 0; i < module->functions->size; ++i) {
+                a_function * function = ((struct Ast *)list_at(module->functions, i))->value;
+                if (!strcmp(function->name, name))
+                    return 1;
+            }
+        }
+        scope = scope->scope;
+    }
+
+    return 0;
 }
 
 void checker_check_expr_node(struct Ast * ast) {
@@ -58,10 +74,15 @@ void checker_check_expr_node(struct Ast * ast) {
 void checker_check_op(struct Ast * ast) {
     struct Ast * node;
     a_op * op = ast->value;
-    
-    if (op->left) {
+
+    if (op->op->key == CALL && op->left->type == AST_VARIABLE) {
+        a_variable * var = op->left->value;
+        if (!is_declared_function(var->name, ast->scope)) {
+            logger_log(format("Call to unknown function: '{s}'", var->name), CHECKER, WARN);
+        }
+    } else if (op->left) {
         checker_check_expr_node(op->left);
-    }
+    } 
 
     checker_check_expr_node(op->right);
 
@@ -92,7 +113,7 @@ void checker_check_variable(struct Ast * ast) {
 
     if (var_ast == NULL || !((a_variable *) var_ast->value)->is_declared) {
         a_variable * variable = ast->value;
-        logger_log(format("Variable '{s}' used before having been declared", variable->name), PARSER, ERROR);
+        logger_log(format("Variable '{s}' used before having been declared", variable->name), CHECKER, ERROR);
         exit(1);
     }
 
@@ -133,21 +154,56 @@ void checker_check_declaration(struct Ast * ast) {
 
     for (int i = 0; i < expr->children->size; ++i) {
         node = list_at(expr->children, i);
-        print_ast("{s}\n", node);
         if (node->type == AST_OP) {
             a_op * op = node->value;
             if (op->op->key == ASSIGNMENT) {
                 if (op->left->type != AST_VARIABLE) {
-                    logger_log("On declaration the LHS must always be a variable", PARSER, ERROR);
+                    logger_log("On declaration the LHS must always be a variable", CHECKER, ERROR);
                     exit(1);
                 }
                 checker_check_expr_node(op->right);
-                node = get_variable(op->left);
-                print_ast("{s}\n", node);
-                ((a_variable *) node->value)->is_declared = 1;
+                ((a_variable *) op->left->value)->is_declared = 1;
+
+                switch (ast->scope->type) {
+                    case AST_SCOPE:
+                        {
+                            list_push(((a_scope *) ast->scope->value)->variables, op->left);
+                            break;
+                        }
+                    case AST_MODULE:
+                        {
+                            list_push(((a_module *) ast->scope->value)->variables, op->left);
+                            break;
+                        }
+                    default:
+                        {
+                            logger_log(format("Unsupported type '{s}' as variable holder", ast_type_to_str(ast->scope->type)), PARSER, ERROR);
+                            exit(1);
+                        }
+                }
             } else {
-                logger_log("Upon declaration the assignment operator is the only operator allowed", PARSER, ERROR);
+                logger_log("Upon declaration the assignment operator is the only operator allowed", CHECKER, ERROR);
                 exit(1);
+            }
+        } else if (node->type == AST_VARIABLE) {
+            ((a_variable *) node->value)->is_declared = 1;
+
+            switch (ast->scope->type) {
+                case AST_SCOPE:
+                    {
+                        list_push(((a_scope *) ast->scope->value)->variables, node);
+                        break;
+                    }
+                case AST_MODULE:
+                    {
+                        list_push(((a_module *) ast->scope->value)->variables, node);
+                        break;
+                    }
+                default:
+                    {
+                        logger_log(format("Unsupported type '{s}' as variable holder", ast_type_to_str(ast->scope->type)), PARSER, ERROR);
+                        exit(1);
+                    }
             }
         } else {
             checker_check_expr_node(node);
