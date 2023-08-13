@@ -352,7 +352,7 @@ void print_ast(const char * template, struct Ast * ast) {
 	const char * type_str = ast_type_to_str_ast(ast);
 	const char * scope = ast_type_to_str_ast(ast->scope);
     
-    char * ast_str = format(RED "{s}" RESET ": ", type_str, ast->line, ast->pos);
+    char * ast_str = format(RED "{s}" RESET ": ", type_str);
 
     switch (ast->type) {
         case AST_MODULE:
@@ -401,7 +401,7 @@ void print_ast(const char * template, struct Ast * ast) {
         case AST_DECLARATION:
         {
             a_declaration * declaration = ast->value;
-            ast_str = format("{s} " GREY "<" BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, declaration->is_const ? "Immutable" : "Mutable");
+            ast_str = format("{s} " GREY "<" BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, declaration->is_const ? "Variable" : "Constant");
             break;
         }
         default:

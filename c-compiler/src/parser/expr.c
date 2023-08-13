@@ -159,6 +159,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                     break;
             case TOKEN_EOF:
             case TOKEN_LBRACE:
+            case TOKEN_RBRACE:
                 goto exit;
             default:
                 print_token("[Parser]: Unrecognized token in expression\n{s}\n", parser->token);

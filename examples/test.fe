@@ -1,10 +1,8 @@
-package "pow"
-
 fn main(argc: i32) -> i32 {
-    if argc == 1 {
-        return (pow(4, 4) * 2 + 2, 23)
-    } else if (argc == 2) {
-        return 1
-    }
-    return 2
+    let a: i32 = 3
+    let b: i32 = a * 2 - add(argc, 2)
+
+    b
 }
+
+fn add(a: i32, b: i32) -> i32 { a + b }
