@@ -1,5 +1,10 @@
 #include "common/logger.h"
 
+/* TODO:
+ * Change all print calls to logger calls instead
+ * Add better color support for logger?
+ */
+
 void logger_log(char * msg, enum LOG_SOURCE source, enum LOG_LEVEL level) {
     if (level > MAX_LOG_LEVEL)
         return;
@@ -13,6 +18,9 @@ void logger_log(char * msg, enum LOG_SOURCE source, enum LOG_LEVEL level) {
             break;
         case PARSER:
             fmt = "[Parser]: {2s}" COLOR_RESET_ANSI_SEQUENCE;
+            break;
+        case CHECKER:
+            fmt = "[Checker]: {2s}" COLOR_RESET_ANSI_SEQUENCE;
             break;
         case IR:
             fmt = "[IR Generator]: {2s}" COLOR_RESET_ANSI_SEQUENCE;

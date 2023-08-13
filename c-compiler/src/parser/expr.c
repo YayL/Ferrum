@@ -18,18 +18,12 @@ struct Operator * get_operator(const char * str, struct Token * token, enum OP_m
     return op;
 }
 
-void add_operator_from_expr(struct Operator * op, struct Ast * ast, struct List * list) {
-    a_op * operator = ast->value;
-    operator->op = op;
-    list_push(list, operator);
-}
-
-void consume_add_operator(struct Operator * op, struct List * list) {
-    struct Ast * ast = init_ast(AST_OP);
+void consume_add_operator(struct Operator * op, struct List * list, struct Parser * parser) {
+    struct Ast * ast = init_ast(AST_OP, parser->current_scope);
     a_op * operator = ast->value;
     
     if (list->size == 0) {
-        logger_log("consume_add_operator list is empty 1?", PARSER, ERROR);
+        logger_log("Invalid expression: Operator without valid operands", PARSER, ERROR);
         exit(1);
     }
 
@@ -39,7 +33,7 @@ void consume_add_operator(struct Operator * op, struct List * list) {
 
     if (op->mode == BINARY) {
         if (list->size == 0) {
-            logger_log("consume_add_operator list is empty 2?", PARSER, ERROR);
+            logger_log("Invalid expression: Binary operator without two valid operands", PARSER, ERROR);
             exit(1);
         }
         operator->left = list_at(list, -1);
@@ -89,8 +83,8 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                         struct List * temp_l = init_list(sizeof(struct Ast *));
                         push_back(temp_d, op1);
 
-                        node = init_ast(AST_OP);
-                        temp = init_ast(AST_EXPR);
+                        node = init_ast(AST_OP, parser->current_scope);
+                        temp = init_ast(AST_EXPR, parser->current_scope);
                         ((a_op *) node->value)->op = op1;
 
                         if (op1->mode == BINARY) {
@@ -111,7 +105,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                                 print_token("[Parser] Unmatched enclosed operator: {s}\n", parser->token);
                                 exit(1);
                             }
-                            consume_add_operator(op2, output);
+                            consume_add_operator(op2, output, parser);
                             pop_back(operators);
                         }
                        
@@ -127,7 +121,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                                 (op2->precedence < op1->precedence 
                                  || (op1->precedence == op2->precedence && op2->associativity == LEFT))))
                 {
-                    consume_add_operator(op2, output);
+                    consume_add_operator(op2, output, parser);
                     pop_back(operators);
                     op2 = deque_back(operators);
                 }
@@ -142,7 +136,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
             case TOKEN_COMMA:
             {
                 while (operators->size && (op2 = deque_back(operators))->enclosed != ENCLOSED) {
-                    consume_add_operator(op2, output);
+                    consume_add_operator(op2, output, parser);
                     pop_back(operators);
                 }
                 
@@ -180,18 +174,22 @@ exit:
             print_token("[Parser] Unmatched enclosed operator near: {s}\n", parser->token);
             exit(1);
         }
-        consume_add_operator(op1, output);
+        consume_add_operator(op1, output, parser);
         pop_back(operators);
     }
 
-    list_push(expressions, list_at(output, 0));
+    if (output->size != 1) {
+        logger_log("Invalid expression", PARSER, ERROR);
+    } else {
+        list_push(expressions, list_at(output, 0));
+    }
 
     return expressions;
 
 }
 
 struct Ast * parser_parse_expr(struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_EXPR);
+    struct Ast * ast = init_ast(AST_EXPR, parser->current_scope);
 
     struct List * output = init_list(sizeof(struct Ast *));
     struct Deque * operators = init_deque(sizeof(struct Operator *));

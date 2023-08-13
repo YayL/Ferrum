@@ -31,6 +31,8 @@ enum AST_type {
 struct Ast {
     enum AST_type type;
     struct Ast * scope;
+    unsigned int line;
+    unsigned int pos;
     void * value;
 };
 
@@ -60,6 +62,7 @@ typedef struct a_scope {
 } a_scope;
 
 typedef struct a_declaration {
+    char is_const;
     struct Ast * expression;
 } a_declaration;
 
@@ -77,6 +80,8 @@ typedef struct a_variable {
     char * name;
     // struct Ast * type; same as function here
     char * type;
+    char is_const;
+    char is_declared;
 } a_variable;
 
 typedef struct a_type {
@@ -112,7 +117,7 @@ typedef struct a_if_statement {
 } a_if_statement;
 
 
-struct Ast * init_ast(enum AST_type type);
+struct Ast * init_ast(enum AST_type type, struct Ast * scope);
 void * init_ast_of_type(enum AST_type type);
 
 void free_ast(struct Ast * node);

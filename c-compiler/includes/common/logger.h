@@ -13,6 +13,7 @@ enum LOG_LEVEL {
 enum LOG_SOURCE {
     LEXER,
     PARSER,
+    CHECKER,
     IR,
     LOGGER
 };
