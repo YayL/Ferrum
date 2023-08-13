@@ -31,8 +31,6 @@ enum AST_type {
 struct Ast {
     enum AST_type type;
     struct Ast * scope;
-    unsigned int line;
-    unsigned int pos;
     void * value;
 };
 
@@ -79,6 +77,7 @@ typedef struct a_op {
 typedef struct a_variable {
     char * name;
     // struct Ast * type; same as function here
+    unsigned int reg;
     char * type;
     char is_const;
     char is_declared;

@@ -4,6 +4,7 @@
 #include "parser/lexer.h"
 #include "parser/parser.h"
 #include "codegen/checker.h"
+#include "codegen/gen.h"
 
 void ferrum_compile(char * file_path) {
 
@@ -15,6 +16,8 @@ void ferrum_compile(char * file_path) {
     checker_check(ast);
 
     print_ast_tree(ast);
+
+    gen(ast);
 
     println("\nFinished!");
 }

@@ -66,6 +66,9 @@ void checker_check_expr_node(struct Ast * ast) {
         case AST_VARIABLE:
             checker_check_variable(ast);
             break;
+        case AST_EXPR:
+            checker_check_expression(ast);
+            break;
         default:
             break;
     }
@@ -205,9 +208,9 @@ void checker_check_declaration(struct Ast * ast) {
                         exit(1);
                     }
             }
-        } else {
-            checker_check_expr_node(node);
         }
+
+        checker_check_expr_node(node);
     }
 }
 

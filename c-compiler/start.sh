@@ -12,4 +12,6 @@ else
 	cd ..
     echo "-------------------------------------------------"
 	./build/compiler $1 $2 $3
+    clang ./build/ferrum.ll -emit-llvm -S -c -O3 -o out.ll
+    clang out.ll
 fi
