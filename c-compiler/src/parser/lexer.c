@@ -19,7 +19,6 @@ struct Lexer * init_lexer(char * src, size_t length) {
 
 
 void lexer_advance(struct Lexer * lexer) {
-
     if (lexer->index < lexer->size && lexer->c != EOF) {
         lexer->c = lexer->src[++lexer->index];
         lexer->pos++;
@@ -150,15 +149,20 @@ struct Token * lexer_parse_int(struct Lexer * lexer) {
 
 
 struct Token * lexer_parse_multi_line_comment(struct Lexer * lexer) {
+    char prev;
+
     while(lexer->c != EOF) {
-        if (lexer->c == '*' && lexer_peek(lexer, 1) == '/')
+        if (prev == '*' && lexer->c == '/')
             break;
         else if (lexer->c == '\n') {
             lexer->pos = 0;
             lexer->line += 1;
         }
+        prev = lexer->c;
         lexer_advance(lexer);
     }
+
+    lexer_advance(lexer); // go past '/'
 
 	return lexer_next_token(lexer);
 }
@@ -191,6 +195,7 @@ op_loop:
         case ')':
         case '[':
         case ']':
+        case ':':
         case '*':
         case '^':
         case '&':
@@ -241,8 +246,6 @@ struct Token * lexer_next_token(struct Lexer * lexer) {
             return lexer_advance_current(lexer, TOKEN_RBRACE);
         case ',':
             return lexer_advance_current(lexer, TOKEN_COMMA);
-        case ':':
-            return lexer_advance_current(lexer, TOKEN_COLON);
         case ';':
             return lexer_advance_current(lexer, TOKEN_SEMI);
         case '"':
@@ -269,6 +272,7 @@ struct Token * lexer_next_token(struct Lexer * lexer) {
         case ')':
         case '[':
         case ']':
+        case ':':
         case '*':
         case '^':
         case '&':

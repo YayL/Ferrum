@@ -30,7 +30,7 @@ struct Parser * init_parser(char * path) {
 void parser_eat(struct Parser * parser, enum token_t type) {
     if (parser->token->type != type) {
         println("[Error] {2i::} Expected token type '{s}' got token '{s}'", 
-                    parser->token->pos, parser->token->line, 
+                    parser->token->line, parser->token->pos, 
                     token_type_to_str(type), 
                     token_type_to_str(parser->token->type));
         parser->error = 1;
@@ -53,7 +53,6 @@ struct Ast * parser_parse_int(struct Parser * parser) {
 }
 
 struct Ast * parser_parse_id(struct Parser * parser) {
-    
     struct Ast * ast = init_ast(AST_VARIABLE, parser->current_scope);
     a_variable * variable = ast->value;
 
@@ -61,12 +60,8 @@ struct Ast * parser_parse_id(struct Parser * parser) {
 
     parser_eat(parser, TOKEN_ID);
 
-    if (parser->token->type == TOKEN_ID) {
-
-    }
-
-    if (parser->token->type == TOKEN_COLON) {
-        parser_eat(parser, TOKEN_COLON);
+    if (parser->token->type == TOKEN_OP && !strcmp(parser->token->value, ":")) {
+        parser_eat(parser, TOKEN_OP);
         
         // TODO: Parse type here
 
@@ -96,6 +91,8 @@ struct Ast * parser_parse_if(struct Parser * parser) {
         while (parser->token->type == TOKEN_LINE_BREAK)
             parser_eat(parser, TOKEN_LINE_BREAK);
 
+        is_else = 0;
+
         if (if_statement && parser->token->type == TOKEN_ID && !strcmp(parser->token->value, "else")) {
             parser_eat(parser, TOKEN_ID);
             is_else = 1;
@@ -112,9 +109,9 @@ struct Ast * parser_parse_if(struct Parser * parser) {
         if (parser->token->type == TOKEN_ID && !strcmp(parser->token->value, "if")) {
             parser_eat(parser, TOKEN_ID);
             if_statement->expression = parser_parse_expr(parser);
+            if_statement->body = parser_parse_scope(parser);
         } else {
             if (is_else) {
-                if_statement->expression = parser_parse_scope(parser);
                 if_statement->body = parser_parse_scope(parser);
             } else {
                 previous->next = NULL;
@@ -122,9 +119,6 @@ struct Ast * parser_parse_if(struct Parser * parser) {
             }
             break;
         }
-
-        if_statement->body = parser_parse_scope(parser);
-        is_else = 0;
     }
 
     return ast;
@@ -278,7 +272,7 @@ function_loop:
         ((a_variable *) argument->value)->name = parser->token->value;
         
         parser_eat(parser, TOKEN_ID);
-        parser_eat(parser, TOKEN_COLON);
+        parser_eat(parser, TOKEN_OP);
 
         ((a_variable *) argument->value)->type = parser->token->value;
         parser_eat(parser, TOKEN_ID);

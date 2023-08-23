@@ -37,7 +37,7 @@ const static struct Keyword {
     {CONST, ANY, "const"},
     {LET, ANY, "let"},
     {ELSE, FUNCTION_ONLY, "else"},
-    {IF, FUNCTION_ONLY, "if"},
+    {IF, ANY, "if"},
     {FOR, FUNCTION_ONLY, "for"},
     {WHILE, FUNCTION_ONLY, "while"},
     {DO, FUNCTION_ONLY, "do"},

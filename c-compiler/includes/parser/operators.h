@@ -50,6 +50,9 @@ enum Operators {
     LOGICAL_AND,
     LOGICAL_OR,
 
+    TERNARY,
+    TERNARY_BODY,
+
     ASSIGNMENT,
     ADD_ASSIGNMENT,
     SUBTRACT_ASSIGNMENT,
@@ -64,7 +67,8 @@ enum Operators {
 };
 
 enum OP_mode {
-    UNARY, // an operator taking one operand proceeding itself
+    UNARY_PRE, // an operator taking one operand preceeding itself: ++a
+    UNARY_POST,// an operator taking one operand proceeding itself: a++
     BINARY, // an operator taking two operands on either side of the operator
     OP_TYPE_ANY
 };
@@ -88,23 +92,26 @@ const static struct Operator {
     enum OP_enclosed enclosed;
     char * str;
 } op_conversion [] = {
-    {OP_NOT_FOUND, UNARY, 0, LEFT, NORMAL, ""},
-    {PARENTHESES, UNARY, 0, LEFT, ENCLOSED, "(\0)"},
-    {BRACKETS, UNARY, 0, LEFT, ENCLOSED, "[\0]"},
+    {OP_NOT_FOUND, UNARY_PRE, 0, LEFT, NORMAL, ""},
+    {PARENTHESES, UNARY_PRE, 0, LEFT, ENCLOSED, "(\0)"},
+    {BRACKETS, UNARY_PRE, 0, LEFT, ENCLOSED, "[\0]"},
     
-    {INCREMENT, UNARY, 1, LEFT, NORMAL, "++"},
-    {DECREMENT, UNARY, 1, LEFT, NORMAL, "--"},
+    {INCREMENT, UNARY_PRE, 1, LEFT, NORMAL, "++"},
+    {INCREMENT, UNARY_POST, 1, LEFT, NORMAL, "++"},
+    {DECREMENT, UNARY_PRE, 1, LEFT, NORMAL, "--"},
+    {DECREMENT, UNARY_POST, 1, LEFT, NORMAL, "--"},
+
     {MEMBER_ACCESS, BINARY, 1, LEFT, NORMAL, "."},
     {MEMBER_ACCESS_PTR, BINARY, 1, LEFT, NORMAL, "->"},
     {CALL, BINARY, 1, LEFT, ENCLOSED, "(\0)"},
     {SUBSCRIPT, BINARY, 1, LEFT, ENCLOSED, "[\0]"},
     
-    {UNARY_PLUS, UNARY, 2, RIGHT, NORMAL, "+"},
-    {UNARY_MINUS, UNARY, 2, RIGHT, NORMAL, "-"},
-    {LOGICAL_NOT, UNARY, 2, RIGHT, NORMAL, "!"},
-    {BITWISE_NOT, UNARY, 2, RIGHT, NORMAL, "~"},
-    {DEREFERENCE, UNARY, 2, RIGHT, NORMAL, "*"},
-    {ADDRESS_OF, UNARY, 2, RIGHT, NORMAL, "&"},
+    {UNARY_PLUS, UNARY_PRE, 2, RIGHT, NORMAL, "+"},
+    {UNARY_MINUS, UNARY_PRE, 2, RIGHT, NORMAL, "-"},
+    {LOGICAL_NOT, UNARY_PRE, 2, RIGHT, NORMAL, "!"},
+    {BITWISE_NOT, UNARY_PRE, 2, RIGHT, NORMAL, "~"},
+    {DEREFERENCE, UNARY_PRE, 2, RIGHT, NORMAL, "*"},
+    {ADDRESS_OF, UNARY_PRE, 2, RIGHT, NORMAL, "&"},
     
     {MULTIPLICATION, BINARY, 3, LEFT, NORMAL, "*"},
     {DIVISION, BINARY, 3, LEFT, NORMAL, "/"},
@@ -132,17 +139,20 @@ const static struct Operator {
     {LOGICAL_OR, BINARY, 12, LEFT, NORMAL, "||"},
     {CAST, BINARY, 12, LEFT, NORMAL, "as"},
 
-    {ASSIGNMENT, BINARY, 13, RIGHT, NORMAL, "="},
-    {ADD_ASSIGNMENT, BINARY, 13, RIGHT, NORMAL, "+="},
-    {SUBTRACT_ASSIGNMENT, BINARY, 13, RIGHT, NORMAL, "-="},
-    {PRODUCT_ASSIGNMENT, BINARY, 13, RIGHT, NORMAL, "*="},
-    {QUOTIENT_ASSIGNMENT, BINARY, 13, RIGHT, NORMAL, "/="},
-    {REMAINDER_ASSIGNMENT, BINARY, 13, RIGHT, NORMAL, "%="},
-    {BITWISE_LEFT_SHIFT_ASSIGNMENT, BINARY, 13, RIGHT, NORMAL, "<<="},
-    {BITWISE_RIGHT_SHIFT_ASSIGNMENT, BINARY, 13, RIGHT, NORMAL, ">>="},
-    {BITWISE_AND_ASSIGNMENT, BINARY, 13, RIGHT, NORMAL, "&="},
-    {BITWISE_XOR_ASSIGNMENT, BINARY, 13, RIGHT, NORMAL, "^="},
-    {BITWISE_OR_ASSIGNMENT, BINARY, 13, RIGHT, NORMAL, "|="},
+    {TERNARY, BINARY, 13, RIGHT, NORMAL, "?"},
+    {TERNARY_BODY, BINARY, 13, RIGHT, NORMAL, ":"},
+
+    {ASSIGNMENT, BINARY, 14, RIGHT, NORMAL, "="},
+    {ADD_ASSIGNMENT, BINARY, 14, RIGHT, NORMAL, "+="},
+    {SUBTRACT_ASSIGNMENT, BINARY, 14, RIGHT, NORMAL, "-="},
+    {PRODUCT_ASSIGNMENT, BINARY, 14, RIGHT, NORMAL, "*="},
+    {QUOTIENT_ASSIGNMENT, BINARY, 14, RIGHT, NORMAL, "/="},
+    {REMAINDER_ASSIGNMENT, BINARY, 14, RIGHT, NORMAL, "%="},
+    {BITWISE_LEFT_SHIFT_ASSIGNMENT, BINARY, 14, RIGHT, NORMAL, "<<="},
+    {BITWISE_RIGHT_SHIFT_ASSIGNMENT, BINARY, 14, RIGHT, NORMAL, ">>="},
+    {BITWISE_AND_ASSIGNMENT, BINARY, 14, RIGHT, NORMAL, "&="},
+    {BITWISE_XOR_ASSIGNMENT, BINARY, 14, RIGHT, NORMAL, "^="},
+    {BITWISE_OR_ASSIGNMENT, BINARY, 14, RIGHT, NORMAL, "|="},
 };
 
 struct Operator str_to_operator(const char * str, enum OP_mode mode, char * enclosed_flag);

@@ -8,6 +8,8 @@
 struct Operator * get_operator(const char * str, struct Token * token, enum OP_mode mode, char * enclosed_flag) {
     struct Operator * op = malloc(sizeof(struct Operator));
     *op = str_to_operator(str, mode, enclosed_flag);
+    if (op->key == OP_NOT_FOUND && mode == BINARY)
+        *op = str_to_operator(str, UNARY_POST, enclosed_flag);
 
     if (op->key == OP_NOT_FOUND) {
         print("[Parser]: {s} operator '{s}' not found: ", mode == BINARY ? "Binary" : "Unary", str);
@@ -47,7 +49,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
     struct Ast * node, * temp;
     struct List * expressions = init_list(sizeof(struct Ast *));
     
-    enum OP_mode mode = UNARY;
+    enum OP_mode mode = UNARY_PRE;
     struct Operator * op1, * op2;
 
     char enclosed_flag;
@@ -60,6 +62,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                     print_token("[Parser] Invalid expression token: {s}\n", parser->token);
                     exit(1);
                 }
+
                 list_push(output, parser_parse_id(parser));
                 mode = BINARY;
                 break;
@@ -128,7 +131,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
 
                 push_back(operators, op1);
 
-                mode = UNARY;
+                mode = op1->mode == UNARY_POST ? BINARY : UNARY_PRE;
                 parser_eat(parser, TOKEN_OP);
                 break;
             }
@@ -150,7 +153,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                     output = init_list(sizeof(struct Ast *));
                 }
 
-                mode = UNARY;
+                mode = UNARY_PRE;
                 parser_eat(parser, parser->token->type);
                 break;
             }
@@ -180,7 +183,9 @@ exit:
     }
 
     if (output->size != 1) {
-        logger_log("Invalid expression", PARSER, ERROR);
+        //print_ast_tree(list_at(output, 0));
+        logger_log(format("Invalid expression: {i}", output->size), PARSER, ERROR);
+        exit(1);
     } else {
         list_push(expressions, list_at(output, 0));
     }
