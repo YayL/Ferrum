@@ -29,6 +29,8 @@ void parser_eat(struct Parser * parser, enum token_t type);
 
 struct Ast * parser_parse(struct Ast * root, char * start_file);
 
+struct Ast * parser_parse_type(struct Parser * parser);
+
 struct Ast * parser_parse_if(struct Parser * parser);
 struct Ast * parser_parse_for(struct Parser * parser);
 struct Ast * parser_parse_while(struct Parser * parser);

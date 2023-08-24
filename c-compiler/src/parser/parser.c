@@ -22,8 +22,10 @@ struct Parser * init_parser(char * path) {
     parser->lexer = lexer;
     parser->error = 0;
     parser->prev = NULL;
-    parser->token = lexer_next_token(lexer);
 
+    lexer_next_token(lexer);
+    parser->token = lexer->tok;
+    
     return parser;
 }
 
@@ -37,7 +39,8 @@ void parser_eat(struct Parser * parser, enum token_t type) {
     }
 
     parser->prev = parser->token;
-    parser->token = lexer_next_token(parser->lexer);
+    lexer_next_token(parser->lexer);
+    parser->token = parser->lexer->tok;
 }
 
 struct Ast * parser_parse_int(struct Parser * parser) {
@@ -344,13 +347,13 @@ struct Ast * parser_parse_identifier(struct Parser * parser) {
     struct Keyword identifier = str_to_keyword(parser->token->value);
 
     if (identifier.flag != GLOBAL_ONLY && identifier.flag != ANY) {
-        println("[Parser]: {s} is not allowed in the module scope", parser->token);
+        print_token("[Parser]: {s} is not allowed in the module scope\n", parser->token);
         exit(1);
     }
 
     switch (identifier.key) {
         case OP_NOT_FOUND:
-            print_token("[Parser]: {s} is not a valid identifier", parser->token);
+            print_token("[Parser]: {s} is not a valid identifier\n", parser->token);
             exit(1);
         case FN:
             return parser_parse_function(parser);

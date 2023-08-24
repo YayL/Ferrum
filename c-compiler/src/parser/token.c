@@ -2,16 +2,17 @@
 
 #include "common/common.h"
 
-struct Token * init_token(char * value, unsigned int length, enum token_t type, unsigned int line, unsigned int pos) {
-
-	struct Token * token = malloc(sizeof(struct Token));
-	token->value = value;
-    token->length = length;
-	token->type = type;
-	token->line = line;
-	token->pos = pos;
-
+struct Token * init_token() {
+	struct Token * token = calloc(1, sizeof(struct Token));
 	return token;
+}
+
+void set_token(struct Token * tok, char * value, unsigned int length, enum token_t type, unsigned int line, unsigned int pos) {
+    tok->value = value;
+    tok->length = length;
+	tok->type = type;
+	tok->line = line;
+	tok->pos = pos;
 }
 
 const char* token_type_to_str(enum token_t type) {

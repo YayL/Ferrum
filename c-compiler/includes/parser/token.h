@@ -25,6 +25,8 @@ struct Token {
 	unsigned int line, pos;
 };
 
-struct Token * init_token(char * content, unsigned int length, enum token_t type, unsigned int line, unsigned int pos);
+struct Token * init_token();
+void set_token(struct Token * tok, char * value, unsigned int length, enum token_t type, unsigned int line, unsigned int pos);
+
 const char* token_type_to_str(enum token_t type);
 void print_token(const char * template, struct Token * token);
