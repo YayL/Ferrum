@@ -24,6 +24,7 @@ struct Generator {
     String * globals;
     String * current;
     int reg_count;
+    int block_count;
 };
 
 struct Generator * init_generator();

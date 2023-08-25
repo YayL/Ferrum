@@ -83,6 +83,9 @@ void checker_check_op(struct Ast * ast) {
         if (!is_declared_function(var->name, ast->scope)) {
             logger_log(format("Call to unknown function: '{s}'", var->name), CHECKER, WARN);
         }
+    } else if (op->op->key == TERNARY && ((a_op *) op->right->value)->op->key != TERNARY_BODY) {
+        logger_log("Detected an error with the ternary operator. This was most likely caused by operator precedence or nested ternary operators. To remedy this try applying parenthesis around the seperate ternary body entries", CHECKER, ERROR);
+        exit(1);
     } else if (op->left) {
         checker_check_expr_node(op->left);
     } 
@@ -93,11 +96,20 @@ void checker_check_op(struct Ast * ast) {
 }
 
 void checker_check_if(struct Ast * ast) {
+    a_if_statement * if_statement = ast->value;
+    
+    while (if_statement) {
+        if (if_statement->expression)
+            checker_check_expression(if_statement->expression);
+        checker_check_scope(if_statement->body);
 
+        if_statement = if_statement->next;
+    }
 }
 
 void checker_check_while(struct Ast * ast) {
-
+    println("while checker has not been implemented!");
+    exit(1);
 }
 
 void checker_check_expression(struct Ast * ast) {

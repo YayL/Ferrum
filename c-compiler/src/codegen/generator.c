@@ -38,6 +38,14 @@ char * get_operand(struct Generator * gen, struct Ast * ast) {
     }
 }
 
+void gen_block(String * str, int id) {
+    string_append(str, format("bb{i}:\n", id));
+}
+
+void gen_block_custom(String * str, int id, const char * extra) {
+    string_append(str, format("bb{i}_{s}:\n", id, extra));
+}
+
 void gen_allocate(String * str, int reg, char * type) {
     string_append(str, format("%{i} = alloca {s}\n", reg, type));
 }
@@ -61,8 +69,26 @@ void gen_store(String * str, int dest, char * value) {
     string_append(str, format("store i32 {s}, ptr %{i}\n", value, dest));
 }
 
+void gen_op_inst_left(String * str, char * inst, int res, int left, int right) {
+    char * fmt = format("%{i} = {s} i32 {i}, %{i}\n", res, inst, left, right);
+    string_append(str, fmt);
+    free(fmt);
+}
+
+void gen_op_inst_right(String * str, char * inst, int res, int left, int right) {
+    char * fmt = format("%{i} = {s} i32 %{i}, {i}\n", res, inst, left, right);
+    string_append(str, fmt);
+    free(fmt);
+}
+
 void gen_op_inst(String * str, char * inst, int res, int left, int right) {
     char * fmt = format("%{i} = {s} i32 %{i}, %{i}\n", res, inst, left, right);
+    string_append(str, fmt);
+    free(fmt);
+}
+
+void gen_zext(String * str, int res, char * type1, int src, char * type2) {
+    char * fmt = format("%{i} = zext {s} %{i} to {s}\n", res, type1, src, type2);
     string_append(str, fmt);
     free(fmt);
 }
@@ -140,15 +166,40 @@ void gen_op(struct Generator * gen, struct Ast * ast) {
     a_op * op = ast->value;
     
     switch (op->op->key) {
+        case PARENTHESES:
+            gen_expr(gen, op->right);
+            break;
         case CALL:
             gen_call(gen, ast);
             break; 
         case INCREMENT:
-            gen_op_inst(gen->current, "add", gen->reg_count++, 1, gen_expr_node(gen, op->right));
+        {
+            gen_op_inst_right(gen->current, "add", gen->reg_count++, gen_expr_node(gen, op->right), 1);
+            if (op->right->type != AST_VARIABLE) {
+                logger_log("Only variables can be incremented as of now", IR, ERROR);
+                exit(1);
+            }
+            a_variable * var = op->right->value;
+            if (op->op->mode == UNARY_POST) {
+                gen_load(gen, var->reg);
+            }
+            gen_store_variable(gen->current, var->reg, gen->reg_count - 2);
             break;
+        }
         case DECREMENT:
-            gen_op_inst(gen->current, "sub", gen->reg_count++, gen_expr_node(gen, op->right), 1);
+        {
+            gen_op_inst_right(gen->current, "sub", gen->reg_count++, gen_expr_node(gen, op->right), 1);
+            if (op->right->type != AST_VARIABLE) {
+                logger_log("Only variables can be incremented as of now", IR, ERROR);
+                exit(1);
+            }
+            a_variable * var = op->right->value;
+            if (op->op->mode == UNARY_POST) {
+                gen_load(gen, var->reg);
+            }
+            gen_store_variable(gen->current, var->reg, gen->reg_count - 2);
             break;
+        }
         case ADDITION:
             gen_op_inst(gen->current, "add", gen->reg_count++, gen_expr_node(gen, op->left), gen_expr_node(gen, op->right));
             break;
@@ -156,7 +207,7 @@ void gen_op(struct Generator * gen, struct Ast * ast) {
             gen_op_inst(gen->current, "sub", gen->reg_count++, gen_expr_node(gen, op->left), gen_expr_node(gen, op->right));
             break;
         case UNARY_MINUS:
-            gen_op_inst(gen->current, "sub", gen->reg_count++, 0, gen_expr_node(gen, op->right));
+            gen_op_inst_left(gen->current, "sub", gen->reg_count++, 0, gen_expr_node(gen, op->right));
             break;
         case DIVISION:
             gen_op_inst(gen->current, "sdiv", gen->reg_count++, gen_expr_node(gen, op->left), gen_expr_node(gen, op->right));
@@ -165,13 +216,17 @@ void gen_op(struct Generator * gen, struct Ast * ast) {
             gen_op_inst(gen->current, "mul", gen->reg_count++, gen_expr_node(gen, op->left), gen_expr_node(gen, op->right));
             break;
         case LOGICAL_NOT:
-            gen_op_inst(gen->current, "icmp eq", gen->reg_count++, 0, gen_expr_node(gen, op->right));
+            gen_op_inst_left(gen->current, "icmp eq", gen->reg_count++, 0, gen_expr_node(gen, op->right));
+            gen_zext(gen->current, gen->reg_count++, "i1", gen->reg_count - 1, "i32");
             break;
         case BITWISE_NOT:
-            gen_op_inst(gen->current, "sub nsw", gen->reg_count++, 0, gen_expr_node(gen, op->right));
+            gen_op_inst_left(gen->current, "sub nsw", gen->reg_count++, 0, gen_expr_node(gen, op->right));
             break;
         case ASSIGNMENT:
             gen_store_variable(gen->current, ((a_variable *) op->left->value)->reg, gen_expr_node(gen, op->right));
+            break;
+        case EQUAL:
+            gen_op_inst(gen->current, "icmp eq", gen->reg_count++, gen_expr_node(gen, op->left), gen_expr_node(gen, op->right));
             break;
         default:
             println("missed op: {s}", op->op->str);
@@ -179,6 +234,38 @@ void gen_op(struct Generator * gen, struct Ast * ast) {
 }
 
 void gen_if(struct Generator * gen, struct Ast * ast) {
+    a_if_statement * if_statement = ast->value; 
+    int id = gen->block_count;
+
+    while (if_statement) {
+        if (if_statement->expression) {
+            gen_expr(gen, if_statement->expression);
+            string_append(gen->current, format("br i1 %{i}, label %bb{i}, label %bb{i}\n", gen->reg_count - 1, gen->block_count, gen->block_count + 1));
+            gen_block(gen->current, gen->block_count++);
+            gen_scope(gen, if_statement->body);
+            string_append(gen->current, format("br label %bb{i}_end\n", id));
+            gen_block(gen->current, gen->block_count++);
+            if_statement = if_statement->next;
+        } else {
+            gen_scope(gen, if_statement->body);
+            string_append(gen->current, format("br label %bb{i}_end\n", id));
+            break;
+        }
+    }
+
+    gen_block_custom(gen->current, id, "end");
+
+}
+
+void gen_for(struct Generator * gen, struct Ast * ast) {
+    a_for_statement * for_statement = ast->value;
+    int id = gen->block_count;
+    
+    string_append(gen->current, format("br label %bb{i}_start\n", id));
+    gen_block_custom(gen->current, id, "start");
+
+    string_append(gen->current, format("br label %bb{i}_end\n", id));
+    gen_block_custom(gen->current, id, "end");
 
 }
 
@@ -199,7 +286,7 @@ void gen_expr(struct Generator * gen, struct Ast * ast) {
     }
 }
 
-void gen_scope(struct Generator * gen, struct Ast * ast) {
+void gen_scope_bb(struct Generator * gen, struct Ast * ast, char use_bb, int id, const char * extra) {
     struct Ast * node;
     a_scope * scope = ast->value;
 
@@ -207,6 +294,10 @@ void gen_scope(struct Generator * gen, struct Ast * ast) {
 
     for (int i = 0; i < scope->variables->size; ++i) {
         gen_allocate_variable(gen->current, gen, list_at(scope->variables, i));
+    }
+
+    if (use_bb) {
+        gen_block_custom(gen->current, id, extra);
     }
 
     for (int i = 0; i < scope->nodes->size; ++i) {
@@ -221,6 +312,9 @@ void gen_scope(struct Generator * gen, struct Ast * ast) {
             case AST_IF:
                 gen_if(gen, node);
                 break;
+            case AST_FOR:
+                gen_for(gen, node);
+                break;
             case AST_WHILE:
                 gen_while(gen, node);
                 break;
@@ -229,6 +323,10 @@ void gen_scope(struct Generator * gen, struct Ast * ast) {
                 break;
         }
     }
+}
+
+void gen_scope(struct Generator * gen, struct Ast * ast) {
+    gen_scope_bb(gen, ast, 0, 0, NULL);
 }
 
 void gen_function(struct Generator * gen, struct Ast * ast) {
@@ -240,6 +338,7 @@ void gen_function(struct Generator * gen, struct Ast * ast) {
     String * allocas = init_string(""),
            * stores = init_string("");
 
+    gen->block_count = 0;
     gen->reg_count = func->arguments->size;
 
     for (int i = 0; i < func->arguments->size; ++i) {

@@ -376,7 +376,7 @@ void print_ast(const char * template, struct Ast * ast) {
         case AST_OP:
         {
             a_op * op = ast->value;
-            ast_str = format("{s} " GREY "<" BLUE "Op" RESET ": '{s}', " BLUE "Mode" RESET ": {s}" GREY ">" RESET, ast_str, op->op ? op->op->str : "(NULL)", op->op->mode == UNARY ? "Unary" : "Binary");
+            ast_str = format("{s} " GREY "<" BLUE "Op" RESET ": '{s}', " BLUE "Mode" RESET ": {s}" GREY ">" RESET, ast_str, op->op ? op->op->str : "(NULL)", op->op->mode == BINARY ? "Binary" : "Unary");
             break;
         }
         case AST_VARIABLE:

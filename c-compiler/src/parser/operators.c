@@ -26,7 +26,7 @@ void print_operator(const char * template, struct Operator * operator) {
     char * op_str = format("<op='{s}', precedence='{u}', mode='{s}', enclosed='{b}', associativity='{s}'>",
                             operator->str,
                             operator->precedence,
-                            operator->mode == UNARY ? "Unary" : "Binary",
+                            operator->mode == BINARY ? "Binary" : "Unary",
                             operator->enclosed == ENCLOSED,
                             operator->associativity == LEFT ? "Left" : "Right"
                             );
