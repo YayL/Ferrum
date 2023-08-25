@@ -13,6 +13,7 @@ struct Lexer * init_lexer(char * src, size_t length) {
     lexer->c = src[0];
     lexer->pos = lexer->line = 1;
     lexer->index = 0;
+    lexer->tok = init_token();
 
     return lexer;
 }
@@ -46,7 +47,6 @@ void lexer_update(struct Lexer * lexer, unsigned int increment) {
 
 
 void lexer_skip_whitespace(struct Lexer * lexer) {
-
     while (1) {
         switch (lexer->c) {
             case ' ':
@@ -59,7 +59,6 @@ void lexer_skip_whitespace(struct Lexer * lexer) {
         }
         lexer_advance(lexer);
     }
-
 }
 
 
@@ -73,7 +72,7 @@ char lexer_peek(struct Lexer * lexer, unsigned int offset) {
 }
 
 
-struct Token * lexer_parse_id(struct Lexer * lexer) {
+void lexer_parse_id(struct Lexer * lexer) {
     const unsigned int _start = lexer->pos;
     unsigned int start_index = lexer->index, length;
     char * id;
@@ -90,14 +89,15 @@ struct Token * lexer_parse_id(struct Lexer * lexer) {
     memcpy(id, lexer->src + start_index, length);
     id[length] = 0;
 
-    if (str_to_operator(id, OP_TYPE_ANY, NULL).key != OP_NOT_FOUND)
-        return init_token(id, length + 1, TOKEN_OP, lexer->line, _start);
-
-    return init_token(id, length + 1, TOKEN_ID, lexer->line, _start);
+    if (str_to_operator(id, OP_TYPE_ANY, NULL).key != OP_NOT_FOUND) {
+        set_token(lexer->tok, id, length + 1, TOKEN_OP, lexer->line, _start);
+    } else {
+        set_token(lexer->tok, id, length + 1, TOKEN_ID, lexer->line, _start);
+    }
 }
 
 
-struct Token * lexer_parse_string_literal(struct Lexer * lexer) {
+void lexer_parse_string_literal(struct Lexer * lexer) {
     const unsigned int _start = lexer->pos;
 	int start = lexer->index + 1, end = start;
 
@@ -120,12 +120,12 @@ struct Token * lexer_parse_string_literal(struct Lexer * lexer) {
 
     lexer_update(lexer, length + 1); // add one for the extra " at the end
 
-	return init_token(string, length + 1, TOKEN_STRING_LITERAL, lexer->line, _start);
+	set_token(lexer->tok, string, length + 1, TOKEN_STRING_LITERAL, lexer->line, _start);
 
 }
 
 
-struct Token * lexer_parse_int(struct Lexer * lexer) {
+void lexer_parse_int(struct Lexer * lexer) {
     unsigned int _start = lexer->pos;
 
 	char * number_string = malloc(0);
@@ -144,11 +144,11 @@ struct Token * lexer_parse_int(struct Lexer * lexer) {
 
     lexer_update(lexer, length - 1);
 
-	return init_token(number_string, length + 1, TOKEN_INT, lexer->line, _start);
+	set_token(lexer->tok, number_string, length + 1, TOKEN_INT, lexer->line, _start);
 }
 
 
-struct Token * lexer_parse_multi_line_comment(struct Lexer * lexer) {
+void lexer_parse_multi_line_comment(struct Lexer * lexer) {
     char prev;
 
     while(lexer->c != EOF) {
@@ -161,14 +161,13 @@ struct Token * lexer_parse_multi_line_comment(struct Lexer * lexer) {
         prev = lexer->c;
         lexer_advance(lexer);
     }
-
     lexer_advance(lexer); // go past '/'
 
-	return lexer_next_token(lexer);
+	lexer_next_token(lexer);
 }
 
 
-struct Token * lexer_parse_single_line_comment(struct Lexer * lexer) {
+void lexer_parse_single_line_comment(struct Lexer * lexer) {
     unsigned int offset = 0;
 
     while(lexer_peek(lexer, ++offset) != '\n' 
@@ -176,10 +175,10 @@ struct Token * lexer_parse_single_line_comment(struct Lexer * lexer) {
 
     lexer_update(lexer, offset);
 
-    return lexer_next_token(lexer);
+    lexer_next_token(lexer);
 }
 
-struct Token * lexer_parse_operator(struct Lexer * lexer) {
+void lexer_parse_operator(struct Lexer * lexer) {
     unsigned int _start = lexer->pos;
     size_t length = 0;
     char * str = malloc(0);
@@ -213,21 +212,16 @@ op_loop:
             break;
     }
     str[length] = 0;
-    return init_token(str, length + 1, TOKEN_OP, lexer->line, _start);
+    set_token(lexer->tok, str, length + 1, TOKEN_OP, lexer->line, _start);
 }
 
-struct Token * lexer_advance_with(struct Lexer * lexer, struct Token * token) {
+void lexer_advance_current(struct Lexer * lexer, enum token_t type) {
     lexer_advance(lexer);
-    return token;
+    set_token(lexer->tok, NULL, 0, type, lexer->line, lexer->pos);
 }
 
 
-struct Token * lexer_advance_current(struct Lexer * lexer, enum token_t type) {
-    return lexer_advance_with(lexer, init_token(NULL, 0, type, lexer->line, lexer->pos));
-}
-
-
-struct Token * lexer_next_token(struct Lexer * lexer) {
+void lexer_next_token(struct Lexer * lexer) {
     
     struct Token * token, * next;
     char peek;
@@ -235,34 +229,44 @@ struct Token * lexer_next_token(struct Lexer * lexer) {
 
     switch (lexer->c) {
         case (0):
+            set_token(lexer->tok, NULL, 0, TOKEN_EOF, lexer->line, lexer->pos);
             break;
         case '\n':
             lexer->pos = 0;
             lexer->line += 1;
-            return lexer_advance_current(lexer, TOKEN_LINE_BREAK);
+            lexer_advance_current(lexer, TOKEN_LINE_BREAK);
+            break;
         case '{':
-            return lexer_advance_current(lexer, TOKEN_LBRACE);
+            lexer_advance_current(lexer, TOKEN_LBRACE);
+            break;
         case '}':
-            return lexer_advance_current(lexer, TOKEN_RBRACE);
+            lexer_advance_current(lexer, TOKEN_RBRACE);
+            break;
         case ',':
             return lexer_advance_current(lexer, TOKEN_COMMA);
         case ';':
-            return lexer_advance_current(lexer, TOKEN_SEMI);
+            lexer_advance_current(lexer, TOKEN_SEMI);
+            break;
         case '"':
-            return lexer_advance_with(lexer, lexer_parse_string_literal(lexer));
+            lexer_parse_string_literal(lexer);
+            lexer_advance(lexer);
+            break;
         case '\'':
             return lexer_advance_current(lexer, TOKEN_SINGLE_QUOTE);
         case '\\':
             return lexer_advance_current(lexer, TOKEN_BACKSLASH);
         case '/':
-            // TODO:
-            // Comments do not appear to be removed so fix that
             peek = lexer_peek(lexer, 1);
-            
-            if (peek == '/')
-                return lexer_advance_with(lexer, lexer_parse_single_line_comment(lexer));
-            else if (peek == '*')
-                return lexer_advance_with(lexer, lexer_parse_multi_line_comment(lexer));
+            if (peek == '/') {
+                lexer_parse_single_line_comment(lexer);
+                lexer_advance(lexer);
+                break;
+            } else if (peek == '*') {
+                lexer_parse_multi_line_comment(lexer);
+                lexer_advance(lexer);
+                break;
+            }
+
         case '+':
         case '-':
         case '=':
@@ -282,20 +286,23 @@ struct Token * lexer_next_token(struct Lexer * lexer) {
         case '!':
         case '?':
         case '|':
-            return lexer_parse_operator(lexer);
+            lexer_parse_operator(lexer);
+            break;
         default:
             if (isalpha(lexer->c) || lexer->c == '_') {
-                return lexer_advance_with(lexer, lexer_parse_id(lexer));
+                lexer_parse_id(lexer);
+                lexer_advance(lexer);
+                break;
             }
 
             if (isdigit(lexer->c)) {
-                return lexer_advance_with(lexer, lexer_parse_int(lexer));
+                lexer_parse_int(lexer);
+                lexer_advance(lexer);
+                break;
             }
 
             println("\n[Lexer]: Unexpected characther: {c}({u})", lexer->c, lexer->c);
             exit(1);
 
     }
-
-    return init_token(NULL, 0, TOKEN_EOF, lexer->line, lexer->pos);
 }

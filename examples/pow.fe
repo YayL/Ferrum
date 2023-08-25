@@ -1,18 +1,16 @@
-fn pow(base: i32, pow: i32) -> i64 {
-    
-    let a = 2 + 2
-
+fn pow(base: i32, exp: i32) -> i32 {
     if base == 0 {
         return 0
-    } else if (pow == 0) {
+    } else if (base == 1 || pow == 0) {
         return 1
     }
     
-    let res: i64 = base, i : i32
-    
-    for i = 0; i < pow; ++i {
-        res *= base
-    }
+    let pow: i32 = base
+    let i: i32 = base ? 2 : 0
 
-    return res
+    for (i = 0; i < pow; ++i) {
+        pow *= base
+    }
+    
+    pow
 }
