@@ -5,6 +5,7 @@
 #include "parser/lexer.h"
 #include "parser/keywords.h"
 #include "parser/operators.h"
+#include "codegen/checker.h"
 
 #include "common/deque.h"
 
@@ -15,6 +16,7 @@ typedef struct Parser {
     struct Token * token;
     struct Token * prev;
     struct Ast * root;
+    struct Ast * current_scope;
     char * path;
     char error;
 } * Parser;
@@ -37,6 +39,7 @@ struct Ast * parser_parse_while(struct Parser * parser);
 struct Ast * parser_parse_do(struct Parser * parser);
 struct Ast * parser_parse_match(struct Parser * parser);
 struct Ast * parser_parse_return(struct Parser * parser);
+struct Ast * parser_parse_declaration(struct Parser * parser, enum Keywords keyword);
 
 struct Ast * parser_parse_function(struct Parser * parser);
 struct Ast * parser_parse_package(struct Parser * parser);

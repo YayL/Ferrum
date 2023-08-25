@@ -6,19 +6,20 @@
 #define AST_TREE_PRINT_CHILDREN(list, pstring) for (int i = 0; i < list->size; ++i){ _print_ast_tree(list_at(list, i), pstring, 1, i+1 == list->size);}
 
 #define RESET ANSI_START "0m"
-#define RED ANSI_START "38:2:198:56:53m" ANSI_START "1m"
-#define GREEN ANSI_START "32;1m"
+#define BOLD ANSI_START "1m"
+#define RED ANSI_START "38:2:198:56:53m" BOLD
+#define GREEN ANSI_START "38:2:81:172:56m" BOLD
 #define YELLOW ANSI_START "33;1m"
-#define BLUE ANSI_START "38:2:19:96:178m" ANSI_START "1m"
+#define BLUE ANSI_START "38:2:19:96:178m" BOLD
 #define MAGENTA ANSI_START "35;1m"
 #define CYAN ANSI_START "36;1m"
 #define WHITE ANSI_START "37;1m"
 #define GREY ANSI_START "38:2:125:125:125m"
 
-struct Ast * init_ast(enum AST_type type) {
+struct Ast * init_ast(enum AST_type type, struct Ast * scope) {
     struct Ast * ast = malloc(sizeof(struct Ast));
     ast->type = type;
-    ast->scope = NULL;
+    ast->scope = scope;
     ast->value = init_ast_of_type(type);
 
     return ast;
@@ -363,7 +364,7 @@ void print_ast(const char * template, struct Ast * ast) {
         case AST_FUNCTION:
         {
             a_function * func = ast->value;
-            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Arguments" RESET ": {i}" GREY ">" RESET, ast_str, func->name, func->arguments->size);
+            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {s}," BLUE "Arguments" RESET ": {i}" GREY ">" RESET, ast_str, func->name, func->type, func->arguments->size);
             break;
         }
         case AST_SCOPE:
@@ -375,7 +376,7 @@ void print_ast(const char * template, struct Ast * ast) {
         case AST_OP:
         {
             a_op * op = ast->value;
-            ast_str = format("{s} " GREY "<" BLUE "Op" RESET ": '{s}', " BLUE "Mode" RESET ": {s}" GREY ">" RESET, ast_str, op->op ? op->op->str : "(NULL)", op->op->mode == UNARY ? "Unary" : "Binary");
+            ast_str = format("{s} " GREY "<" BLUE "Op" RESET ": '{s}', " BLUE "Mode" RESET ": {s}" GREY ">" RESET, ast_str, op->op ? op->op->str : "(NULL)", op->op->mode == BINARY ? "Binary" : "Unary");
             break;
         }
         case AST_VARIABLE:
@@ -395,6 +396,12 @@ void print_ast(const char * template, struct Ast * ast) {
         {
             a_literal * literal = ast->value;
             ast_str = format("{s} " GREY "<" BLUE "Type" RESET ": Number, " BLUE "Value" RESET ": {s}" GREY ">" RESET, ast_str, literal->value);
+            break;
+        }
+        case AST_DECLARATION:
+        {
+            a_declaration * declaration = ast->value;
+            ast_str = format("{s} " GREY "<" BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, declaration->is_const ? "Variable" : "Constant");
             break;
         }
         default:

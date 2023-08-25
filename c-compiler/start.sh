@@ -4,7 +4,7 @@ cd ./build
 if [ "$1" == "c" ] ; then
 	rm -rf CMakeFiles
 	rm CMakeCache.txt
-	cmake -DCMAKE_BUILD_TYPE=Debug ..
+	cmake -D CMAKE_BUILD_TYPE=Debug ..
 	make
 else
     set -e
