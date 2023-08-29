@@ -74,8 +74,14 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                 mode = BINARY;
                 break;
             }
+            case TOKEN_STRING_LITERAL:
+            {
+                list_push(output, parser_parse_string(parser));
+                mode = BINARY;
+            } break;
             case TOKEN_OP:
             {
+_TOKEN_OPERATORS:
                 op1 = get_operator(parser->token->value, parser->token, mode, &enclosed_flag);
 
                 if (op1->enclosed == ENCLOSED) {
@@ -113,7 +119,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                         }
                        
                         pop_back(operators);
-                        parser_eat(parser, TOKEN_OP);
+                        parser_eat(parser, parser->token->type);
                         goto exit;
                     }
                 }
@@ -132,7 +138,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                 push_back(operators, op1);
 
                 mode = op1->mode == UNARY_POST ? BINARY : UNARY_PRE;
-                parser_eat(parser, TOKEN_OP);
+                parser_eat(parser, parser->token->type);
                 break;
             }
             case TOKEN_SEMI:
@@ -155,14 +161,33 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
 
                 mode = UNARY_PRE;
                 parser_eat(parser, parser->token->type);
+            } break;
+            case TOKEN_SLASH:
+            case TOKEN_PLUS:
+            case TOKEN_MINUS:
+            case TOKEN_EQUAL:
+            case TOKEN_LESS_THAN:
+            case TOKEN_GREATER_THAN:
+            case TOKEN_LPAREN:
+            case TOKEN_RPAREN:
+            case TOKEN_COLON:
+            case TOKEN_ASTERISK:
+            case TOKEN_CARET:
+            case TOKEN_AMPERSAND:
+            case TOKEN_TILDA:
+            case TOKEN_DOT:
+            case TOKEN_PERCENT:
+            case TOKEN_EXCLAMATION_MARK:
+            case TOKEN_QUESTION_MARK:
+            case TOKEN_VERTICAL_LINE:
+                lexer_parse_operator(parser->lexer);
                 break;
-            }
             case TOKEN_LINE_BREAK:
                 if (parser->prev->type == TOKEN_BACKSLASH)
                     break;
             case TOKEN_EOF:
-            case TOKEN_LBRACE:
-            case TOKEN_RBRACE:
+            case TOKEN_LBRACKET:
+            case TOKEN_RBRACKET:
                 goto exit;
             default:
                 print_token("[Parser]: Unrecognized token in expression\n{s}\n", parser->token);

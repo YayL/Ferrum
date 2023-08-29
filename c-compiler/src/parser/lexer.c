@@ -180,37 +180,45 @@ void lexer_parse_single_line_comment(struct Lexer * lexer) {
 
 void lexer_parse_operator(struct Lexer * lexer) {
     unsigned int _start = lexer->pos;
-    size_t length = 0;
-    char * str = malloc(0);
-op_loop:
-    switch (lexer->c) {
-        case '/':
-        case '+':
-        case '-':
-        case '=':
-        case '<':
-        case '>':
-        case '(':
-        case ')':
-        case '[':
-        case ']':
-        case ':':
-        case '*':
-        case '^':
-        case '&':
-        case '~':
-        case '.':
-        case '%':
-        case '!':
-        case '?':
-        case '|':
-            str = realloc(str, (length + 2) * sizeof(char));
-            str[length++] = lexer->c;
-            lexer_advance(lexer);
-            goto op_loop;
-        default:
-            break;
+    size_t length = 1;
+    char * str = malloc((length + 1) * sizeof(char));
+    str[0] = lexer_peek(lexer, -1);
+    char loop = 1;
+
+    println("{2c:, }", lexer_peek(lexer, -1), lexer->c);
+
+    while(loop) {
+        switch (lexer->c) {
+            case '/':
+            case '+':
+            case '-':
+            case '=':
+            case '<':
+            case '>':
+            case '(':
+            case ')':
+            case '[':
+            case ']':
+            case ':':
+            case '*':
+            case '^':
+            case '&':
+            case '~':
+            case '.':
+            case '%':
+            case '!':
+            case '?':
+            case '|':
+                str = realloc(str, (length + 1) * sizeof(char)); // length + 2 for our new characther
+                str[length++] = lexer->c;
+                lexer_advance(lexer);
+                break;
+            default:
+                loop = 0;
+                break;
+        }
     }
+
     str[length] = 0;
     set_token(lexer->tok, str, length + 1, TOKEN_OP, lexer->line, _start);
 }
@@ -237,22 +245,21 @@ void lexer_next_token(struct Lexer * lexer) {
             lexer_advance_current(lexer, TOKEN_LINE_BREAK);
             break;
         case '{':
-            lexer_advance_current(lexer, TOKEN_LBRACE);
+            lexer_advance_current(lexer, TOKEN_LBRACKET);
             break;
         case '}':
-            lexer_advance_current(lexer, TOKEN_RBRACE);
+            lexer_advance_current(lexer, TOKEN_RBRACKET);
             break;
         case ',':
             return lexer_advance_current(lexer, TOKEN_COMMA);
         case ';':
             lexer_advance_current(lexer, TOKEN_SEMI);
             break;
+        case '\'':
         case '"':
             lexer_parse_string_literal(lexer);
             lexer_advance(lexer);
             break;
-        case '\'':
-            return lexer_advance_current(lexer, TOKEN_SINGLE_QUOTE);
         case '\\':
             return lexer_advance_current(lexer, TOKEN_BACKSLASH);
         case '/':
@@ -267,27 +274,44 @@ void lexer_next_token(struct Lexer * lexer) {
                 break;
             }
 
-        case '+':
+            return lexer_advance_current(lexer, TOKEN_PLUS);
         case '-':
+            return lexer_advance_current(lexer, TOKEN_MINUS);
         case '=':
+            return lexer_advance_current(lexer, TOKEN_EQUAL);
         case '<':
+            return lexer_advance_current(lexer, TOKEN_LESS_THAN);
         case '>':
+            return lexer_advance_current(lexer, TOKEN_GREATER_THAN);
         case '(':
+            return lexer_advance_current(lexer, TOKEN_LPAREN);
         case ')':
+            return lexer_advance_current(lexer, TOKEN_RPAREN);
         case '[':
+            return lexer_advance_current(lexer, TOKEN_LBRACKET);
         case ']':
+            return lexer_advance_current(lexer, TOKEN_RBRACKET);
         case ':':
+            return lexer_advance_current(lexer, TOKEN_COLON);
         case '*':
+            return lexer_advance_current(lexer, TOKEN_ASTERISK);
         case '^':
+            return lexer_advance_current(lexer, TOKEN_CARET);
         case '&':
+            return lexer_advance_current(lexer, TOKEN_AMPERSAND);
         case '~':
+            return lexer_advance_current(lexer, TOKEN_TILDA);
         case '.':
+            return lexer_advance_current(lexer, TOKEN_DOT);
         case '%':
+            return lexer_advance_current(lexer, TOKEN_PERCENT);
         case '!':
+            return lexer_advance_current(lexer, TOKEN_EXCLAMATION_MARK);
         case '?':
+            return lexer_advance_current(lexer, TOKEN_QUESTION_MARK);
         case '|':
-            lexer_parse_operator(lexer);
-            break;
+            return lexer_advance_current(lexer, TOKEN_VERTICAL_LINE);
+        case '+':
         default:
             if (isalpha(lexer->c) || lexer->c == '_') {
                 lexer_parse_id(lexer);

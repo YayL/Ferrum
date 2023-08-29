@@ -1,5 +1,6 @@
 #pragma once
 #include "parser/operators.h"
+#include "parser/types.h"
 
 #include "common/list.h"
 #include "common/string.h"
@@ -28,6 +29,8 @@ enum AST_type {
     AST_CONTINUE
 };
 
+typedef Type a_type;
+
 struct Ast {
     enum AST_type type;
     struct Ast * scope;
@@ -49,9 +52,8 @@ typedef struct a_module {
 typedef struct a_function {
     char * name;
     struct Ast * body;
-    // struct Ast * type; might implement at some point?
-    char * type;
-    struct List * arguments;
+    struct Ast * type;
+    struct Ast * arguments; // expression node
 } a_function;
 
 typedef struct a_scope {
@@ -76,22 +78,18 @@ typedef struct a_op {
 
 typedef struct a_variable {
     char * name;
-    // struct Ast * type; same as function here
+    struct Ast * type;
     unsigned int reg;
-    char * type;
     char is_const;
     char is_declared;
 } a_variable;
-
-typedef struct a_type {
-    char * name;
-} a_type;
 
 typedef struct a_literal {
     enum LITERAL_TYPE {
         NUMBER,
         STRING,
-    } type;
+    } literal_type;
+    struct Ast * type;
     char * value;
 } a_literal;
 

@@ -47,6 +47,7 @@ struct Ast * parser_parse_id(struct Parser * parser);
 struct Ast * parser_parse_operator(struct Parser * parser);
 
 struct Ast * parser_parse_int(struct Parser * parser);
+struct Ast * parser_parse_string(struct Parser * parser);
 struct Ast * parser_parse_operator(struct Parser * parser);
 struct Ast * parser_parse_statement(struct Parser * parser);
 

@@ -5,17 +5,6 @@
 #define AST_TREE_PADDING(comp) (comp ? PADDING_LIST_CHILDREN : PADDING_DIRECT_CHILD)
 #define AST_TREE_PRINT_CHILDREN(list, pstring) for (int i = 0; i < list->size; ++i){ _print_ast_tree(list_at(list, i), pstring, 1, i+1 == list->size);}
 
-#define RESET ANSI_START "0m"
-#define BOLD ANSI_START "1m"
-#define RED ANSI_START "38:2:198:56:53m" BOLD
-#define GREEN ANSI_START "38:2:81:172:56m" BOLD
-#define YELLOW ANSI_START "33;1m"
-#define BLUE ANSI_START "38:2:19:96:178m" BOLD
-#define MAGENTA ANSI_START "35;1m"
-#define CYAN ANSI_START "36;1m"
-#define WHITE ANSI_START "37;1m"
-#define GREY ANSI_START "38:2:125:125:125m"
-
 struct Ast * init_ast(enum AST_type type, struct Ast * scope) {
     struct Ast * ast = malloc(sizeof(struct Ast));
     ast->type = type;
@@ -86,7 +75,6 @@ void * init_ast_of_type(enum AST_type type) {
         case AST_TYPE:
         {
             a_type * type = calloc(1, sizeof(a_type));
-
             return type;
         }
         case AST_LITERAL:
@@ -215,11 +203,10 @@ void _print_ast_tree(struct Ast * ast, String * pad, char is_list, char is_last)
             a_function * func = ast->value;
             
             String * next_pad = string_copy(pad);
-            char flag = func->arguments->size != 0;
-            string_append(next_pad, AST_TREE_PADDING(flag));
-            AST_TREE_PRINT_CHILDREN(func->arguments, next_pad);
-            
-            _print_ast_tree(func->body, next_pad, flag, flag);
+            string_append(next_pad, AST_TREE_PADDING(1));
+
+            _print_ast_tree(func->arguments, next_pad, 1, 1);
+            _print_ast_tree(func->body, next_pad, 1, 1);
             free_string(&next_pad);
 
             break;

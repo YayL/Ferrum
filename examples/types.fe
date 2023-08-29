@@ -1,0 +1,26 @@
+struct List<T> {
+    const buf: &T
+    let size: u32
+    let capacity: u32
+    /*
+    */
+    fn (t: T) -> self {
+        
+    }
+
+    fn slice(self, start: i32, end: i32) -> [_]T {
+        self.buf[start..<end]
+    }
+}
+
+impl List<T> {
+    fn (t: T) -> self {
+        
+    }
+}
+
+fn main(argc: i32) -> u8 {
+    let list = List()
+
+    str.len() to u8
+}

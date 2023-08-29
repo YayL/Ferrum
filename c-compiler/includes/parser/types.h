@@ -8,10 +8,8 @@ typedef struct Type {
     void * ptr;
     enum intrinsic_type {
         INumeric, // isize, usize, fsize
-        IBool, // true or false
-        IPtr,
-        IRef,
         IArray,
+        IRef,
         IStruct,
         IEnum
     } intrinsic;
@@ -31,10 +29,22 @@ typedef struct Numeric_T {
     } type;
 } Numeric_T;
 
-typedef struct Struct_T {
+typedef struct Ref_T {
+    Type basetype;
+    char depth;
+} Ref_T;
+
+typedef struct Array_T {
+    Type basetype;
+    unsigned int size;
+} Array_T;
+
+typedef struct Product_T {
     struct List * fields;
-} Struct_T;
+} Product_T;
 
-Type * init_type();
+typedef struct Enum_T {
+    struct List * fields;
+} Enum_T;
 
-Type * get_type(const char * type_str);
+void * init_intrinsic_type(enum intrinsic_type type);

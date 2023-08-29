@@ -44,11 +44,43 @@ void parser_eat(struct Parser * parser, enum token_t type) {
 }
 
 struct Ast * parser_parse_int(struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_LITERAL, parser->current_scope);
-    a_literal * number = ast->value;
+    struct Ast * ast = init_ast(AST_LITERAL, parser->current_scope),
+               * type_info = init_ast(AST_TYPE, parser->current_scope);
+    Numeric_T * type = init_intrinsic_type(INumeric);
 
+    ASSERT1(ast->value != NULL);
+
+    a_literal * number = ast->value;
+    
     number->type = NUMBER;
     number->value = parser->token->value;
+
+    type->name = "i32";
+    type->size = 4;
+
+    type_info->value = type;
+    number->type_info = type_info;
+
+    parser_eat(parser, TOKEN_INT);
+     
+    return ast;
+}
+
+struct Ast * parser_parse_string(struct Parser * parser) {
+    struct Ast * ast = init_ast(AST_LITERAL, parser->current_scope),
+               * type_info = init_ast(AST_TYPE, parser->current_scope);
+    Type * type = init_intrinsic_type(IArray);
+
+    a_literal * number = ast->value;
+
+    number->type = STRING;
+    number->value = parser->token->value;
+
+    type->name = "[]u8";
+    type->size = parser->token->length;
+
+    type_info->value = type;
+    number->type_info = type_info;
 
     parser_eat(parser, TOKEN_INT);
 
@@ -63,18 +95,10 @@ struct Ast * parser_parse_id(struct Parser * parser) {
 
     parser_eat(parser, TOKEN_ID);
 
-    if (parser->token->type == TOKEN_OP && !strcmp(parser->token->value, ":")) {
-        parser_eat(parser, TOKEN_OP);
-        
-        // TODO: Parse type here
+    if (parser->token->type == TOKEN_COLON) {
+        parser_eat(parser, TOKEN_COLON);
 
-        if (parser->token->type != TOKEN_ID) {
-            print_token("[Parser] Unexepected variable type: {s}\n", parser->token);
-            exit(1);
-        }
-
-        variable->type = parser->token->value;
-        parser_eat(parser, TOKEN_ID);
+        variable->type = parser_parse_type(parser);
     }
 
     if (get_variable(ast))
@@ -235,20 +259,20 @@ struct Ast * parser_parse_scope(struct Parser * parser) {
     a_scope * scope = ast->value;
     parser->current_scope = ast;
     
-    parser_eat(parser, TOKEN_LBRACE);
+    parser_eat(parser, TOKEN_LBRACKET);
 
     while (1) {
         while (parser->token->type == TOKEN_LINE_BREAK)
             parser_eat(parser, TOKEN_LINE_BREAK);
         
-        if (parser->token->type == TOKEN_RBRACE)
+        if (parser->token->type == TOKEN_RBRACKET)
             break;
 
         statement = parser_parse_statement(parser);
         list_push(scope->nodes, statement);
     }
 
-    parser_eat(parser, TOKEN_RBRACE);
+    parser_eat(parser, TOKEN_RBRACKET);
     parser->current_scope = ast->scope;
 
     return ast;
@@ -265,31 +289,13 @@ struct Ast * parser_parse_function(struct Parser * parser) {
 
     function->name = parser->token->value;
     parser_eat(parser, TOKEN_ID);
-    parser_eat(parser, TOKEN_OP);
+    parser_eat(parser, TOKEN_LPAREN);
 
-    // replace this with an expression call (perhaps?)
-
-function_loop: 
-    {
-        argument = init_ast(AST_VARIABLE, parser->current_scope);
-        ((a_variable *) argument->value)->name = parser->token->value;
-        
-        parser_eat(parser, TOKEN_ID);
-        parser_eat(parser, TOKEN_OP);
-
-        ((a_variable *) argument->value)->type = parser->token->value;
-        parser_eat(parser, TOKEN_ID);
-
-        list_push(function->arguments, argument);
-
-        if (parser->token->type == TOKEN_COMMA) {
-            parser_eat(parser, TOKEN_COMMA);
-            goto function_loop;
-        }
-    }
+    function->arguments = parser_parse_expr(parser);
     
-    parser_eat(parser, TOKEN_OP);
-    parser_eat(parser, TOKEN_OP);
+    parser_eat(parser, TOKEN_RPAREN);
+    parser_eat(parser, TOKEN_MINUS);
+    parser_eat(parser, TOKEN_GREATER_THAN);
 
     function->type = parser->token->value;
 

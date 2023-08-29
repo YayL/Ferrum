@@ -1,8 +1,6 @@
-fn main(argc: i32) -> i32 {
-    let a: i32 = 3
-    let b: i32 = a * 2 - add(argc, 2)
+fn main(argc: i32) -> u8 {
+    let a = argc * 2
 
-    b
+    a
 }
 
-fn add(a: i32, b: i32) -> i32 { a + b }
