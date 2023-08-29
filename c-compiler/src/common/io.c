@@ -12,24 +12,20 @@ FILE * open_file (const char * filename, const char * options) {
 char* read_file(const char * filename, size_t * length) {
 
 	FILE * fp;
-	char * line = NULL, * buffer = NULL;
-    size_t temp = 0;
+	char * buffer;
+    size_t size;
 
 	fp = open_file(filename, "rb");	
+    fseek(fp, 0, SEEK_END);
+    size = ftell(fp);
+    rewind(fp);
 
-	buffer = malloc(sizeof(char));
-	buffer[0] = 0;
-
-	while (getline(&line, length, fp) != -1) {
-        temp += *length;
-		buffer = format("{2s}", buffer, line);
-	}
-
-	fclose(fp);
-	if (line)
-		free(line);
+	buffer = malloc((size + 1) * sizeof(char));
     
-    *length = temp;
+    fread_unlocked(buffer, sizeof(char), size, fp);
+	fclose(fp);
+    
+    *length = size;
 
 	return buffer;
 }
