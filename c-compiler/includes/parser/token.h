@@ -17,6 +17,7 @@ struct Token {
         TOKEN_GREATER_THAN,
         TOKEN_LPAREN,
         TOKEN_RPAREN,
+        TOKEN_UNDERSCORE,
         TOKEN_LBRACKET,
         TOKEN_RBRACKET,
         TOKEN_COLON,

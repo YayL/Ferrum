@@ -28,6 +28,7 @@ const char* token_type_to_str(enum token_t type) {
         case TOKEN_GREATER_THAN: return "TOKEN_GREATER_THAN";
         case TOKEN_LPAREN: return "TOKEN_LPAREN";
         case TOKEN_RPAREN: return "TOKEN_RPAREN";
+        case TOKEN_UNDERSCORE: return "TOKEN_UNDERSCORE";
         case TOKEN_LBRACKET: return "TOKEN_LBRACKET";
         case TOKEN_RBRACKET: return "TOKEN_RBRACKET";
         case TOKEN_COLON: return "TOKEN_COLON";
@@ -50,7 +51,7 @@ const char* token_type_to_str(enum token_t type) {
 		
 		case TOKEN_COMMENT: return "TOKEN_COMMENT";
         case TOKEN_LINE_BREAK: return "TOKEN_LINE_BREAK";
-	    }
+	}
 	return "UNDEFINED";
 }
 

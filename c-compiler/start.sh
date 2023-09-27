@@ -9,7 +9,11 @@ if [ "$1" == "c" ] ; then
 else
     set -e
 	make
+    set +e
 	cd ..
+    rm coredump.* &> /dev/null # rm coredump.* > /dev/null 2>&1
     echo "-------------------------------------------------"
+    set -e
 	./build/compiler $1 $2 $3
+    set +e
 fi

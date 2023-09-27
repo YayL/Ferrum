@@ -23,7 +23,8 @@ struct Operator str_to_operator(const char * str, enum OP_mode mode, char * encl
 }
 
 void print_operator(const char * template, struct Operator * operator) {
-    char * op_str = format("<op='{s}', precedence='{u}', mode='{s}', enclosed='{b}', associativity='{s}'>",
+    char * op_str = format("<op=({i})'{s}', precedence='{u}', mode='{s}', enclosed='{b}', associativity='{s}'>",
+                            operator->key,
                             operator->str,
                             operator->precedence,
                             operator->mode == BINARY ? "Binary" : "Unary",

@@ -332,6 +332,7 @@ void gen_scope(struct Generator * gen, struct Ast * ast) {
 void gen_function(struct Generator * gen, struct Ast * ast) {
     struct Ast * node;
     a_function * func = ast->value;
+    a_expr * arguments = func->arguments;
     
     string_append(gen->current, format("define dso_local {s:type} @{s:name}(", func->type, func->name));
     
@@ -339,15 +340,15 @@ void gen_function(struct Generator * gen, struct Ast * ast) {
            * stores = init_string("");
 
     gen->block_count = 0;
-    gen->reg_count = func->arguments->size;
+    gen->reg_count = arguments->children->size;
 
-    for (int i = 0; i < func->arguments->size; ++i) {
-        node = list_at(func->arguments, i);
-        a_variable * argument = list_at(func->arguments, i);
+    for (int i = 0; i < arguments->children->size; ++i) {
+        node = list_at(arguments->children, i);
+        a_variable * argument = node->value;
         argument->reg = i;
         string_append(gen->current, format("{s:comma or not}{s:type} noundef %{i:ID}", i == 0 ? "" : ", ", func->type, i));
         gen_allocate_variable(allocas, gen, node);
-        gen_store_variable(stores, func->arguments->size + i, i);
+        gen_store_variable(stores, gen->reg_count + i, i);
     }
     
     string_append(gen->current, ") {\nentry:\n");

@@ -44,22 +44,22 @@ void parser_eat(struct Parser * parser, enum token_t type) {
 }
 
 struct Ast * parser_parse_int(struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_LITERAL, parser->current_scope),
-               * type_info = init_ast(AST_TYPE, parser->current_scope);
-    Numeric_T * type = init_intrinsic_type(INumeric);
+    struct Ast * ast = init_ast(AST_LITERAL, parser->current_scope);
 
     ASSERT1(ast->value != NULL);
 
     a_literal * number = ast->value;
     
-    number->type = NUMBER;
     number->value = parser->token->value;
+    number->literal_type = NUMBER;
+    number->type = init_ast(AST_TYPE, parser->current_scope);
+
+    Numeric_T * numeric = init_intrinsic_type(INumeric);
+    a_type * type = number->type->value;
 
     type->name = "i32";
     type->size = 4;
-
-    type_info->value = type;
-    number->type_info = type_info;
+    type->intrinsic = INumeric;
 
     parser_eat(parser, TOKEN_INT);
      
@@ -67,23 +67,25 @@ struct Ast * parser_parse_int(struct Parser * parser) {
 }
 
 struct Ast * parser_parse_string(struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_LITERAL, parser->current_scope),
-               * type_info = init_ast(AST_TYPE, parser->current_scope);
-    Type * type = init_intrinsic_type(IArray);
+    struct Ast * ast = init_ast(AST_LITERAL, parser->current_scope);
+    Numeric_T * numeric = init_intrinsic_type(IArray);
+
+    ASSERT1(ast->value != NULL);
 
     a_literal * number = ast->value;
-
-    number->type = STRING;
+    
     number->value = parser->token->value;
+    number->literal_type = STRING;
+    number->type = init_ast(AST_TYPE, parser->current_scope);
 
-    type->name = "[]u8";
-    type->size = parser->token->length;
+    a_type * type = number->type->value;
 
-    type_info->value = type;
-    number->type_info = type_info;
+    type->name = "[]u32";
+    type->size = 4;
+    type->intrinsic = IArray;
 
-    parser_eat(parser, TOKEN_INT);
-
+    parser_eat(parser, TOKEN_STRING_LITERAL);
+     
     return ast;
 }
 
@@ -281,7 +283,8 @@ struct Ast * parser_parse_scope(struct Parser * parser) {
 struct Ast * parser_parse_function(struct Parser * parser) {
     
     struct Ast * ast = init_ast(AST_FUNCTION, parser->current_scope), 
-               * argument;
+               * argument,
+               * op_ast;
     struct a_function * function = ast->value;
     parser->current_scope = ast;
 
@@ -289,17 +292,23 @@ struct Ast * parser_parse_function(struct Parser * parser) {
 
     function->name = parser->token->value;
     parser_eat(parser, TOKEN_ID);
-    parser_eat(parser, TOKEN_LPAREN);
-
-    function->arguments = parser_parse_expr(parser);
     
-    parser_eat(parser, TOKEN_RPAREN);
+    parser_eat(parser, TOKEN_LPAREN);
+    function->arguments = parser_parse_expr_exit_on(parser, PARENTHESES);
+
+    char error_flag = parser->error;
+    parser->error = 0;
+
     parser_eat(parser, TOKEN_MINUS);
     parser_eat(parser, TOKEN_GREATER_THAN);
 
-    function->type = parser->token->value;
+    if (parser->error) {
+        logger_log("Function identifier without an arrow", PARSER, ERROR);
+        exit(1);
+    }
+    parser->error = error_flag;
 
-    parser_eat(parser, TOKEN_ID);
+    function->type = parser_parse_type(parser);
 
     function->body = parser_parse_scope(parser);
     parser->current_scope = ast->scope;

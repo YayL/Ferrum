@@ -2,28 +2,68 @@
 
 struct Ast * parser_parse_type(struct Parser * parser) {
     struct Ast * ast = init_ast(AST_TYPE, parser->current_scope);
-    a_type * type = ast->value;
+    a_type * type = calloc(1, sizeof(Type)),
+           * ref_type = NULL,
+           * arr_type = NULL;
 
     String * value = init_string("");
     unsigned int pos = 0;
     String temp;
-    
-    /* do { */
-    /*     temp._ptr = parser->token->value; */
-    /*     temp.size = parser->token->length; */
-    /*     string_concat(value, &temp); */
-    /*      */
-    /*     pos = parser->token->pos + parser->token->length - 1; */
-    /*     parser_eat(parser, parser->token->type); */
-    /* } while (pos == parser->token->pos); */
-    
-    println("{s}", parser->token->value);
 
-    if (parser->token->type == TOKEN_OP && parser->token->value[0] == '&') {
-        type->ptr = init_intrinsic_type(IRef);
+    Ref_T * ref_t = NULL;
+    Array_T * arr_t = NULL;
+        
+    if (parser->token->type == TOKEN_AMPERSAND) {
+        parser_eat(parser, TOKEN_AMPERSAND);
+        ref_t = init_intrinsic_type(IRef);
+
+        while (parser->token->type == TOKEN_AMPERSAND) {
+            parser_eat(parser, TOKEN_AMPERSAND);
+            ref_t->depth++;
+        }
+
+        ref_type = calloc(1, sizeof(Type));
+        ref_type->intrinsic = IRef;
+        ref_type->ptr = ref_t;
     }
 
-    println("Type: {s}", value->_ptr);
+    if (parser->token->type == TOKEN_LBRACKET) {
+        arr_t = init_intrinsic_type(IArray);
+        parser_eat(parser, TOKEN_LBRACKET);
+
+        arr_t->basetype = type;
+        arr_t->size = -1;
+        
+        if (parser->token->type == TOKEN_INT) {
+            arr_t->size = atoi(parser->token->value);
+            parser_eat(parser, TOKEN_INT);
+        } else if (parser->token->type == TOKEN_UNDERSCORE) {
+            logger_log("Slices have not been implemented yet", PARSER, ERROR);
+            exit(1);
+        } else {
+            arr_t->size = -1;
+        }
+
+        parser_eat(parser, TOKEN_RBRACKET);
+
+        arr_type = calloc(1, sizeof(Type));
+        arr_type->intrinsic = IArray;
+        arr_type->ptr = arr_t;
+    }
+    
+    type->name = parser->token->value;
+    parser_eat(parser, TOKEN_ID);
+    
+    ast->value = type;
+
+    if (arr_type != NULL) {
+        ast->value = arr_type;
+    }
+
+    if (ref_type != NULL) {
+        ref_t->basetype = ast->value;
+        ast->value = ref_type;
+    }
 
     return ast;
 }

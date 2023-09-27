@@ -33,12 +33,7 @@ void * init_ast_of_type(enum AST_type type) {
         }
         case AST_FUNCTION:
         {
-            a_function * function = malloc(sizeof(a_function));
-
-            function->body = NULL;
-            function->type = NULL;
-            function->arguments = init_list(sizeof(struct Ast *));
-
+            a_function * function = calloc(1, sizeof(a_function));
             return function;
         }
         case AST_SCOPE:
@@ -75,6 +70,7 @@ void * init_ast_of_type(enum AST_type type) {
         case AST_TYPE:
         {
             a_type * type = calloc(1, sizeof(a_type));
+
             return type;
         }
         case AST_LITERAL:
@@ -335,6 +331,8 @@ void print_ast_tree(struct Ast * ast) {
     free_string(&string);
 }
 
+#define get_type_str(ast) (ast != NULL ? ((a_type *) ast->value)->name : "(NULL)")
+
 void print_ast(const char * template, struct Ast * ast) {
 	const char * type_str = ast_type_to_str_ast(ast);
 	const char * scope = ast_type_to_str_ast(ast->scope);
@@ -351,7 +349,7 @@ void print_ast(const char * template, struct Ast * ast) {
         case AST_FUNCTION:
         {
             a_function * func = ast->value;
-            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {s}," BLUE "Arguments" RESET ": {i}" GREY ">" RESET, ast_str, func->name, func->type, func->arguments->size);
+            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, func->name, get_type_str(func->type));
             break;
         }
         case AST_SCOPE:
@@ -369,8 +367,7 @@ void print_ast(const char * template, struct Ast * ast) {
         case AST_VARIABLE:
         {
             a_variable * var = ast->value;
-            const char * var_type = (var->type == NULL) ? "(NULL)" : var->type; // ((a_type *)var->type->value)->name; 
-            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, var->name, var_type);
+            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, var->name, get_type_str(var->type));
             break;
         }
         case AST_TYPE:

@@ -7,6 +7,7 @@ enum Operators {
     OP_NOT_FOUND,
     PARENTHESES,
     BRACKETS,
+    ARROW,
 
     INCREMENT,
     DECREMENT,
@@ -103,7 +104,7 @@ const static struct Operator {
     {DECREMENT, UNARY_POST, 1, LEFT, NORMAL, "--"},
 
     {MEMBER_ACCESS, BINARY, 1, LEFT, NORMAL, "."},
-    {MEMBER_ACCESS_PTR, BINARY, 1, LEFT, NORMAL, "->"},
+    {ARROW, BINARY, 1, LEFT, NORMAL, "->"},
     {CALL, BINARY, 1, LEFT, ENCLOSED, "(\0)"},
     {SUBSCRIPT, BINARY, 1, LEFT, ENCLOSED, "[\0]"},
     

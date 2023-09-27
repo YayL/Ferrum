@@ -185,8 +185,6 @@ void lexer_parse_operator(struct Lexer * lexer) {
     str[0] = lexer_peek(lexer, -1);
     char loop = 1;
 
-    println("{2c:, }", lexer_peek(lexer, -1), lexer->c);
-
     while(loop) {
         switch (lexer->c) {
             case '/':
@@ -285,6 +283,8 @@ void lexer_next_token(struct Lexer * lexer) {
             return lexer_advance_current(lexer, TOKEN_GREATER_THAN);
         case '(':
             return lexer_advance_current(lexer, TOKEN_LPAREN);
+        case '_':
+            return lexer_advance_current(lexer, TOKEN_UNDERSCORE);
         case ')':
             return lexer_advance_current(lexer, TOKEN_RPAREN);
         case '[':
@@ -312,6 +312,7 @@ void lexer_next_token(struct Lexer * lexer) {
         case '|':
             return lexer_advance_current(lexer, TOKEN_VERTICAL_LINE);
         case '+':
+            return lexer_advance_current(lexer, TOKEN_PLUS);
         default:
             if (isalpha(lexer->c) || lexer->c == '_') {
                 lexer_parse_id(lexer);

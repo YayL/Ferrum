@@ -30,12 +30,12 @@ typedef struct Numeric_T {
 } Numeric_T;
 
 typedef struct Ref_T {
-    Type basetype;
+    Type * basetype;
     char depth;
 } Ref_T;
 
 typedef struct Array_T {
-    Type basetype;
+    Type * basetype;
     unsigned int size;
 } Array_T;
 

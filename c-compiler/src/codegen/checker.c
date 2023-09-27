@@ -20,7 +20,10 @@ struct Ast * get_variable(struct Ast * variable) {
             }
             case AST_FUNCTION:
             {
-                list = ((a_function *) scope->value)->arguments;
+                ast = ((a_function *) scope->value)->arguments;
+                if (ast == NULL)
+                    return NULL;
+                list = ((a_expr *) ast->value)->children;
                 break;
             }
             default:
@@ -29,11 +32,13 @@ struct Ast * get_variable(struct Ast * variable) {
                 exit(1);
             }
         }
-
-        for (int i = 0; i < list->size; ++i) {
-            ast = list_at(list, i);
-            if (!strcmp(((a_variable *) ast->value)->name, ((a_variable *) variable->value)->name))
-                return ast;
+        
+        if (list != NULL) {
+            for (int i = 0; i < list->size; ++i) {
+                ast = list_at(list, i);
+                if (!strcmp(((a_variable *) ast->value)->name, ((a_variable *) variable->value)->name))
+                    return ast;
+            }
         }
 
         scope = scope->scope;
@@ -229,9 +234,11 @@ void checker_check_declaration(struct Ast * ast) {
 void checker_check_function(struct Ast * ast) {
     struct Ast * node;
     a_function * function = ast->value;
+    a_expr * arguments = function->arguments->value;
 
-    for (int i = 0; i < function->arguments->size; ++i) {
-        node = list_at(function->arguments, i);
+    for (int i = 0; i < arguments->children->size; ++i) {
+        node = list_at(arguments->children, i);
+        ASSERT(node->type == AST_VARIABLE, "Function arguments currently only support variable definition");
         ((a_variable *) node->value)->is_declared = 1;
         checker_check_variable(node);
     }

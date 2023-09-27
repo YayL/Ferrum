@@ -1,13 +1,9 @@
 #include "parser/parser.h"
 
-// TODO:
-//
-// Make all operators have a left and right side (well unless they are unary of course)
-// so that it is easier to recognize LHS and RHS for assignments[??]
-
 struct Operator * get_operator(const char * str, struct Token * token, enum OP_mode mode, char * enclosed_flag) {
     struct Operator * op = malloc(sizeof(struct Operator));
     *op = str_to_operator(str, mode, enclosed_flag);
+
     if (op->key == OP_NOT_FOUND && mode == BINARY)
         *op = str_to_operator(str, UNARY_POST, enclosed_flag);
 
@@ -45,7 +41,7 @@ void consume_add_operator(struct Operator * op, struct List * list, struct Parse
     list_push(list, ast);
 }
 
-struct List * _parser_parse_expr(struct Parser * parser, struct List * output, struct Deque * operators) {
+struct List * _parser_parse_expr(struct Parser * parser, struct List * output, struct Deque * operators, enum Operators EXIT_ON_KEY) {
     struct Ast * node, * temp;
     struct List * expressions = init_list(sizeof(struct Ast *));
     
@@ -82,6 +78,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
             case TOKEN_OP:
             {
 _TOKEN_OPERATORS:
+                // enclosed flag is true if enclosed operator is the closing enclosing operator
                 op1 = get_operator(parser->token->value, parser->token, mode, &enclosed_flag);
 
                 if (op1->enclosed == ENCLOSED) {
@@ -101,7 +98,7 @@ _TOKEN_OPERATORS:
                             list_pop(output);
                         }
                         
-                        ((a_expr *) temp->value)->children = _parser_parse_expr(parser, temp_l, temp_d);
+                        ((a_expr *) temp->value)->children = _parser_parse_expr(parser, temp_l, temp_d, -1);
                         ((a_op *) node->value)->right = temp;
                         
                         list_push(output, node);
@@ -110,6 +107,10 @@ _TOKEN_OPERATORS:
                         break;
                     } else {
                         while (strcmp(op1->str, (op2 = deque_back(operators))->str)) {
+                            if (op2->key == EXIT_ON_KEY) {
+                                ASSERT(sizeof(op1->key) != (sizeof(op_conversion) / sizeof(op_conversion[0])), "Possibly invalid EXIT_ON_KEY:");
+                                goto exit;
+                            }
                             if (operators->size == 1) {
                                 print_token("[Parser] Unmatched enclosed operator: {s}\n", parser->token);
                                 exit(1);
@@ -219,17 +220,32 @@ exit:
 
 }
 
-struct Ast * parser_parse_expr(struct Parser * parser) {
+struct Ast * parser_parse_expr_exit_on(struct Parser * parser, enum Operators op) {
     struct Ast * ast = init_ast(AST_EXPR, parser->current_scope);
 
     struct List * output = init_list(sizeof(struct Ast *));
     struct Deque * operators = init_deque(sizeof(struct Operator *));
 
-    ((a_expr *) ast->value)->children = _parser_parse_expr(parser, output, operators);
+    if (op != -1) {
+        struct Operator * temp_operator = malloc(sizeof(struct Operator));
+        for (int i = 0; i < (sizeof(op_conversion) / sizeof(struct Operator)); ++i) {
+            if (op == op_conversion[i].key) {
+                *temp_operator = op_conversion[i];
+                break;
+            }
+        }
+        push_front(operators, temp_operator);
+    }
+
+    ((a_expr *) ast->value)->children = _parser_parse_expr(parser, output, operators, op);
 
     if (parser->prev->type == TOKEN_SEMI) {
         print_token("[Warning] Unnecessary semicolon\n{s}\n", parser->prev);
     }
 
     return ast;
+}
+
+struct Ast * parser_parse_expr(struct Parser * parser) {
+    return parser_parse_expr_exit_on(parser, -1);
 }
