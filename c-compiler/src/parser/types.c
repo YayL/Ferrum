@@ -16,6 +16,7 @@ struct Ast * parser_parse_type(struct Parser * parser) {
     if (parser->token->type == TOKEN_AMPERSAND) {
         parser_eat(parser, TOKEN_AMPERSAND);
         ref_t = init_intrinsic_type(IRef);
+        ref_t->depth = 1;
 
         while (parser->token->type == TOKEN_AMPERSAND) {
             parser_eat(parser, TOKEN_AMPERSAND);
@@ -93,3 +94,31 @@ void * init_intrinsic_type(enum intrinsic_type type) {
     }
 }
 
+char * type_to_str(a_type * type) {
+    switch (type->intrinsic) {
+        case INumeric:
+        case IStruct:
+        case IEnum:
+        {
+            return type->name;
+        }
+        case IArray:
+        {
+            Array_T * array = type->ptr;
+            return format("[]{s}", type_to_str(array->basetype));
+        }
+        case IRef:
+        {
+            Ref_T * ref = type->ptr;
+            char * buf = malloc(sizeof(char) * (ref->depth + 1));
+            
+            int i = 0;
+            while (i < ref->depth) {
+                buf[i++] = '&';
+            }
+            buf[i] = 0;
+
+            return format("{2s}", buf, type_to_str(ref->basetype));
+        }
+    }
+}

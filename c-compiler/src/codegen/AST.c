@@ -180,6 +180,9 @@ void _print_ast_tree(struct Ast * ast, String * pad, char is_list, char is_last)
         }
         case AST_MODULE:
         {
+#ifdef SHALLOW_PRINT
+            break;
+#endif
             a_module * module = ast->value;
 
             String * next_pad = string_copy(pad);
@@ -331,7 +334,7 @@ void print_ast_tree(struct Ast * ast) {
     free_string(&string);
 }
 
-#define get_type_str(ast) (ast != NULL ? ((a_type *) ast->value)->name : "(NULL)")
+#define get_type_str(ast) (ast != NULL ? type_to_str((a_type *) ast->value) : "(NULL)")
 
 void print_ast(const char * template, struct Ast * ast) {
 	const char * type_str = ast_type_to_str_ast(ast);
@@ -385,7 +388,7 @@ void print_ast(const char * template, struct Ast * ast) {
         case AST_DECLARATION:
         {
             a_declaration * declaration = ast->value;
-            ast_str = format("{s} " GREY "<" BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, declaration->is_const ? "Variable" : "Constant");
+            ast_str = format("{s} " GREY "<" BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, declaration->is_const ? "Constant" : "Variable");
             break;
         }
         default:

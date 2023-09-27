@@ -181,14 +181,16 @@ _TOKEN_OPERATORS:
             case TOKEN_EXCLAMATION_MARK:
             case TOKEN_QUESTION_MARK:
             case TOKEN_VERTICAL_LINE:
+            case TOKEN_LBRACKET:
+            case TOKEN_RBRACKET:
                 lexer_parse_operator(parser->lexer);
                 break;
             case TOKEN_LINE_BREAK:
                 if (parser->prev->type == TOKEN_BACKSLASH)
                     break;
             case TOKEN_EOF:
-            case TOKEN_LBRACKET:
-            case TOKEN_RBRACKET:
+            case TOKEN_LBRACE:
+            case TOKEN_RBRACE:
                 goto exit;
             default:
                 print_token("[Parser]: Unrecognized token in expression\n{s}\n", parser->token);

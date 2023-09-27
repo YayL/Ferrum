@@ -1,4 +1,6 @@
-fn main (argc: i32, argv: String) -> u8 {
+//package "math"
+
+fn main (argc: i32, argv: &[]String) -> u8 {
     let a: i32 = argc
 
     *a = 2

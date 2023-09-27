@@ -48,3 +48,4 @@ typedef struct Enum_T {
 } Enum_T;
 
 void * init_intrinsic_type(enum intrinsic_type type);
+char * type_to_str(Type * type);

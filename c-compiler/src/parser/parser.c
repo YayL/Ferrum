@@ -172,13 +172,8 @@ struct Ast * parser_parse_while(struct Parser * parser) {
     struct Ast * ast = init_ast(AST_WHILE, parser->current_scope);
     a_while_statement * while_statement = ast->value;
     
-    while_statement->expression = parser_parse_expr(parser);
-
-    // while without an expression
-    if (while_statement->expression->type != AST_CALL) {
-        print_token("[Parser] Invalid while statement: {s}\n", while_token);
-        exit(1);
-    }
+    if (parser->token->type != TOKEN_LBRACE)
+        while_statement->expression = parser_parse_expr(parser);
     
     while_statement->body = parser_parse_scope(parser);
 
@@ -261,20 +256,20 @@ struct Ast * parser_parse_scope(struct Parser * parser) {
     a_scope * scope = ast->value;
     parser->current_scope = ast;
     
-    parser_eat(parser, TOKEN_LBRACKET);
+    parser_eat(parser, TOKEN_LBRACE);
 
     while (1) {
         while (parser->token->type == TOKEN_LINE_BREAK)
             parser_eat(parser, TOKEN_LINE_BREAK);
         
-        if (parser->token->type == TOKEN_RBRACKET)
+        if (parser->token->type == TOKEN_RBRACE)
             break;
 
         statement = parser_parse_statement(parser);
         list_push(scope->nodes, statement);
     }
 
-    parser_eat(parser, TOKEN_RBRACKET);
+    parser_eat(parser, TOKEN_RBRACE);
     parser->current_scope = ast->scope;
 
     return ast;
@@ -331,8 +326,21 @@ struct Ast * parser_parse_package(struct Parser * parser) {
     path = format("{4s}", path, "/", parser->token->value, ".fe");
     parser->path[last] = '/';
 
-    println("[Info] Added package '{s}' at '{s}'", parser->token->value, path);
-    parser_eat(parser, TOKEN_STRING_LITERAL);
+    if (parser->token->type == TOKEN_ID) {
+        parser_eat(parser, TOKEN_ID);
+    } else if (parser->token->type == TOKEN_STRING_LITERAL) {
+        parser_eat(parser, TOKEN_STRING_LITERAL);
+    } else {
+        logger_log("Invalid package format. Correct format:\npackage \"LOCAL_PATH_HERE\"\nor\npackage FILE_NAME_HERE", PARSER, ERROR);
+        exit(1);
+    }
+
+    if (parser->token->type != TOKEN_LINE_BREAK) {
+        logger_log(format("Invalid package format. Correct format:\npackage \"LOCAL_PATH_HERE\"\nor\npackage FILE_NAME_HERE"), PARSER, ERROR);
+        exit(1);
+    }
+
+    println("[Info] Added package '{s}' at '{s}'", parser->prev->value, path);
 
     a_module * temp;
     a_root * root = parser->root->value;

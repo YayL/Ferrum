@@ -243,10 +243,10 @@ void lexer_next_token(struct Lexer * lexer) {
             lexer_advance_current(lexer, TOKEN_LINE_BREAK);
             break;
         case '{':
-            lexer_advance_current(lexer, TOKEN_LBRACKET);
+            lexer_advance_current(lexer, TOKEN_LBRACE);
             break;
         case '}':
-            lexer_advance_current(lexer, TOKEN_RBRACKET);
+            lexer_advance_current(lexer, TOKEN_RBRACE);
             break;
         case ',':
             return lexer_advance_current(lexer, TOKEN_COMMA);

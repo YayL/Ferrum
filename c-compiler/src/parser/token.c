@@ -28,7 +28,6 @@ const char* token_type_to_str(enum token_t type) {
         case TOKEN_EOF: return "TOKEN_EOF";
 		case TOKEN_ID: return "TOKEN_ID";
         case TOKEN_OP: return "TOKEN_OP";
-
         case TOKEN_PLUS: return "TOKEN_PLUS";
         case TOKEN_MINUS: return "TOKEN_MINUS";
         case TOKEN_EQUAL: return "TOKEN_EQUAL";
@@ -39,6 +38,8 @@ const char* token_type_to_str(enum token_t type) {
         case TOKEN_UNDERSCORE: return "TOKEN_UNDERSCORE";
         case TOKEN_LBRACKET: return "TOKEN_LBRACKET";
         case TOKEN_RBRACKET: return "TOKEN_RBRACKET";
+        case TOKEN_LBRACE: return "TOKEN_LBRACE";
+        case TOKEN_RBRACE: return "TOKEN_RBRACE";
         case TOKEN_COLON: return "TOKEN_COLON";
         case TOKEN_SEMI: return "TOKEN_SEMI";
         case TOKEN_COMMA: return "TOKEN_COMMA";
