@@ -113,8 +113,23 @@ void checker_check_if(struct Ast * ast) {
 }
 
 void checker_check_while(struct Ast * ast) {
-    println("while checker has not been implemented!");
-    exit(1);
+    a_while_statement * while_statement = ast->value;
+
+    checker_check_expression(while_statement->expression);
+    checker_check_scope(while_statement->body);
+}
+
+void checker_check_for(struct Ast * ast) {
+    a_for_statement * for_statement = ast->value;
+
+    checker_check_expression(for_statement->expression);
+    checker_check_scope(for_statement->body);
+}
+
+void checker_check_return(struct Ast * ast) {
+    a_return * return_statement = ast->value;
+
+    checker_check_expression(return_statement->expression);
 }
 
 void checker_check_expression(struct Ast * ast) {
@@ -123,7 +138,8 @@ void checker_check_expression(struct Ast * ast) {
 
     for (int i = 0; i < expr->children->size; ++i) {
         node = list_at(expr->children, i);
-        checker_check_expr_node(node);
+        if (node != NULL)
+            checker_check_expr_node(node);
     }
 
 }
@@ -161,6 +177,15 @@ void checker_check_scope(struct Ast * ast) {
                 break;
             case AST_WHILE:
                 checker_check_while(node);
+                break;
+            case AST_FOR:
+                checker_check_for(node);
+                break;
+            case AST_RETURN:
+                checker_check_return(node);
+                break;
+            default:
+                logger_log(format("Invalid scope node type: {s}\n", ast_type_to_str(node->type)), CHECKER, ERROR);
                 break;
         }
     }

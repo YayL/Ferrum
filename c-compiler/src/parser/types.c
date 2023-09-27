@@ -51,8 +51,8 @@ struct Ast * parser_parse_type(struct Parser * parser) {
         arr_type->ptr = arr_t;
     }
     
-    type->name = parser->token->value;
     parser_eat(parser, TOKEN_ID);
+    type->name = parser->prev->value;
     
     ast->value = type;
 

@@ -201,7 +201,7 @@ void _print_ast_tree(struct Ast * ast, String * pad, char is_list, char is_last)
             String * next_pad = string_copy(pad);
             string_append(next_pad, AST_TREE_PADDING(1));
 
-            _print_ast_tree(func->arguments, next_pad, 1, 1);
+            _print_ast_tree(func->arguments, next_pad, 1, 0);
             _print_ast_tree(func->body, next_pad, 1, 1);
             free_string(&next_pad);
 

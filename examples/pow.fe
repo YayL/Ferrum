@@ -1,14 +1,14 @@
 fn pow(base: i32, exp: i32) -> i32 {
     if base == 0 {
         return 0
-    } else if (base == 1 || pow == 0) {
+    } else if (base == 1 || exp == 0) {
         return 1
     }
     
     let pow: i32 = base
     let i: i32 = base ? 2 : 0
 
-    for (i = 0; i < pow; ++i) {
+    for (; i < pow; ++i) {
         pow *= base
     }
     

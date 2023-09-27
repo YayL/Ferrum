@@ -15,6 +15,14 @@ void set_token(struct Token * tok, char * value, unsigned int length, enum token
 	tok->pos = pos;
 }
 
+void copy_token(struct Token * dest, struct Token * src) {
+    dest->value = src->value;
+    dest->length = src->length;
+	dest->type = src->type;
+	dest->line = src->line;
+	dest->pos = src->pos;
+}
+
 const char* token_type_to_str(enum token_t type) {
 	switch(type) {
         case TOKEN_EOF: return "TOKEN_EOF";

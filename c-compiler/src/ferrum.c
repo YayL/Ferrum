@@ -37,13 +37,13 @@ void ferrum_compile(char * file_path) {
     parser_parse(ast, abs_path);
     time = stop_timer();
     total += time;
-    asprintf(&parser_time, LINE_BREAKER "\nTime for parser:\t%.3fms", (double)time / 1000);
+    asprintf(&parser_time, "Time for parser:\t%.3fms", (double)time / 1000);
 
-    /* start_timer(); */
-    /* checker_check(ast); */
-    /* time = stop_timer(); */
-    /* total += time; */
-    /* asprintf(&checker_time, LINE_BREAKER "\nTime for checker:\t%.3fms", (double)time / 1000); */
+    start_timer();
+    checker_check(ast);
+    time = stop_timer();
+    total += time;
+    asprintf(&checker_time, "Time for checker:\t%.3fms", (double)time / 1000);
 
     print_ast_tree(ast);
 
@@ -59,10 +59,12 @@ void ferrum_compile(char * file_path) {
     /* total += time; */
     /* asprintf(&optimization_time, LINE_BREAKER "\nTime for optimizer:\t%.3fms\n" LINE_BREAKER, (double)time / 1000); */
 
+    puts(LINE_BREAKER);
     puts(parser_time);
-    //puts(checker_time);
+    puts(checker_time);
     //puts(gen_time);
     //puts(optimization_time);
+    puts(LINE_BREAKER);
     printf("Total: %.3fms\n", (double)total / 1000);
 }
 

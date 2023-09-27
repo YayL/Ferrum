@@ -21,7 +21,7 @@ struct Parser * init_parser(char * path) {
     parser->path = path;
     parser->lexer = lexer;
     parser->error = 0;
-    parser->prev = NULL;
+    parser->prev = malloc(sizeof(struct Token));
 
     lexer_next_token(lexer);
     parser->token = lexer->tok;
@@ -38,7 +38,7 @@ void parser_eat(struct Parser * parser, enum token_t type) {
         parser->error = 1;
     }
 
-    parser->prev = parser->token;
+    copy_token(parser->prev, parser->token);
     lexer_next_token(parser->lexer);
     parser->token = parser->lexer->tok;
 }
