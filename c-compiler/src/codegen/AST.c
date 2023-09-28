@@ -212,13 +212,12 @@ void _print_ast_tree(struct Ast * ast, String * pad, char is_list, char is_last)
         }
         case AST_SCOPE:
         {
-            a_scope * scope = ast->value; 
-            
+            a_scope * scope = ast->value;     
             String * next_pad = string_copy(pad);
-            string_append(next_pad, AST_TREE_PADDING(scope->variables->size + scope->nodes->size > 1));
-            AST_TREE_PRINT_CHILDREN(scope->variables, next_pad);            
+            struct List * list = list_combine(scope->variables, scope->nodes);
 
-            AST_TREE_PRINT_CHILDREN(scope->nodes, next_pad);
+            string_append(next_pad, AST_TREE_PADDING(list->size > 1));
+            AST_TREE_PRINT_CHILDREN(list, next_pad);
             free_string(&next_pad);
 
             break;

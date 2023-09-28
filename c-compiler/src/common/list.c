@@ -75,7 +75,7 @@ void list_reserve(struct List * list, unsigned int additions) {
 
 }
 
-void * list_copy(struct List * list, size_t start, size_t end) {
+struct List * list_copy(struct List * list, size_t start, size_t end) {
 	struct List * copy = init_list(list->item_size);
 	if (list == NULL || list->size == 0) {
 		return copy;
@@ -89,4 +89,25 @@ void * list_copy(struct List * list, size_t start, size_t end) {
 	}
 
 	return copy;
+}
+
+struct List * list_combine(struct List * first, struct List * second) {
+    if (first->item_size != second->item_size) {
+        println("INVALID LIST COMBINE - sizes: first={u}, second={u}", first->item_size, second->item_size);
+        exit(1);
+    }
+
+    struct List * dest = init_list(first->item_size);
+    list_reserve(dest, first->size + second->size);
+    dest->size = dest->capacity;
+
+    for (int i = 0; i < first->size; ++i) {
+        dest->items[i] = first->items[i];
+    }
+
+    for (int i = 0; i < second->size; ++i) {
+        dest->items[i + first->size] = second->items[i];
+    }
+
+    return dest;
 }
