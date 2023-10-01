@@ -160,4 +160,6 @@ const static struct Operator {
 };
 
 struct Operator str_to_operator(const char * str, enum OP_mode mode, char * enclosed_flag);
+char is_operator(const char * str);
+
 void print_operator(const char * template, struct Operator * operator);

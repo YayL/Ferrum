@@ -180,45 +180,46 @@ void lexer_parse_single_line_comment(struct Lexer * lexer) {
 
 void lexer_parse_operator(struct Lexer * lexer) {
     unsigned int _start = lexer->pos;
-    size_t length = 1;
-    char * str = malloc((length + 1) * sizeof(char));
-    str[0] = lexer_peek(lexer, -1);
-    char loop = 1;
+    size_t offset = lexer->index, length = 1;
+    char c = lexer->c;
 
-    while(loop) {
-        switch (lexer->c) {
-            case '/':
-            case '+':
-            case '-':
-            case '=':
-            case '<':
-            case '>':
-            case '(':
-            case ')':
-            case '[':
-            case ']':
-            case ':':
-            case '*':
-            case '^':
-            case '&':
-            case '~':
-            case '.':
-            case '%':
-            case '!':
-            case '?':
-            case '|':
-                str = realloc(str, (length + 1) * sizeof(char)); // length + 2 for our new characther
-                str[length++] = lexer->c;
-                lexer_advance(lexer);
-                break;
-            default:
-                loop = 0;
-                break;
-        }
+loop_start:
+    switch (c) {
+        case '/':
+        case '+':
+        case '-':
+        case '=':
+        case '<':
+        case '>':
+        case '(':
+        case ')':
+        case '[':
+        case ']':
+        case ':':
+        case '*':
+        case '^':
+        case '&':
+        case '~':
+        case '.':
+        case '%':
+        case '!':
+        case '?':
+        case '|':
+            c = lexer->src[offset + 1];
+            lexer->src[offset + 1] = '\0'; 
+            if (is_operator(&lexer->src[lexer->index - 1]))
+                length = offset - lexer->index + 2;
+
+            lexer->src[++offset] = c;
+            goto loop_start;
     }
+    
+    char * str = malloc(sizeof(char) * (length + 1));
+    strncpy(str, &lexer->src[lexer->index - 1], length);
+    str[length] = '\0';
 
-    str[length] = 0;
-    set_token(lexer->tok, str, length + 1, TOKEN_OP, lexer->line, _start);
+    lexer_update(lexer, length - 1);
+    set_token(lexer->tok, str, length, TOKEN_OP, lexer->line, _start);
 }
 
 void lexer_advance_current(struct Lexer * lexer, enum token_t type) {

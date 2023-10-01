@@ -153,7 +153,7 @@ _TOKEN_OPERATORS:
                 if (output->size == 0) {
                     list_push(expressions, NULL);
                 }else if (output->size != 1) {
-                    logger_log("Uhoh it appears that there is an issue with commas?", PARSER, ERROR);
+                    logger_log("Uhoh it appears that there is an issue with commas? (expr.c)", PARSER, FATAL);
                     exit(1);
                 } else {
                     list_push(expressions, list_at(output, -1));

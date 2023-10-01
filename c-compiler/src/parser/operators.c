@@ -22,6 +22,17 @@ struct Operator str_to_operator(const char * str, enum OP_mode mode, char * encl
     return op_conversion[0];
 }
 
+char is_operator(const char * str) {
+    for (int i = 0; i < sizeof(op_conversion) / sizeof(op_conversion[0]); ++i) {
+        if (!strcmp(str, op_conversion[i].str)) {
+            println("found: {2s:=}", str, op_conversion[i].str);
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 void print_operator(const char * template, struct Operator * operator) {
     char * op_str = format("<op=({i})'{s}', precedence='{u}', mode='{s}', enclosed='{b}', associativity='{s}'>",
                             operator->key,
