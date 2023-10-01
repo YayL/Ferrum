@@ -63,6 +63,10 @@ char is_declared_function(char * name, struct Ast * scope) {
     return 0;
 }
 
+void checker_check_type(struct Ast * ast) {
+    
+}
+
 void checker_check_expr_node(struct Ast * ast) {
     switch (ast->type) {
         case AST_OP:

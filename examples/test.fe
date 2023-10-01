@@ -1,7 +1,7 @@
-//package "math"
+package math
 
-fn main (argc: i32, argv: &[]String) -> u8 {
-    let a: i32 = argc
+fn main (args: &[]String) -> u8 {
+    let a: i32 = ((*args)).count
 
     *a = 2
 

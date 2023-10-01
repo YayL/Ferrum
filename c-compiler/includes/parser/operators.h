@@ -96,7 +96,7 @@ const static struct Operator {
 } op_conversion [] = {
     {OP_NOT_FOUND, UNARY_PRE, 0, LEFT, NORMAL, ""},
     {PARENTHESES, UNARY_PRE, 0, LEFT, ENCLOSED, "(\0)"},
-    {BRACKETS, UNARY_PRE, 0, LEFT, ENCLOSED, "[\0]"},
+    //{BRACKETS, UNARY_PRE, 0, LEFT, ENCLOSED, "[\0]"},
     
     {INCREMENT, UNARY_PRE, 1, LEFT, NORMAL, "++"},
     {INCREMENT, UNARY_POST, 1, LEFT, NORMAL, "++"},
