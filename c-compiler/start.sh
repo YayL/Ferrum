@@ -11,9 +11,11 @@ elif [ "$1" == "p" ] ; then
 	make
     set +e
 	cd ..
+    rm callgrind.* &> /dev/null # rm callgrind.* > /dev/null 2>&1
     echo "-------------------------------------------------"
     set -e
-    valgrind --tool=callgrind --collect-systime=usec ./build/compiler $2
+    shift 1
+    valgrind --tool=callgrind --collect-systime=usec ./build/compiler "$@"
     qcachegrind
     set +e
 else
@@ -24,6 +26,6 @@ else
     rm coredump.* &> /dev/null # rm coredump.* > /dev/null 2>&1
     echo "-------------------------------------------------"
     set -e
-	./build/compiler $@
+	./build/compiler "$@"
     set +e
 fi

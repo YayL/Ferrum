@@ -24,6 +24,7 @@ char* read_file(const char * filename, size_t * length) {
     
     fread_unlocked(buffer, sizeof(char), size, fp);
 	fclose(fp);
+    buffer[size] = '\0';
     
     *length = size;
 

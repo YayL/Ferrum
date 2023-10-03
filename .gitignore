@@ -9,3 +9,4 @@
 
 /examples/*
 !/examples/*.fe
+/examples/*-long.fe
