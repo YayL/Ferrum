@@ -6,6 +6,16 @@ if [ "$1" == "c" ] ; then
 	rm CMakeCache.txt
 	cmake -D CMAKE_BUILD_TYPE=Debug ..
 	make
+elif [ "$1" == "p" ] ; then
+    set -e
+	make
+    set +e
+	cd ..
+    echo "-------------------------------------------------"
+    set -e
+    valgrind --tool=callgrind --collect-systime=usec ./build/compiler $2
+    qcachegrind
+    set +e
 else
     set -e
 	make
@@ -14,6 +24,6 @@ else
     rm coredump.* &> /dev/null # rm coredump.* > /dev/null 2>&1
     echo "-------------------------------------------------"
     set -e
-	./build/compiler $1 $2 $3
+	./build/compiler $@
     set +e
 fi

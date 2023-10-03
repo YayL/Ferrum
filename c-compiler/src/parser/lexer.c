@@ -20,19 +20,17 @@ struct Lexer * init_lexer(char * src, size_t length) {
 
 
 void lexer_advance(struct Lexer * lexer) {
-    if (lexer->index < lexer->size && lexer->c != EOF) {
-        lexer->c = lexer->src[++lexer->index];
-        lexer->pos++;
-        return;
+    if (lexer->c == EOF || lexer->size <= lexer->index) {
+        println("[Lexer]: End of file found while lexing: ");
+        println("Index = {u}, Size = {u}, C = {c}({i})", lexer->index, lexer->size, lexer->c, lexer->c);
+        for (unsigned int i = lexer->index - 10; i < lexer->index; ++i) {
+            putc(lexer->src[i], stdout);
+        }
+        exit(1);
     }
 
-    println("[Lexer]: End of file found while lexing: ");
-    println("Index = {u}, Size = {u}, C = {c}({i})", lexer->index, lexer->size, lexer->c, lexer->c);
-    for (unsigned int i = lexer->index - 10; i < lexer->index; ++i) {
-        putc(lexer->src[i], stdout);
-    }
-    exit(1);
-
+    lexer->c = lexer->src[++lexer->index];
+    lexer->pos++;
 }
 
 
@@ -42,7 +40,6 @@ void lexer_update(struct Lexer * lexer, unsigned int increment) {
         lexer_skip_whitespace(lexer);
         lexer_advance(lexer);
     }
-        
 }
 
 
@@ -88,12 +85,8 @@ void lexer_parse_id(struct Lexer * lexer) {
 
     memcpy(id, lexer->src + start_index, length);
     id[length] = 0;
-
-    if (str_to_operator(id, OP_TYPE_ANY, NULL).key != OP_NOT_FOUND) {
-        set_token(lexer->tok, id, length + 1, TOKEN_OP, lexer->line, _start);
-    } else {
-        set_token(lexer->tok, id, length + 1, TOKEN_ID, lexer->line, _start);
-    }
+    
+    set_token(lexer->tok, id, length + 1, is_operator(id) ? TOKEN_OP : TOKEN_ID, lexer->line, _start);
 }
 
 
@@ -161,7 +154,7 @@ void lexer_parse_multi_line_comment(struct Lexer * lexer) {
         prev = lexer->c;
         lexer_advance(lexer);
     }
-    lexer_advance(lexer); // go past '/'
+    lexer_advance(lexer); // advance past '/'
 
 	lexer_next_token(lexer);
 }
@@ -180,8 +173,10 @@ void lexer_parse_single_line_comment(struct Lexer * lexer) {
 
 void lexer_parse_operator(struct Lexer * lexer) {
     unsigned int _start = lexer->pos;
-    size_t offset = lexer->index, length = 1;
     char c = lexer->c;
+    lexer->src[lexer->index] = '\0';
+    size_t offset = lexer->index, length = is_operator(&lexer->src[lexer->index - 1]);
+    lexer->src[lexer->index] = c;
 
 loop_start:
     switch (c) {
@@ -213,6 +208,12 @@ loop_start:
             lexer->src[++offset] = c;
             goto loop_start;
     }
+
+    if (length == 0) {
+        lexer->src[offset] = '\0';
+        logger_log(format("Invalid operator '{s}'", &lexer->src[lexer->index - 1]), LEXER, ERROR);
+        exit(1);
+    }
     
     char * str = malloc(sizeof(char) * (length + 1));
     strncpy(str, &lexer->src[lexer->index - 1], length);
@@ -230,7 +231,6 @@ void lexer_advance_current(struct Lexer * lexer, enum token_t type) {
 
 void lexer_next_token(struct Lexer * lexer) {
     
-    struct Token * token, * next;
     char peek;
     lexer_skip_whitespace(lexer);
 

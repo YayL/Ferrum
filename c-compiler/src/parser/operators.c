@@ -9,8 +9,7 @@ struct Operator str_to_operator(const char * str, enum OP_mode mode, char * encl
             if (!strcmp(str, op_str)) {
                 *enclosed_flag = 0;
                 return op_conversion[i];
-            }
-            else if (!strcmp(str, op_str + strlen(op_str) + 1)) {
+            } else if (!strcmp(str, op_str + strlen(op_str) + 1)) {
                 *enclosed_flag = 1;
                 return op_conversion[i];
             }
@@ -25,7 +24,8 @@ struct Operator str_to_operator(const char * str, enum OP_mode mode, char * encl
 char is_operator(const char * str) {
     for (int i = 0; i < sizeof(op_conversion) / sizeof(op_conversion[0]); ++i) {
         if (!strcmp(str, op_conversion[i].str)) {
-            println("found: {2s:=}", str, op_conversion[i].str);
+            return op_conversion[i].key != OP_NOT_FOUND;
+        } else if (op_conversion[i].enclosed && !strcmp(str, op_conversion[i].str + strlen(op_conversion[i].str) + 1)) {
             return 1;
         }
     }

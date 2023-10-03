@@ -16,11 +16,7 @@ void set_token(struct Token * tok, char * value, unsigned int length, enum token
 }
 
 void copy_token(struct Token * dest, struct Token * src) {
-    dest->value = src->value;
-    dest->length = src->length;
-	dest->type = src->type;
-	dest->line = src->line;
-	dest->pos = src->pos;
+    memcpy(dest, src, sizeof(*dest));
 }
 
 const char* token_type_to_str(enum token_t type) {
