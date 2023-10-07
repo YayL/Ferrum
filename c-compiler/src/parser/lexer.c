@@ -209,14 +209,13 @@ void lexer_parse_operator(struct Lexer * lexer) {
     // check first characther and add valid answeres to arr
 
     for (int i = 0; i < sizeof(op_conversion) / sizeof(op_conversion[0]); ++i) {
-        op = op_conversion[i];
-        if (c == op.str[0]) {
-            if (op.str[1]) // if operator is longer than one char
+        if (c == op_conversion[i].str[0]) {
+            if (op_conversion[i].str[1]) // if operator is longer than one char
                 arr[arr_index++] = i;
             else
                 length = 1;
-        } else if (op.enclosed && c == op.str[op.enclosed_offset]) { // is enclosed operator and ending of enclosed matches char
-            if (op.str[op.enclosed_offset + 1])
+        } else if (op_conversion[i].enclosed && c == op_conversion[i].str[op_conversion[i].enclosed_offset]) { // is enclosed operator and ending of enclosed matches char
+            if (op_conversion[i].str[op_conversion[i].enclosed_offset + 1])
                 arr[arr_index++] = i;
             else
                 length = 1;
