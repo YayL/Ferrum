@@ -68,6 +68,34 @@ char lexer_peek(struct Lexer * lexer, unsigned int offset) {
     return 0;
 }
 
+char lexer_is_operator_char(char c) {
+    switch (c) {
+        case '/':
+        case '+':
+        case '-':
+        case '=':
+        case '<':
+        case '>':
+        case '(':
+        case ')':
+        case '[':
+        case ']':
+        case ':':
+        case '*':
+        case '^':
+        case '&':
+        case '~':
+        case '.':
+        case '%':
+        case '!':
+        case '?':
+        case '|':
+            return 1;
+    }
+    
+    return 0;
+}
+
 
 void lexer_parse_id(struct Lexer * lexer) {
     const unsigned int _start = lexer->pos;
@@ -172,45 +200,52 @@ void lexer_parse_single_line_comment(struct Lexer * lexer) {
 }
 
 void lexer_parse_operator(struct Lexer * lexer) {
-    unsigned int _start = lexer->pos;
-    char c = lexer->c;
-    lexer->src[lexer->index] = '\0';
-    size_t offset = lexer->index, length = is_operator(&lexer->src[lexer->index - 1]);
-    lexer->src[lexer->index] = c;
+    struct Operator op;
 
-loop_start:
-    switch (c) {
-        case '/':
-        case '+':
-        case '-':
-        case '=':
-        case '<':
-        case '>':
-        case '(':
-        case ')':
-        case '[':
-        case ']':
-        case ':':
-        case '*':
-        case '^':
-        case '&':
-        case '~':
-        case '.':
-        case '%':
-        case '!':
-        case '?':
-        case '|':
-            c = lexer->src[offset + 1];
-            lexer->src[offset + 1] = '\0'; 
-            if (is_operator(&lexer->src[lexer->index - 1]))
-                length = offset - lexer->index + 2;
+    int arr[sizeof(op_conversion) / sizeof(op_conversion[0])] = {0}, arr_index = 0, arr_size;
+    size_t offset = 0, length = 0;
+    char c = lexer->src[lexer->index - 1];
 
-            lexer->src[++offset] = c;
-            goto loop_start;
+    // check first characther and add valid answeres to arr
+
+    for (int i = 0; i < sizeof(op_conversion) / sizeof(op_conversion[0]); ++i) {
+        op = op_conversion[i];
+        if (c == op.str[0]) {
+            if (op.str[1]) // if operator is longer than one char
+                arr[arr_index++] = i;
+            else
+                length = 1;
+        } else if (op.enclosed && c == op.str[op.enclosed_offset]) { // is enclosed operator and ending of enclosed matches char
+            if (op.str[op.enclosed_offset + 1])
+                arr[arr_index++] = i;
+            else
+                length = 1;
+        }
+    }
+    
+    c = lexer->c;
+    while (lexer_is_operator_char(c)) {
+        arr_size = arr_index;
+        arr_index = 0;
+        for (int i = 0; i < arr_size; ++i) {
+            op = op_conversion[arr[i]];
+            if (c == op.str[offset]) {
+                if (op.str[offset + 1])
+                    arr[arr_index++] = i;
+                else
+                    length = offset + 1;
+            } else if (op.enclosed && c == op.str[offset + op.enclosed_offset]) {
+                if (op.str[op.enclosed_offset + offset + 1])
+                    arr[arr_index++] = i;
+                else
+                    length = offset + 1;
+            }
+        }
+        c = lexer->src[lexer->index + offset++];
     }
 
     if (length == 0) {
-        lexer->src[offset] = '\0';
+        lexer->src[lexer->index + offset] = '\0';
         logger_log(format("Invalid operator '{s}'", &lexer->src[lexer->index - 1]), LEXER, ERROR);
         exit(1);
     }
@@ -219,8 +254,10 @@ loop_start:
     strncpy(str, &lexer->src[lexer->index - 1], length);
     str[length] = '\0';
 
+    offset = lexer->pos;
+
     lexer_update(lexer, length - 1);
-    set_token(lexer->tok, str, length, TOKEN_OP, lexer->line, _start);
+    set_token(lexer->tok, str, length, TOKEN_OP, lexer->line, offset);
 }
 
 void lexer_advance_current(struct Lexer * lexer, enum token_t type) {
