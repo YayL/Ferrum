@@ -207,8 +207,7 @@ void lexer_parse_operator(struct Lexer * lexer) {
     size_t offset = 0, length = 0;
     char c = lexer->src[lexer->index - 1];
 
-    // check first characther and add valid answeres to arr
-
+    // check first characther and set length to 1 if found a complete answer or add to arr if a possible match 
     for (int i = 0; i < sizeof(op_conversion) / sizeof(op_conversion[0]); ++i) {
         if (c == op_conversion[i].str[0]) {
             // if operator is longer than one char
@@ -234,12 +233,12 @@ void lexer_parse_operator(struct Lexer * lexer) {
             op = op_conversion[arr[i]];
             if (c == op.str[offset]) {
                 if (op.str[offset + 1])
-                    arr[arr_index++] = i;
+                    arr[arr_index++] = arr[i];
                 else
                     length = offset + 1;
             } else if (op.enclosed && c == op.str[offset + op.enclosed_offset]) {
                 if (op.str[op.enclosed_offset + offset + 1])
-                    arr[arr_index++] = i;
+                    arr[arr_index++] = arr[i];
                 else
                     length = offset + 1;
             }
@@ -247,7 +246,7 @@ void lexer_parse_operator(struct Lexer * lexer) {
         c = lexer->src[lexer->index + offset++];
     }
 
-    // if length is 0 that there was no match
+    // if length is 0 then there was no match
     if (length == 0) {
         lexer->src[lexer->index + offset] = '\0';
         logger_log(format("Invalid operator '{s}'", &lexer->src[lexer->index - 1]), LEXER, ERROR);
