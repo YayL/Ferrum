@@ -3,7 +3,6 @@
 
 #include <ctype.h>
 
-
 struct Lexer * init_lexer(char * src, size_t length) {
 
     struct Lexer * lexer = malloc(sizeof(struct Lexer));
@@ -170,6 +169,7 @@ void lexer_parse_int(struct Lexer * lexer) {
 
 
 void lexer_parse_multi_line_comment(struct Lexer * lexer) {
+    struct Token token = *lexer->tok;
     char prev;
 
     while(lexer->c != EOF) {
@@ -178,6 +178,9 @@ void lexer_parse_multi_line_comment(struct Lexer * lexer) {
         else if (lexer->c == '\n') {
             lexer->pos = 0;
             lexer->line += 1;
+        } else if (lexer->c == '\0') {
+            logger_log(format("Unclosed multiline comment at: {2i::}", token.line, token.pos), LEXER, ERROR);
+            exit(1);
         }
         prev = lexer->c;
         lexer_advance(lexer);
@@ -204,7 +207,7 @@ void lexer_parse_operator(struct Lexer * lexer) {
 
     // arr is an buf keeping track of the indeces of all possible operators matching the string so far and that are longer than current matching
     int arr[sizeof(op_conversion) / sizeof(op_conversion[0])] = {0}, arr_index = 0, arr_size;
-    size_t offset = 0, length = 0;
+    size_t offset = 1, length = 0;
     char c = lexer->src[lexer->index - 1];
 
     // check first characther and set length to 1 if found a complete answer or add to arr if a possible match 
@@ -256,6 +259,8 @@ void lexer_parse_operator(struct Lexer * lexer) {
     char * str = malloc(sizeof(char) * (length + 1));
     strncpy(str, &lexer->src[lexer->index - 1], length);
     str[length] = '\0';
+
+    println(str);
 
     // lexer_update updates lexer->pos so must keep that value for set_token somewhere
     offset = lexer->pos;

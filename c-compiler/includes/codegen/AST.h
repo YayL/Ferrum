@@ -68,6 +68,7 @@ typedef struct a_declaration {
 
 typedef struct a_expr {
     struct List * children;
+    struct Ast * type;
 } a_expr;
 
 typedef struct a_op {
