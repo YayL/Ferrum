@@ -14,18 +14,18 @@ After following the steps above you have a working version of Ferrum to use at .
 
 ## The definition of different terms used in ferrum:
 
-# Module: The AST representation of a file of ferrum code 
+### Module: The AST representation of a file of ferrum code 
 
-# Symbol: ID that is used to refer to a definition in the module scope
+### Symbol: ID that is used to refer to a definition in the module scope
 
-# Type: A symbol that refers to an ordering of data
+### Type: A symbol that refers to an ordering of data
 
-# Marker: A symbol that defines a type
+### Marker: A symbol that defines a type
 
-# Trait: A marker that is a group of types
+### Trait: A marker that is a group of types
 
-# Struct: A marker that is named structuring of markers
+### Struct: A marker that is named structuring of markers
 
-# Enum: A marker capable of being different types at runtime
+### Enum: A marker capable of being different types at runtime
 
-# Impl: A developer implemented code snippet defining a declared type's "member functions"
+### Impl: A developer implemented code snippet defining a declared type's "member functions"
