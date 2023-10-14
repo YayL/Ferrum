@@ -198,7 +198,6 @@ void lexer_parse_single_line_comment(struct Lexer * lexer) {
             && lexer_peek(lexer, offset) != EOF);
 
     lexer_update(lexer, offset);
-
     lexer_next_token(lexer);
 }
 
@@ -259,8 +258,6 @@ void lexer_parse_operator(struct Lexer * lexer) {
     char * str = malloc(sizeof(char) * (length + 1));
     strncpy(str, &lexer->src[lexer->index - 1], length);
     str[length] = '\0';
-
-    println(str);
 
     // lexer_update updates lexer->pos so must keep that value for set_token somewhere
     offset = lexer->pos;

@@ -45,7 +45,7 @@ void ferrum_compile(char * file_path) {
     total += time;
     asprintf(&checker_time, "Time for checker:\t%.3fms", (double)time / 1000);
 
-    //print_ast_tree(ast);
+    print_ast_tree(ast);
 
     /* start_timer(); */
     /* gen(ast); */

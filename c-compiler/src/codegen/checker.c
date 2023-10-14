@@ -63,29 +63,36 @@ char is_declared_function(char * name, struct Ast * scope) {
     return 0;
 }
 
-void checker_check_type(struct Ast * ast) {
-    
-}
+void checker_check_type(struct Ast * ast, struct Ast * type) {
+    a_type * left = ast->value, * right = type->value;
 
-void checker_check_expr_node(struct Ast * ast) {
-    switch (ast->type) {
-        case AST_OP:
-            checker_check_op(ast);
-            break;
-        case AST_VARIABLE:
-            checker_check_variable(ast);
-            break;
-        case AST_EXPR:
-            checker_check_expression(ast);
-            break;
-        default:
-            break;
+    if (left->intrinsic != right->intrinsic) {
+        logger_log(format("{2s::} Missmatched types; {s} is not the same as {s}", left->name, right->name), CHECKER, ERROR);
+        exit(1);
     }
 }
 
-void checker_check_op(struct Ast * ast) {
+a_type * checker_check_expr_node(struct Ast * ast) {
+    switch (ast->type) {
+        case AST_OP:
+            return checker_check_op(ast);
+            break;
+        case AST_VARIABLE:
+            return checker_check_variable(ast);
+            break;
+        case AST_EXPR:
+            return checker_check_expression(ast);
+            break;
+        default:
+            logger_log(format("Unimplemented expr node type: {s}", ast_type_to_str(ast->type)), CHECKER, ERROR);
+            exit(1);
+    }
+}
+
+a_type * checker_check_op(struct Ast * ast) {
     struct Ast * node;
     a_op * op = ast->value;
+    a_type * left, * right;
 
     if (op->op->key == CALL && op->left->type == AST_VARIABLE) {
         a_variable * var = op->left->value;
@@ -96,12 +103,12 @@ void checker_check_op(struct Ast * ast) {
         logger_log("Detected an error with the ternary operator. This was most likely caused by operator precedence or nested ternary operators. To remedy this try applying parenthesis around the seperate ternary body entries", CHECKER, ERROR);
         exit(1);
     } else if (op->left) {
-        checker_check_expr_node(op->left);
-    } 
+        left = checker_check_expr_node(op->left);
+    }
 
-    checker_check_expr_node(op->right);
+    right = checker_check_expr_node(op->right);
 
-
+    // TODO: search for an implementation of this operator with the types or otherwise error
 }
 
 void checker_check_if(struct Ast * ast) {
@@ -136,7 +143,7 @@ void checker_check_return(struct Ast * ast) {
     checker_check_expression(return_statement->expression);
 }
 
-void checker_check_expression(struct Ast * ast) {
+a_type * checker_check_expression(struct Ast * ast) {
     struct Ast * node;
     a_expr * expr = ast->value;
 
@@ -146,9 +153,11 @@ void checker_check_expression(struct Ast * ast) {
             checker_check_expr_node(node);
     }
 
+    // TODO: return a tuple type
+
 }
 
-void checker_check_variable(struct Ast * ast) {
+a_type * checker_check_variable(struct Ast * ast) {
     struct Ast * var_ast = get_variable(ast);
 
     if (var_ast == NULL || !((a_variable *) var_ast->value)->is_declared) {
@@ -161,6 +170,8 @@ void checker_check_variable(struct Ast * ast) {
         free(ast->value);
         ast->value = var_ast->value;
     }
+
+    return ((a_variable *)ast->value)->type->value;
 }
 
 void checker_check_scope(struct Ast * ast) {
