@@ -83,6 +83,8 @@ a_type * checker_check_expr_node(struct Ast * ast) {
         case AST_EXPR:
             return checker_check_expression(ast);
             break;
+        case AST_LITERAL:
+            return (a_type *) ((a_literal *)ast->value)->type->value;
         default:
             logger_log(format("Unimplemented expr node type: {s}", ast_type_to_str(ast->type)), CHECKER, ERROR);
             exit(1);
