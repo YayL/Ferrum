@@ -26,7 +26,10 @@ enum AST_type {
     AST_MATCH,
     AST_DO,
     AST_BREAK,
-    AST_CONTINUE
+    AST_CONTINUE,
+    AST_STRUCT,
+    AST_ENUM,
+    AST_IMPL
 };
 
 typedef Type a_type;
@@ -70,6 +73,19 @@ typedef struct a_expr {
     struct List * children;
     struct Ast * type;
 } a_expr;
+
+typedef struct a_struct {
+    char * name;
+    struct List * generics; // struct NAME<GEN1, GEN2>
+    struct List * variables;
+    struct List * functions;
+    struct List * implementations;
+} a_struct;
+
+typedef struct a_enum {
+    char * name;
+    struct List * variants;
+} a_enum;
 
 typedef struct a_op {
     struct Operator * op;

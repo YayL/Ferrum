@@ -72,6 +72,8 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
             }
             case TOKEN_STRING_LITERAL:
             {
+                print_token("tokstr: {s}", parser->token);
+                exit(0);
                 list_push(output, parser_parse_string(parser));
                 mode = BINARY;
             } break;

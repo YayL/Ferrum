@@ -1,7 +1,7 @@
 #include "codegen/AST.h"
 
-#define PADDING_DIRECT_CHILD "   "
-#define PADDING_LIST_CHILDREN " │"
+#define PADDING_DIRECT_CHILD  "  "
+#define PADDING_LIST_CHILDREN "  │"
 #define AST_TREE_PADDING(comp) (comp ? PADDING_LIST_CHILDREN : PADDING_DIRECT_CHILD)
 #define AST_TREE_PRINT_CHILDREN(list, pstring) for (int i = 0; i < list->size; ++i){ _print_ast_tree(list_at(list, i), pstring, 1, i+1 == list->size);}
 
@@ -126,10 +126,16 @@ const char * ast_type_to_str(enum AST_type type) {
 		case AST_RETURN: return "Return";
 		case AST_IF: return "If";
 		case AST_WHILE: return "While";
+        case AST_CALL: return "Call";
 		case AST_OP: return "Operator";
 		case AST_EXPR: return "Expression";
 		case AST_BREAK: return "Break";
         case AST_CONTINUE: return "Continue";
+        case AST_DO: return "Do";
+        case AST_MATCH: return "Match";
+        case AST_STRUCT: return "Struct";
+        case AST_ENUM: return "Enum";
+        case AST_IMPL: return "Impl";
 		case AST_ROOT: return "Root";
 	}
 	return "UNDEFINED";
@@ -147,7 +153,7 @@ void free_ast(struct Ast * ast) {
 	free(ast);
 }
 
-void _print_ast_tree(struct Ast * ast, String * pad, char is_list, char is_last) {
+void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
     if (is_list)
         string_cut(pad, 1);
     
@@ -324,7 +330,7 @@ void _print_ast_tree(struct Ast * ast, String * pad, char is_list, char is_last)
 
             break;
         }
-    } 
+    }
 }
 
 void print_ast_tree(struct Ast * ast) {

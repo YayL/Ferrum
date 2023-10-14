@@ -2,10 +2,27 @@ struct List<T> {
     const buf: &T
     let size: u32
     let capacity: u32
-    /*
-    */
-    fn (t: T) -> self {
-        
+
+    fn (self) -> Self {
+        self.buf = malloc(#sizeof(T));
+        self.capacity = 1
+    }
+
+    fn push(self, t: T) {
+        if (self.size >= self.capacity) {
+            self.capacity *= 2;
+            self.buf = realloc(self.buf, #sizeof(T) * self.capacity)
+        }
+
+        self.buf[self.size++] = t;
+    }
+
+    fn pop(self, t: T) -> Option<T> {
+        if !self.size {
+            Some(self.buf[--self.size])
+        } else {
+            None
+        }
     }
 
     fn slice(self, start: i32, end: i32) -> [_]T {
@@ -13,14 +30,22 @@ struct List<T> {
     }
 }
 
-impl List<T> {
-    fn (t: T) -> self {
-        
+struct Pair<A, B> {
+    const first: A
+    const second: B
+
+    fn (self, first: A, second: B) -> Self {
+        self.first = first
+        self.second = second
     }
 }
 
 fn main(argc: i32) -> u8 {
-    let list = List()
+    let list = List<i32>()
+    let pair = Pair(32, "hej")
+
+    list.push(1)
+    list.push(2)
 
     str.len() to u8
 }

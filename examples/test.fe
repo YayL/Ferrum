@@ -1,5 +1,5 @@
 fn main (args: &[]String) -> u8 {
-    let a: i32 = *args
+    let a: i32 = *args, b: i32 = 2
 
     *a = 2
 

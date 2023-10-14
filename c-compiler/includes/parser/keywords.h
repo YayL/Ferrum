@@ -14,6 +14,9 @@ enum Keywords {
     WHILE,
     DO,
     MATCH,
+    STRUCT,
+    ENUM,
+    IMPL,
     RETURN
 };
 
@@ -33,6 +36,9 @@ const static struct Keyword {
     
     {FN, GLOBAL_ONLY, "fn"},
     {PACKAGE, GLOBAL_ONLY, "package"},
+    {STRUCT, GLOBAL_ONLY, "struct"},
+    {ENUM, GLOBAL_ONLY, "enum"},
+    {IMPL, GLOBAL_ONLY, "impl"},
 
     {CONST, ANY, "const"},
     {LET, ANY, "let"},

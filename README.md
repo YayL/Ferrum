@@ -29,4 +29,4 @@ After following the steps above you have a working version of Ferrum to use at .
 ### Enum:
     A marker capable of being different types at runtime
 ### Impl:
-    A developer implemented code snippet defining a declared type's "member functions"
+    An extension to a type defining that type's "member functions" and operations
