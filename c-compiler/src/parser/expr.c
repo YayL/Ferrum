@@ -213,9 +213,7 @@ exit:
     }
 
     if (output->size != 1) {
-        //print_ast_tree(list_at(output, 0));
-        logger_log(format("Invalid expression: {i}", output->size), PARSER, ERROR);
-        exit(1);
+        logger_log(format("Invalid expression; too many discarded expressions:\n\t\tCan be caused by a semicolon at the end of an expression", output->size), PARSER, FATAL);
     } else {
         list_push(expressions, list_at(output, 0));
     }

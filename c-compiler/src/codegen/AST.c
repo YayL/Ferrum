@@ -348,7 +348,7 @@ void print_ast_tree(struct Ast * ast) {
     free_string(&string);
 }
 
-#define get_type_str(ast) (ast != NULL ? type_to_str((a_type *) ast->value) : "(NULL)")
+#define get_type_str(ast) (ast != NULL ? type_to_str((a_type *) ast->value) : "void")
 
 void print_ast(const char * template, struct Ast * ast) {
 	const char * type_str = ast_type_to_str_ast(ast);

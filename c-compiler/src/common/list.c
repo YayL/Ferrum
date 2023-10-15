@@ -3,7 +3,6 @@
 #include "codegen/AST.h"
 #include "common/list.h"
 
-
 struct List * init_list(size_t item_size) {
 
 	struct List * list = calloc(1, sizeof(struct List));
@@ -24,7 +23,7 @@ void free_list(struct List * list, char free_items) {
 	free(list);
 }
 
-void list_push(struct List * list, void* item) {
+void list_push(struct List * list, void * item) {
 	if (!list->size++) { // Incrementing here as it is just easier and not wasting a line for it
 		list->items = calloc(1, list->item_size);
 		list->capacity = 1;

@@ -186,7 +186,6 @@ void lexer_parse_multi_line_comment(struct Lexer * lexer) {
         lexer_advance(lexer);
     }
     lexer_advance(lexer); // advance past '/'
-
 	lexer_next_token(lexer);
 }
 
@@ -358,7 +357,7 @@ void lexer_next_token(struct Lexer * lexer) {
         case '+':
             return lexer_advance_current(lexer, TOKEN_PLUS);
         default:
-            if (isalpha(lexer->c) || lexer->c == '_') {
+            if (isalpha(lexer->c) || lexer->c == '#') {
                 lexer_parse_id(lexer);
                 lexer_advance(lexer);
                 break;

@@ -54,6 +54,9 @@ struct Ast * parser_parse_type(struct Parser * parser) {
     
     parser_eat(parser, TOKEN_ID);
     type->name = parser->prev->value;
+
+    // search for ID to see if it is a struct or enum. 
+    // If so it could be a generic so gather those by checking for angular brackets
     
     ast->value = type;
 

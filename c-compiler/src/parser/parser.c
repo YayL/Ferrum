@@ -47,10 +47,19 @@ void parser_eat(struct Parser * parser, enum token_t type) {
 }
 
 struct Ast * parser_parse_int(struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_LITERAL, parser->current_scope);
+    struct Ast * ast = init_ast(AST_LITERAL, parser->current_scope), * type_ast = init_ast(AST_TYPE, parser->current_scope);
     a_literal * number = ast->value;
+    a_type * type = type_ast->value;
 
-    number->type = NUMBER;
+    Numeric_T * num = init_intrinsic_type(INumeric);
+    num->type = NUMERIC_SIGNED;
+    num->width = 32;
+
+    type->name = "i32";
+    type->ptr = num;
+    type->intrinsic = INumeric;
+
+    number->type = type_ast;
     number->value = parser->token->value;
 
     parser_eat(parser, TOKEN_INT);
@@ -206,7 +215,6 @@ struct Ast * parser_parse_struct(struct Parser * parser) {
 
         while (parser->token->type == TOKEN_LINE_BREAK)
             parser_eat(parser, TOKEN_LINE_BREAK);
-
     } while (parser->token->type != TOKEN_RBRACE);
 
     parser_eat(parser, TOKEN_RBRACE);
@@ -230,7 +238,7 @@ struct Ast * parser_parse_declaration(struct Parser * parser, enum Keywords keyw
 struct Ast * parser_parse_statement(struct Parser * parser) {
     struct Keyword keyword = str_to_keyword(parser->token->value);
 
-    if (keyword.key == KEYWORD_NOT_FOUND) { // variable assignment probably
+    if (keyword.key == KEYWORD_NOT_FOUND) { // no identifier should mean there is an expression
         return parser_parse_expr(parser);
     }
 
@@ -305,32 +313,13 @@ struct Ast * parser_parse_function(struct Parser * parser) {
     parser_eat(parser, TOKEN_LPAREN);
     
     function->arguments = parser_parse_expr_exit_on(parser, PARENTHESES);
-
-/* function_loop:  */
-/*     { */
-/*         argument = init_ast(AST_VARIABLE, parser->current_scope); */
-/*         ((a_variable *) argument->value)->name = parser->token->value; */
-/*          */
-/*         parser_eat(parser, TOKEN_ID); */
-/*         parser_eat(parser, TOKEN_OP); */
-/*  */
-/*         ((a_variable *) argument->value)->type = parser->token->value; */
-/*         parser_eat(parser, TOKEN_ID); */
-/*  */
-/*         list_push(function->arguments, argument); */
-/*  */
-/*         if (parser->token->type == TOKEN_COMMA) { */
-/*             parser_eat(parser, TOKEN_COMMA); */
-/*             goto function_loop; */
-/*         } */
-/*     } */
     
-    parser_eat(parser, TOKEN_MINUS);
-    parser_eat(parser, TOKEN_GT);
+    if (parser->token->type == TOKEN_MINUS) {
+        parser_eat(parser, TOKEN_MINUS);
+        parser_eat(parser, TOKEN_GT);
 
-    function->type = parser->token->value;
-
-    parser_eat(parser, TOKEN_ID);
+        function->type = parser_parse_type(parser);
+    }
 
     function->body = parser_parse_scope(parser);
     parser->current_scope = ast->scope;
