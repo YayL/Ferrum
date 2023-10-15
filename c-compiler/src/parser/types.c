@@ -2,7 +2,7 @@
 
 struct Ast * parser_parse_type(struct Parser * parser) {
     struct Ast * ast = init_ast(AST_TYPE, parser->current_scope);
-    a_type * type = calloc(1, sizeof(Type)),
+    a_type * type = ast->value,
            * ref_type = NULL,
            * arr_type = NULL;
 
@@ -52,13 +52,41 @@ struct Ast * parser_parse_type(struct Parser * parser) {
         arr_type->ptr = arr_t;
     }
     
+    type->name = parser->token->value;
     parser_eat(parser, TOKEN_ID);
-    type->name = parser->prev->value;
 
     // search for ID to see if it is a struct or enum. 
     // If so it could be a generic so gather those by checking for angular brackets
     
-    ast->value = type;
+    struct Ast * marker = get_type(ast, type->name);
+    struct List * list;
+
+    if (marker != NULL) {
+        switch (marker->type) {
+            case AST_STRUCT:
+            {
+                // set basetype to be struct, and then set list to struct_t->generics or whatever it will be called
+                Struct_T * struct_t = init_intrinsic_type(IStruct);
+                list = struct_t->fields;
+            } break;
+            case AST_ENUM:
+            {
+
+            } break;
+            default: {}
+        }
+        if (parser->token->type == TOKEN_LT) {
+            parser_eat(parser, TOKEN_LT);
+
+            while (parser->token->type != TOKEN_GT) {
+                list_push(list, parser_parse_type(parser));
+                if (parser->token->type == TOKEN_COMMA)
+                    parser_eat(parser, TOKEN_COMMA);
+            }
+
+            parser_eat(parser, TOKEN_GT);
+        }
+    }
 
     if (arr_type != NULL) {
         ast->value = arr_type;
@@ -87,7 +115,8 @@ void * init_intrinsic_type(enum intrinsic_type type) {
             return arr;
         }
         case IStruct: {
-            Product_T * Struct = calloc(1, sizeof(Product_T));
+            Struct_T * Struct = calloc(1, sizeof(Struct_T));
+            Struct->fields = init_list(sizeof(struct Ast *));
             return Struct;
         }
         case IEnum: {
@@ -95,6 +124,29 @@ void * init_intrinsic_type(enum intrinsic_type type) {
             return Enum;
         }
     }
+}
+
+struct Ast * get_type(struct Ast * ast, char * name) {
+    struct Ast * scope = ast->scope, * temp;
+
+    while (scope->type != AST_ROOT && scope->type != AST_MODULE)
+        scope = scope->scope;
+    
+    ASSERT1(scope->type == AST_MODULE);
+
+    a_module * module = scope->value;
+    a_struct * _struct;
+
+    for (int i = 0; i < module->structures->size; ++i) {
+        temp = list_at(module->structures, i);
+        _struct = temp->value;
+        println("Name: {2s: = }", _struct->name, name);
+        if (!strcmp(_struct->name, name)) {
+            return temp;
+        }
+    }
+
+    return NULL;
 }
 
 char * type_to_str(a_type * type) {

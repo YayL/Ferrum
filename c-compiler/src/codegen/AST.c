@@ -28,6 +28,7 @@ void * init_ast_of_type(enum AST_type type) {
             a_module * module = malloc(sizeof(a_module));
             module->functions = init_list(sizeof(struct Ast *));
             module->variables = init_list(sizeof(struct Ast *));
+            module->structures = init_list(sizeof(struct Ast *));
 
             return module;
         }

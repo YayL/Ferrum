@@ -44,10 +44,10 @@ struct Pair<A, B> {
 }
 
 fn main(argc: i32) -> u8 {
-    let list: List<Pair<i32, i32>> = List()
+    let list: List<i32> = List()
 
-    list.push(Pair(1, 1))
-    list.push(Pair(2, 2))
+    list.push(1)
+    list.push(2)
 
     list.capacity as u8
 }

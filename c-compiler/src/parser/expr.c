@@ -8,7 +8,7 @@ struct Operator * get_operator(const char * str, struct Token * token, enum OP_m
         *op = str_to_operator(str, UNARY_POST, enclosed_flag);
 
     if (op->key == OP_NOT_FOUND) {
-        print("[Parser]: {s} operator '{s}' not found: ", mode == BINARY ? "Binary" : "Unary", str);
+        logger_log(format("{s} operator '{s}' not found: ", mode == BINARY ? "Binary" : "Unary", str), PARSER, ERROR);
         print_token("{s}\n", token);
         exit(1);
     }
@@ -78,6 +78,10 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                 mode = BINARY;
             } break;
             case TOKEN_OP:
+            // there seems to be an issue with operator precedence and associativity when an enclosed operator is involved. Ex:
+            // list.push(1) 
+            // This should be: (list.push)(1)
+            // But is parsed: list.(push(1))
             {
 _TOKEN_OPERATORS:
                 // enclosed flag is true if enclosed operator is the closing enclosing operator

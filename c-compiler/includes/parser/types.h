@@ -39,9 +39,9 @@ typedef struct Array_T {
     unsigned int size;
 } Array_T;
 
-typedef struct Product_T {
+typedef struct Struct_T {
     struct List * fields;
-} Product_T;
+} Struct_T;
 
 typedef struct Enum_T {
     struct List * fields;
@@ -49,3 +49,5 @@ typedef struct Enum_T {
 
 void * init_intrinsic_type(enum intrinsic_type type);
 char * type_to_str(Type * type);
+
+struct Ast * get_type(struct Ast * ast, char * name);

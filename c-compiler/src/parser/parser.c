@@ -211,14 +211,30 @@ struct Ast * parser_parse_struct(struct Parser * parser) {
 
     do {
         temp = parser_parse_identifier(parser);
-        print_ast("{s}\n", temp);
+        switch (temp->type) {
+            case AST_DECLARATION:
+            {
+                a_expr * expr = ((a_declaration *) temp->value)->expression->value;
+                for (int i = 0; i < expr->children->size; ++i) {
+                    list_push(_struct->variables, list_at(expr->children, i));
+                }
+            } break;
+            case AST_FUNCTION:
+            {
+                list_push(_struct->functions, temp);
+            } break;
+            default:
+            {
+                logger_log(format("{2i::} Invalid identifier '{s}' in struct declaration", parser->lexer->line, parser->lexer->pos, ast_type_to_str(temp->type)), PARSER, ERROR);
+                exit(1);
+            }
+        }
 
         while (parser->token->type == TOKEN_LINE_BREAK)
             parser_eat(parser, TOKEN_LINE_BREAK);
     } while (parser->token->type != TOKEN_RBRACE);
 
     parser_eat(parser, TOKEN_RBRACE);
-    exit(0);
 
     return ast;
 }
@@ -418,6 +434,9 @@ struct Ast * parser_parse_module(struct Parser * parser, struct Ast * ast) {
                 break;
             case AST_DECLARATION:
                 list_push(module->variables, node);
+                break;
+            case AST_STRUCT:
+                list_push(module->structures, node);
                 break;
             default:
                 println("probably a package but exiting!");

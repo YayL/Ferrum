@@ -48,7 +48,7 @@ typedef struct a_module {
     char * path;
     struct List * variables;
     struct List * functions;
-    //struct List * structures;
+    struct List * structures;
     //struct List * traits;
 } a_module;
 
