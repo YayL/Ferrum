@@ -169,8 +169,8 @@ _TOKEN_OPERATORS:
             case TOKEN_PLUS:
             case TOKEN_MINUS:
             case TOKEN_EQUAL:
-            case TOKEN_LESS_THAN:
-            case TOKEN_GREATER_THAN:
+            case TOKEN_LT:
+            case TOKEN_GT:
             case TOKEN_LPAREN:
             case TOKEN_RPAREN:
             case TOKEN_COLON:

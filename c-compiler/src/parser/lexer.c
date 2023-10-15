@@ -322,9 +322,9 @@ void lexer_next_token(struct Lexer * lexer) {
         case '=':
             return lexer_advance_current(lexer, TOKEN_EQUAL);
         case '<':
-            return lexer_advance_current(lexer, TOKEN_LESS_THAN);
+            return lexer_advance_current(lexer, TOKEN_LT);
         case '>':
-            return lexer_advance_current(lexer, TOKEN_GREATER_THAN);
+            return lexer_advance_current(lexer, TOKEN_GT);
         case '(':
             return lexer_advance_current(lexer, TOKEN_LPAREN);
         case '_':

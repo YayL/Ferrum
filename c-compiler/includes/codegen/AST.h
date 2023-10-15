@@ -79,7 +79,6 @@ typedef struct a_struct {
     struct List * generics; // struct NAME<GEN1, GEN2>
     struct List * variables;
     struct List * functions;
-    struct List * implementations;
 } a_struct;
 
 typedef struct a_enum {

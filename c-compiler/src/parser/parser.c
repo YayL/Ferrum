@@ -1,4 +1,5 @@
 #include "parser/parser.h"
+#include "common/string.h"
 #include <string.h>
 
 struct Keyword str_to_keyword(const char * str) {
@@ -65,18 +66,9 @@ struct Ast * parser_parse_id(struct Parser * parser) {
 
     parser_eat(parser, TOKEN_ID);
 
-    if (parser->token->type == TOKEN_OP && !strcmp(parser->token->value, ":")) {
-        parser_eat(parser, TOKEN_OP);
-        
-        // TODO: Parse type here
-
-        if (parser->token->type != TOKEN_ID) {
-            print_token("[Parser] Unexepected variable type: {s}\n", parser->token);
-            exit(1);
-        }
-
-        variable->type = parser->token->value;
-        parser_eat(parser, TOKEN_ID);
+    if (parser->token->type == TOKEN_COLON) {
+        parser_eat(parser, TOKEN_COLON); 
+        variable->type = parser_parse_type(parser);
     }
 
     if (get_variable(ast))
@@ -184,9 +176,41 @@ struct Ast * parser_parse_return(struct Parser * parser) {
 }
 
 struct Ast * parser_parse_struct(struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_STRUCT, parser->current_scope);
-    a_struct * struct = ast->value;
+    struct Ast * ast = init_ast(AST_STRUCT, parser->current_scope), * temp;
+    a_struct * _struct = ast->value;
     
+    parser_eat(parser, TOKEN_ID);
+    _struct->name = parser->token->value;
+    parser_eat(parser, TOKEN_ID);
+
+    if (parser->token->type == TOKEN_LT) {
+        parser_eat(parser, TOKEN_LT);
+
+        while (1) {
+            list_push(_struct->generics, init_string_with_length(parser->token->value, parser->token->length));
+            parser_eat(parser, TOKEN_ID);
+            if (parser->token->type == TOKEN_GT)
+                break;
+            parser_eat(parser, TOKEN_COMMA);
+        }
+
+        parser_eat(parser, TOKEN_GT);
+    }
+
+    parser_eat(parser, TOKEN_LBRACE);
+    parser_eat(parser, TOKEN_LINE_BREAK);
+
+    do {
+        temp = parser_parse_identifier(parser);
+        print_ast("{s}\n", temp);
+
+        while (parser->token->type == TOKEN_LINE_BREAK)
+            parser_eat(parser, TOKEN_LINE_BREAK);
+
+    } while (parser->token->type != TOKEN_RBRACE);
+
+    parser_eat(parser, TOKEN_RBRACE);
+    exit(0);
 
     return ast;
 }
@@ -270,36 +294,39 @@ struct Ast * parser_parse_function(struct Parser * parser) {
                * argument;
     struct a_function * function = ast->value;
     parser->current_scope = ast;
-
-    parser_eat(parser, TOKEN_ID);
-
-    function->name = parser->token->value;
-    parser_eat(parser, TOKEN_ID);
-    parser_eat(parser, TOKEN_OP);
-
-    // replace this with an expression call (perhaps?)
-
-function_loop: 
-    {
-        argument = init_ast(AST_VARIABLE, parser->current_scope);
-        ((a_variable *) argument->value)->name = parser->token->value;
-        
-        parser_eat(parser, TOKEN_ID);
-        parser_eat(parser, TOKEN_OP);
-
-        ((a_variable *) argument->value)->type = parser->token->value;
-        parser_eat(parser, TOKEN_ID);
-
-        list_push(function->arguments, argument);
-
-        if (parser->token->type == TOKEN_COMMA) {
-            parser_eat(parser, TOKEN_COMMA);
-            goto function_loop;
-        }
-    }
     
-    parser_eat(parser, TOKEN_OP);
-    parser_eat(parser, TOKEN_OP);
+    parser_eat(parser, TOKEN_ID);
+    
+    if (parser->token->type == TOKEN_ID) {
+        function->name = parser->token->value;
+        parser_eat(parser, TOKEN_ID);
+    }
+
+    parser_eat(parser, TOKEN_LPAREN);
+    
+    function->arguments = parser_parse_expr_exit_on(parser, PARENTHESES);
+
+/* function_loop:  */
+/*     { */
+/*         argument = init_ast(AST_VARIABLE, parser->current_scope); */
+/*         ((a_variable *) argument->value)->name = parser->token->value; */
+/*          */
+/*         parser_eat(parser, TOKEN_ID); */
+/*         parser_eat(parser, TOKEN_OP); */
+/*  */
+/*         ((a_variable *) argument->value)->type = parser->token->value; */
+/*         parser_eat(parser, TOKEN_ID); */
+/*  */
+/*         list_push(function->arguments, argument); */
+/*  */
+/*         if (parser->token->type == TOKEN_COMMA) { */
+/*             parser_eat(parser, TOKEN_COMMA); */
+/*             goto function_loop; */
+/*         } */
+/*     } */
+    
+    parser_eat(parser, TOKEN_MINUS);
+    parser_eat(parser, TOKEN_GT);
 
     function->type = parser->token->value;
 

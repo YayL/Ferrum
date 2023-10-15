@@ -1,7 +1,5 @@
 #pragma once
 
-
-
 struct Token {
 	char * value;
     unsigned int length;
@@ -13,8 +11,8 @@ struct Token {
         TOKEN_PLUS,
         TOKEN_MINUS,
         TOKEN_EQUAL,
-        TOKEN_LESS_THAN,
-        TOKEN_GREATER_THAN,
+        TOKEN_LT,
+        TOKEN_GT,
         TOKEN_LPAREN,
         TOKEN_RPAREN,
         TOKEN_UNDERSCORE,

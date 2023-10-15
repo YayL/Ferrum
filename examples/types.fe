@@ -3,7 +3,7 @@ struct List<T> {
     let size: u32
     let capacity: u32
 
-    fn (self) -> Self {
+    fn new(self) -> Self {
         self.buf = malloc(#sizeof(T));
         self.capacity = 1
     }

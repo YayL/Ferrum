@@ -27,8 +27,8 @@ const char* token_type_to_str(enum token_t type) {
         case TOKEN_PLUS: return "TOKEN_PLUS";
         case TOKEN_MINUS: return "TOKEN_MINUS";
         case TOKEN_EQUAL: return "TOKEN_EQUAL";
-        case TOKEN_LESS_THAN: return "TOKEN_LESS_THAN";
-        case TOKEN_GREATER_THAN: return "TOKEN_GREATER_THAN";
+        case TOKEN_LT: return "TOKEN_LT";
+        case TOKEN_GT: return "TOKEN_GT";
         case TOKEN_LPAREN: return "TOKEN_LPAREN";
         case TOKEN_RPAREN: return "TOKEN_RPAREN";
         case TOKEN_UNDERSCORE: return "TOKEN_UNDERSCORE";

@@ -79,6 +79,15 @@ void * init_ast_of_type(enum AST_type type) {
 
             return literal;
         }
+        case AST_STRUCT:
+        {
+            a_struct * _struct = calloc(1, sizeof(a_struct));
+            _struct->generics = init_list(sizeof(String *));
+            _struct->functions = init_list(sizeof(struct Ast *));
+            _struct->variables = init_list(sizeof(struct Ast *));
+
+            return _struct;
+        }
         case AST_RETURN:
         {
             a_return * ret = calloc(1, sizeof(a_return));
