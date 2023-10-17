@@ -88,7 +88,7 @@ _TOKEN_OPERATORS:
                 op1 = get_operator(parser->token->value, parser->token, mode, &enclosed_flag);
 
                 if (op1->enclosed == ENCLOSED) {
-                    if (!enclosed_flag) {
+                    if (!enclosed_flag) { // open enclosed operator
                         parser_eat(parser, parser->token->type);
                         
                         struct Deque * temp_d = init_deque(sizeof(struct Operator *));
@@ -99,6 +99,7 @@ _TOKEN_OPERATORS:
                         temp = init_ast(AST_EXPR, parser->current_scope);
                         ((a_op *) node->value)->op = op1;
 
+                        // this causes an error as it always take the left ID. In some cases operator precedence and associativity calls for it to not do this
                         if (op1->mode == BINARY) {
                             ((a_op *) node->value)->left = list_at(output, -1);
                             list_pop(output);
@@ -108,11 +109,11 @@ _TOKEN_OPERATORS:
                         ((a_op *) node->value)->right = temp;
                         
                         list_push(output, node);
-                        
+
                         mode = BINARY;
                         break;
-                    } else {
-                        while (strcmp(op1->str, (op2 = deque_back(operators))->str)) {
+                    } else { // closing enclosed operator
+                        while (strcmp(op1->str, (op2 = deque_back(operators))->str)) { // while not start version of this enclosed operator
                             if (op2->key == EXIT_ON_KEY) {
                                 ASSERT(sizeof(op1->key) != (sizeof(op_conversion) / sizeof(op_conversion[0])), "Possibly invalid EXIT_ON_KEY:");
                                 goto exit;

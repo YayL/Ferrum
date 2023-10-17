@@ -208,6 +208,8 @@ void lexer_parse_operator(struct Lexer * lexer) {
     size_t offset = 1, length = 0;
     char c = lexer->src[lexer->index - 1];
 
+    // the 2 loops below are just searching for what operator is written and trying to find it effectively
+
     // check first characther and set length to 1 if found a complete answer or add to arr if a possible match 
     for (int i = 0; i < sizeof(op_conversion) / sizeof(op_conversion[0]); ++i) {
         if (c == op_conversion[i].str[0]) {
@@ -247,7 +249,7 @@ void lexer_parse_operator(struct Lexer * lexer) {
         c = lexer->src[lexer->index + offset++];
     }
 
-    // if length is 0 then there was no match
+    // if length is 0 then there was no match as length is the length of an existing operator
     if (length == 0) {
         lexer->src[lexer->index + offset] = '\0';
         logger_log(format("Invalid operator '{s}'", &lexer->src[lexer->index - 1]), LEXER, ERROR);
@@ -258,7 +260,7 @@ void lexer_parse_operator(struct Lexer * lexer) {
     strncpy(str, &lexer->src[lexer->index - 1], length);
     str[length] = '\0';
 
-    // lexer_update updates lexer->pos so must keep that value for set_token somewhere
+    // lexer_update updates lexer->pos so must keep track of that value for set_token
     offset = lexer->pos;
 
     lexer_update(lexer, length - 1);
