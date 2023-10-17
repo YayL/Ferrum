@@ -39,8 +39,6 @@ void ferrum_compile(char * file_path) {
     total += time;
     asprintf(&parser_time, "Time for parser:\t%.3fms", (double)time / 1000);
 
-    print_ast_tree(ast);
-
     start_timer();
     checker_check(ast);
     time = stop_timer();

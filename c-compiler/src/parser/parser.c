@@ -294,20 +294,34 @@ struct Ast * parser_parse_scope(struct Parser * parser) {
     a_scope * scope = ast->value;
     parser->current_scope = ast;
     
-    parser_eat(parser, TOKEN_LBRACE);
+    if (parser->token->type != TOKEN_LBRACE) {
+        if (parser->token->type == TOKEN_LINE_BREAK)
+                parser_eat(parser, TOKEN_LINE_BREAK);
 
-    while (1) {
-        while (parser->token->type == TOKEN_LINE_BREAK)
-            parser_eat(parser, TOKEN_LINE_BREAK);
-        
-        if (parser->token->type == TOKEN_RBRACE)
-            break;
+        if (parser->token->type == TOKEN_LINE_BREAK) {
+            logger_log("Scopes without curly brackets must follow the scope initializer immidiatly(1 line or less)", PARSER, WARN);
+        } else {
+            list_push(scope->nodes, parser_parse_statement(parser));
+        }
+    } else {
+        parser_eat(parser, TOKEN_LBRACE);
 
-        statement = parser_parse_statement(parser);
-        list_push(scope->nodes, statement);
+        while (1) {
+            while (parser->token->type == TOKEN_LINE_BREAK)
+                parser_eat(parser, TOKEN_LINE_BREAK);
+
+            if (parser->token->type == TOKEN_RBRACE)
+                break;
+            else if (parser->token->type == TOKEN_EOF) {
+                logger_log("Unclosed scope", PARSER, ERROR);
+                exit(1);
+            }
+
+            list_push(scope->nodes, parser_parse_statement(parser));
+        }
+
+        parser_eat(parser, TOKEN_RBRACE);
     }
-
-    parser_eat(parser, TOKEN_RBRACE);
     parser->current_scope = ast->scope;
 
     return ast;
