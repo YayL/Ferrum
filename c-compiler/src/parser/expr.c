@@ -19,7 +19,7 @@ struct Operator * get_operator(const char * str, struct Token * token, enum OP_m
 void consume_add_operator(struct Operator * op, struct List * list, struct Parser * parser) {
     struct Ast * ast = init_ast(AST_OP, parser->current_scope);
     a_op * operator = ast->value;
-    
+
     if (list->size == 0) {
         logger_log("Invalid expression: Operator without valid operands", PARSER, ERROR);
         exit(1);
@@ -98,20 +98,9 @@ _TOKEN_OPERATORS:
                         node = init_ast(AST_OP, parser->current_scope);
                         temp = init_ast(AST_EXPR, parser->current_scope);
                         ((a_op *) node->value)->op = op1;
-
-                        // this causes an error as it always take the left ID. In some cases operator precedence and associativity calls for it to not do this
-                        if (op1->mode == BINARY) {
-                            ((a_op *) node->value)->left = list_at(output, -1);
-                            list_pop(output);
-                        }
-                        
+ 
                         ((a_expr *) temp->value)->children = _parser_parse_expr(parser, temp_l, temp_d, -1);
-                        ((a_op *) node->value)->right = temp;
-                        
-                        list_push(output, node);
-
-                        mode = BINARY;
-                        break;
+                        ((a_op *) node->value)->right = temp; 
                     } else { // closing enclosed operator
                         while (strcmp(op1->str, (op2 = deque_back(operators))->str)) { // while not start version of this enclosed operator
                             if (op2->key == EXIT_ON_KEY) {
@@ -141,6 +130,17 @@ _TOKEN_OPERATORS:
                     consume_add_operator(op2, output, parser);
                     pop_back(operators);
                     op2 = deque_back(operators);
+                }
+                
+                if (op1->enclosed == ENCLOSED) {
+                    if (op1->mode == BINARY) {
+                        ((a_op *) node->value)->left = list_at(output, -1);
+                        list_pop(output);
+                    }
+
+                    list_push(output, node);
+                    mode = BINARY;
+                    break;
                 }
 
                 push_back(operators, op1);
