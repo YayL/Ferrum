@@ -1,3 +1,4 @@
+#include "parser/operators.h"
 #include "parser/parser.h"
 
 struct Operator * get_operator(const char * str, struct Token * token, enum OP_mode mode, char * enclosed_flag) {
@@ -143,6 +144,11 @@ _TOKEN_OPERATORS:
 
                 mode = op1->mode == UNARY_POST ? BINARY : UNARY_PRE;
                 parser_eat(parser, parser->token->type);
+
+                if (op1->key == CAST || op1->key == BIT_CAST) {
+                    list_push(output, parser_parse_type(parser));
+                }
+
                 break;
             }
             case TOKEN_SEMI:

@@ -85,6 +85,8 @@ a_type * checker_check_expr_node(struct Ast * ast) {
             break;
         case AST_LITERAL:
             return (a_type *) ((a_literal *)ast->value)->type->value;
+        case AST_TYPE:
+            return ast->value;
         default:
             logger_log(format("Unimplemented expr node type: {s}", ast_type_to_str(ast->type)), CHECKER, ERROR);
             exit(1);
@@ -161,10 +163,11 @@ a_type * checker_check_expression(struct Ast * ast) {
 
 a_type * checker_check_variable(struct Ast * ast) {
     struct Ast * var_ast = get_variable(ast);
-
+    
     if (var_ast == NULL || !((a_variable *) var_ast->value)->is_declared) {
         a_variable * variable = ast->value;
         logger_log(format("Variable '{s}' used before having been declared", variable->name), CHECKER, ERROR);
+        return NULL;
         exit(1);
     }
 

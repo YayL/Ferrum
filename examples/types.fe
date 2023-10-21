@@ -36,8 +36,8 @@ extra newline needed below because of some lexer issue*/
 fn main(argc: i32) -> u8 {
     let list: List<i32> = List()
 
-    list.push(1)
-    list.push(2)
+    list.push++.add
+    list.push.sub
 
     list.capacity as u8
 }

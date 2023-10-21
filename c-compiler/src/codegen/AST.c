@@ -390,8 +390,7 @@ void print_ast(const char * template, struct Ast * ast) {
         }
         case AST_TYPE:
         {
-            a_type * type = ast->value;
-            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}" GREY ">" RESET, ast_str, type->name);
+            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}" GREY ">" RESET, ast_str, get_type_str(ast));
             break;
         }
         case AST_LITERAL:
