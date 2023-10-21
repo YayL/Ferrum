@@ -165,11 +165,17 @@ struct Ast * parser_parse_while(struct Parser * parser) {
 struct Ast * parser_parse_do(struct Parser * parser) {
     struct Ast * ast = init_ast(AST_DO, parser->current_scope);
 
+    logger_log("Do statements are not implemented yet", PARSER, ERROR);
+    exit(1);
+
     return ast;
 }
 
 struct Ast * parser_parse_match(struct Parser * parser) {
     struct Ast * ast = init_ast(AST_MATCH, parser->current_scope);
+
+    logger_log("Match statements are not implemented yet", PARSER, ERROR);
+    exit(1);
 
     return ast;
 }

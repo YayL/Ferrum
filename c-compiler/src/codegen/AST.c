@@ -330,7 +330,7 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
                     _print_ast_tree(if_statement->expression, next_pad, 1, 0);
                     _print_ast_tree(if_statement->body, next_pad, 1, if_statement->next == NULL);
                 } else {
-                    _print_ast_tree(if_statement->body, next_pad, 0, 0);
+                    _print_ast_tree(if_statement->body, next_pad, 1, 1);
                 }
                 if (if_statement->next == NULL)
                     break;

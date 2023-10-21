@@ -1,6 +1,8 @@
 fn main (args: &[]String) -> u8 {
     if (args == 2)
         args = 2
+    else
         args = 3
+        args=4
     
 }
