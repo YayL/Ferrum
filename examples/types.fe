@@ -33,16 +33,6 @@ extra newline needed below because of some lexer issue*/
 
 }
 
-struct Pair<A, B> {
-    const first: A
-    const second: B
-
-    fn (self, first: A, second: B) -> Self {
-        self.first = first
-        self.second = second
-    }
-}
-
 fn main(argc: i32) -> u8 {
     let list: List<i32> = List()
 

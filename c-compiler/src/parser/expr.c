@@ -48,7 +48,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
     enum OP_mode mode = UNARY_PRE;
     struct Operator * op1, * op2;
 
-    char enclosed_flag;
+    char flag;
 
     while (1) {
         switch (parser->token->type) {
@@ -78,17 +78,13 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                 mode = BINARY;
             } break;
             case TOKEN_OP:
-            // there seems to be an issue with operator precedence and associativity when an enclosed operator is involved. Ex:
-            // list.push(1) 
-            // This should be: (list.push)(1)
-            // But is parsed: list.(push(1))
             {
 _TOKEN_OPERATORS:
                 // enclosed flag is true if enclosed operator is the closing enclosing operator
-                op1 = get_operator(parser->token->value, parser->token, mode, &enclosed_flag);
+                op1 = get_operator(parser->token->value, parser->token, mode, &flag);
 
                 if (op1->enclosed == ENCLOSED) {
-                    if (!enclosed_flag) { // open enclosed operator
+                    if (!flag) { // open enclosed operator
                         parser_eat(parser, parser->token->type);
                         
                         struct Deque * temp_d = init_deque(sizeof(struct Operator *));
@@ -157,14 +153,13 @@ _TOKEN_OPERATORS:
                     pop_back(operators);
                 }
                 
-                if (output->size == 0) {
-                    list_push(expressions, NULL);
-                }else if (output->size != 1) {
-                    logger_log("Uhoh it appears that there is an issue with commas? (expr.c)", PARSER, FATAL);
-                    exit(1);
-                } else {
+                if (output->size == 1) {
                     list_push(expressions, list_at(output, -1));
                     output = init_list(sizeof(struct Ast *));
+                }else if (output->size != 1) {
+                    logger_log("Unprecedentent usage of expression separator", PARSER, FATAL);
+                    print_token("{s}\n", parser->token);
+                    exit(1);
                 }
 
                 mode = UNARY_PRE;
@@ -207,6 +202,9 @@ _TOKEN_OPERATORS:
 
 exit: 
 
+    // re-use flag to check if there has been an incorrectly placed operator
+    flag = operators->size != 0;
+
     while (operators->size) {
         op1 = deque_back(operators);
         if (op1->enclosed == ENCLOSED) {
@@ -217,10 +215,11 @@ exit:
         pop_back(operators);
     }
 
-    if (output->size != 1) {
-        logger_log(format("Invalid expression; too many discarded expressions:\n\t\tCan be caused by a semicolon at the end of an expression", output->size), PARSER, FATAL);
-    } else {
+    if (output->size == 1) {
         list_push(expressions, list_at(output, 0));
+    } else if (flag) {
+        logger_log(format("Invalid expression; too many discarded expressions({i})", output->size), PARSER, FATAL);
+        print_token("{s}\n", parser->token);
     }
 
     return expressions;
