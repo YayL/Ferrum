@@ -1,4 +1,4 @@
-struct List<T> {
+struct List<T> { 
     const buf: &T
     let size: u32
     let capacity: u32
@@ -29,6 +29,11 @@ struct List<T> {
     fn slice(self, start: i32, end: i32) -> [_]T {
         self.buf[start..<end]
     }
+    
+    fn #OP_PLUS_EQUALS(self, element: T) {
+        self.push(element)
+    }
+
 extra newline needed below because of some lexer issue*/
 
 }
@@ -37,7 +42,7 @@ fn main(argc: i32) -> u8 {
     let list: List<i32> = List()
 
     list.push++.add
-    list.push.sub
+    list += 32
 
     list.capacity as u8
 }

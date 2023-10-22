@@ -336,7 +336,8 @@ struct Ast * parser_parse_scope(struct Parser * parser) {
 struct Ast * parser_parse_function(struct Parser * parser) {
     
     struct Ast * ast = init_ast(AST_FUNCTION, parser->current_scope), 
-               * argument;
+               * argument,
+               * param_types;
     struct a_function * function = ast->value;
     parser->current_scope = ast;
     
@@ -350,12 +351,17 @@ struct Ast * parser_parse_function(struct Parser * parser) {
     parser_eat(parser, TOKEN_LPAREN);
     
     function->arguments = parser_parse_expr_exit_on(parser, PARENTHESES);
+    ASSERT1(function->arguments->type == AST_EXPR);
+
+    if (((a_expr *) function->arguments->value)->children->size != 0) {
+        function->param_type = ast_to_type(function->arguments);
+    }
     
     if (parser->token->type == TOKEN_MINUS) {
         parser_eat(parser, TOKEN_MINUS);
         parser_eat(parser, TOKEN_GT);
 
-        function->type = parser_parse_type(parser);
+        function->return_type = parser_parse_type(parser);
     }
 
     function->body = parser_parse_scope(parser);

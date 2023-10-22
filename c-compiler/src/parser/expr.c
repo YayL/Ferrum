@@ -62,15 +62,13 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
 
                 list_push(output, parser_parse_id(parser));
                 mode = BINARY;
-                break;
-            }
+            } break;
             case TOKEN_INT:
             {
                 list_push(output, parser_parse_int(parser));
 
                 mode = BINARY;
-                break;
-            }
+            } break;
             case TOKEN_STRING_LITERAL:
             {
                 print_token("tokstr: {s}", parser->token);
@@ -80,7 +78,6 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
             } break;
             case TOKEN_OP:
             {
-_TOKEN_OPERATORS:
                 // enclosed flag is true if enclosed operator is the closing enclosing operator
                 op1 = get_operator(parser->token->value, parser->token, mode, &flag);
 
@@ -148,9 +145,7 @@ _TOKEN_OPERATORS:
                 if (op1->key == CAST || op1->key == BIT_CAST) {
                     list_push(output, parser_parse_type(parser));
                 }
-
-                break;
-            }
+            } break;
             case TOKEN_SEMI:
             case TOKEN_COMMA:
             {

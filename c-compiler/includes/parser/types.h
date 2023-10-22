@@ -11,7 +11,8 @@ typedef struct Type {
         IArray,
         IRef,
         IStruct,
-        IEnum
+        IEnum,
+        ITuple
     } intrinsic;
 } Type;
 
@@ -47,7 +48,13 @@ typedef struct Enum_T {
     struct List * fields;
 } Enum_T;
 
+typedef struct Tuple_T {
+    struct List * types;
+} Tuple_T;
+
 void * init_intrinsic_type(enum intrinsic_type type);
 char * type_to_str(Type * type);
 
 struct Ast * get_type(struct Ast * ast, char * name);
+char is_equal_type(Type * type1, Type * type2);
+struct Ast * ast_to_type(struct Ast * ast);

@@ -47,6 +47,37 @@ struct Ast * get_variable(struct Ast * variable) {
     return NULL;
 }
 
+struct Ast * get_declared_function(const char * name, struct List * list1, struct Ast * scope) {
+    while (scope->type != AST_ROOT) {
+        if (scope->type == AST_MODULE) {
+            a_module * module = scope->value;
+            for (int i = 0; i < module->functions->size; ++i) {
+                struct Ast * node = list_at(module->functions, i);
+                a_function * function = node->value;
+
+                if (strcmp(function->name, name))
+                    continue;
+
+                struct List * list2 = ((Tuple_T *)((a_type *) function->param_type->value)->ptr)->types;
+
+                if (list1->size != list2->size)
+                    continue;
+
+                int j = 0;
+                for (; j < list1->size; ++j) {
+                    if (!is_equal_type(list_at(list1, j), list_at(list2, j)))
+                        break;
+                }
+                if (j == list1->size)
+                    return node;
+            }
+        }
+        scope = scope->scope;
+    }
+
+    return NULL;
+}
+
 char is_declared_function(char * name, struct Ast * scope) {
     while (scope->type != AST_ROOT) {
         if (scope->type == AST_MODULE) {
@@ -72,7 +103,7 @@ void checker_check_type(struct Ast * ast, struct Ast * type) {
     }
 }
 
-a_type * checker_check_expr_node(struct Ast * ast) {
+struct Ast * checker_check_expr_node(struct Ast * ast) {
     switch (ast->type) {
         case AST_OP:
             return checker_check_op(ast);
@@ -84,19 +115,20 @@ a_type * checker_check_expr_node(struct Ast * ast) {
             return checker_check_expression(ast);
             break;
         case AST_LITERAL:
-            return (a_type *) ((a_literal *)ast->value)->type->value;
+            return ((a_literal *)ast->value)->type;
         case AST_TYPE:
-            return ast->value;
+            return ast;
         default:
             logger_log(format("Unimplemented expr node type: {s}", ast_type_to_str(ast->type)), CHECKER, ERROR);
             exit(1);
     }
 }
 
-a_type * checker_check_op(struct Ast * ast) {
-    struct Ast * node;
+struct Ast * checker_check_op(struct Ast * ast) {
+    struct Ast * node,
+               * left = NULL,
+               * right = NULL;
     a_op * op = ast->value;
-    a_type * left, * right;
 
     if (op->op->key == CALL && op->left->type == AST_VARIABLE) {
         a_variable * var = op->left->value;
@@ -112,7 +144,26 @@ a_type * checker_check_op(struct Ast * ast) {
 
     right = checker_check_expr_node(op->right);
 
-    // TODO: search for an implementation of this operator with the types or otherwise error
+    const char * name = get_operator_runtime_name(op->op->key);
+
+    struct List * temp_list = init_list(sizeof(struct Ast *));
+    list_push(temp_list, left);
+    list_push(temp_list, right);
+
+    struct Ast * func = get_declared_function(name, temp_list, ast->scope);
+
+    if (func == NULL) {
+        ASSERT1(right != NULL);
+        ASSERT1(right->value != NULL);
+        if (left != NULL)
+            logger_log(format("Operator '{s}' is not defined for ({2s:, })", op->op->str, type_to_str(left->value), type_to_str(right->value)), CHECKER, ERROR);
+        else 
+            logger_log(format("Operator {s}({s}) is not defined for ({s})", name, op->op->str, type_to_str(right->value)), CHECKER, ERROR);
+
+        exit(1);
+    }
+
+    return func;
 }
 
 void checker_check_if(struct Ast * ast) {
@@ -147,7 +198,7 @@ void checker_check_return(struct Ast * ast) {
     checker_check_expression(return_statement->expression);
 }
 
-a_type * checker_check_expression(struct Ast * ast) {
+struct Ast * checker_check_expression(struct Ast * ast) {
     struct Ast * node;
     a_expr * expr = ast->value;
 
@@ -159,9 +210,10 @@ a_type * checker_check_expression(struct Ast * ast) {
 
     // TODO: return a tuple type
 
+    return ast;
 }
 
-a_type * checker_check_variable(struct Ast * ast) {
+struct Ast * checker_check_variable(struct Ast * ast) {
     struct Ast * var_ast = get_variable(ast);
     
     if (var_ast == NULL || !((a_variable *) var_ast->value)->is_declared) {
@@ -176,7 +228,7 @@ a_type * checker_check_variable(struct Ast * ast) {
         ast->value = var_ast->value;
     }
 
-    return ((a_variable *)ast->value)->type->value;
+    return ((a_variable *)ast->value)->type;
 }
 
 void checker_check_scope(struct Ast * ast) {

@@ -37,8 +37,6 @@ enum Operators {
 
     LESS_THAN,
     LESS_EQUAL_TO,
-    LESS_THAN_BETWEEN, // a < var < b
-    GREATER_THAN_BETWEEN, // a > var > b
     GREATER_THAN,
     GREATER_EQUAL_TO,
 
@@ -97,7 +95,7 @@ const static struct Operator {
 } op_conversion [] = {
     {OP_NOT_FOUND, UNARY_PRE, 0, LEFT, NORMAL, 0, ""},
     {PARENTHESES, UNARY_PRE, 0, LEFT, ENCLOSED, 2, "(\0)"},
-    //{BRACKETS, UNARY_PRE, 0, LEFT, ENCLOSED, 0, "[\0]"},
+    //{BRACKETS, UNARY_PRE, 0, LEFT, ENCLOSED, 0, "[\0]"}, ARRAY DEFINITION
     
     {INCREMENT, UNARY_PRE, 1, LEFT, NORMAL, 0, "++"},
     {INCREMENT, UNARY_POST, 1, LEFT, NORMAL, 0, "++"},
@@ -163,4 +161,5 @@ const static struct Operator {
 struct Operator str_to_operator(const char * str, enum OP_mode mode, char * enclosed_flag);
 char is_operator(const char * str);
 
+const char * get_operator_runtime_name(enum Operators op);
 void print_operator(const char * template, struct Operator * operator);

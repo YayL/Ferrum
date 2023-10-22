@@ -55,7 +55,8 @@ typedef struct a_module {
 typedef struct a_function {
     char * name;
     struct Ast * body;
-    struct Ast * type;
+    struct Ast * return_type;
+    struct Ast * param_type;
     struct Ast * arguments; // expression node
 } a_function;
 
@@ -90,6 +91,7 @@ typedef struct a_op {
     struct Operator * op;
     struct Ast * left;
     struct Ast * right;
+    struct Ast * type;
 } a_op;
 
 typedef struct a_variable {
@@ -101,12 +103,12 @@ typedef struct a_variable {
 } a_variable;
 
 typedef struct a_literal {
+    struct Ast * type;
+    char * value;
     enum LITERAL_TYPE {
         NUMBER,
         STRING,
     } literal_type;
-    struct Ast * type;
-    char * value;
 } a_literal;
 
 typedef struct a_return {
