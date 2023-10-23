@@ -246,6 +246,12 @@ struct Ast * parser_parse_struct(struct Parser * parser) {
     return ast;
 }
 
+struct Ast * parser_parse_trait(struct Parser * parser) {
+    struct Ast * ast = init_ast(AST_TRAIT, parser->current_scope);
+
+    return ast;
+}
+
 struct Ast * parser_parse_declaration(struct Parser * parser, enum Keywords keyword) {
     struct Ast * ast = init_ast(AST_DECLARATION, parser->current_scope);
     a_declaration * declaration = ast->value;
@@ -432,6 +438,8 @@ struct Ast * parser_parse_identifier(struct Parser * parser) {
             return parser_parse_package(parser);
         case STRUCT:
             return parser_parse_struct(parser);
+        case TRAIT:
+            return parser_parse_trait(parser);
         default:
             logger_log(format("Unknown identifier: '{s}'", identifier.str), PARSER, ERROR);
             exit(1);
@@ -464,6 +472,9 @@ struct Ast * parser_parse_module(struct Parser * parser, struct Ast * ast) {
                 break;
             case AST_STRUCT:
                 list_push(module->structures, node);
+                break;
+            case AST_TRAIT:
+                list_push(module->markers, node);
                 break;
             default:
                 println("probably a package but exiting!");

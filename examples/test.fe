@@ -1,4 +1,7 @@
+package "numeric"
 
 fn main(argc: u32, args: &[]String) -> (u8, []String) {
-    argc + args
+    argc + argc
 }
+
+

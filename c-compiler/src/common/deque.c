@@ -24,12 +24,11 @@ size_t deque_find (struct Deque * deque, void * comp) {
 	exit(1);
 }
 
-void deque_expand (struct Deque * deque) {
-	
+void deque_expand (struct Deque * deque) {	
 	int previous_cap = deque->capacity;
 	deque->capacity = deque->capacity << 1;
-	deque->items =
-        realloc(deque->items, deque->item_size * deque->capacity);
+	deque->items = realloc(deque->items, deque->item_size * deque->capacity);
+
 	if (deque->end < deque->start) {
 		int length = previous_cap - deque->start;
 		memmove(deque->items + deque->capacity - length, 

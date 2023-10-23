@@ -16,6 +16,7 @@ enum Keywords {
     MATCH,
     STRUCT,
     ENUM,
+    TRAIT,
     IMPL,
     RETURN
 };
@@ -38,12 +39,13 @@ const static struct Keyword {
     {PACKAGE, GLOBAL_ONLY, "package"},
     {STRUCT, GLOBAL_ONLY, "struct"},
     {ENUM, GLOBAL_ONLY, "enum"},
+    {TRAIT, GLOBAL_ONLY, "trait"},
     {IMPL, GLOBAL_ONLY, "impl"},
 
     {CONST, ANY, "const"},
     {LET, ANY, "let"},
     {ELSE, FUNCTION_ONLY, "else"},
-    {IF, ANY, "if"},
+    {IF, FUNCTION_ONLY, "if"},
     {FOR, FUNCTION_ONLY, "for"},
     {WHILE, FUNCTION_ONLY, "while"},
     {DO, FUNCTION_ONLY, "do"},

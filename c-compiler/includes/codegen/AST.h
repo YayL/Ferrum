@@ -29,6 +29,7 @@ enum AST_type {
     AST_CONTINUE,
     AST_STRUCT,
     AST_ENUM,
+    AST_TRAIT,
     AST_IMPL
 };
 
@@ -46,10 +47,7 @@ typedef struct a_root {
 
 typedef struct a_module {
     char * path;
-    struct List * variables;
-    struct List * functions;
-    struct List * structures;
-    //struct List * traits;
+    struct HashMap * symbols;
 } a_module;
 
 typedef struct a_function {
@@ -86,6 +84,11 @@ typedef struct a_enum {
     char * name;
     struct List * variants;
 } a_enum;
+
+typedef struct a_trait {
+    char * name;
+    struct List * children;
+} a_trait;
 
 typedef struct a_op {
     struct Operator * op;
