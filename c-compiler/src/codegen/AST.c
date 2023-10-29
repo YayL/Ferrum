@@ -26,9 +26,12 @@ void * init_ast_of_type(enum AST_type type) {
         case AST_MODULE:
         {
             a_module * module = malloc(sizeof(a_module));
+            module->symbols = init_hashmap(8);
             module->functions = init_list(sizeof(struct Ast *));
             module->variables = init_list(sizeof(struct Ast *));
             module->structures = init_list(sizeof(struct Ast *));
+            module->traits = init_list(sizeof(struct Ast *));
+            module->impls = init_list(sizeof(struct Ast *));
 
             return module;
         }
@@ -94,8 +97,15 @@ void * init_ast_of_type(enum AST_type type) {
         {
             a_trait * trait = calloc(1, sizeof(a_trait));
             trait->children = init_list(sizeof(struct Ast *));
+            trait->impls = init_list(sizeof(struct Ast *));
 
             return trait;
+        }
+        case AST_IMPL:
+        {
+            a_impl * impl = malloc(sizeof(a_impl));
+
+            return impl;
         }
         case AST_RETURN:
         {
@@ -154,6 +164,7 @@ const char * ast_type_to_str(enum AST_type type) {
         case AST_STRUCT: return "Struct";
         case AST_ENUM: return "Enum";
         case AST_IMPL: return "Impl";
+        case AST_TRAIT: return "Trait";
 		case AST_ROOT: return "Root";
 	}
 	return "UNDEFINED";
@@ -369,7 +380,7 @@ void print_ast(const char * template, struct Ast * ast) {
         case AST_MODULE:
         {
             a_module * module = ast->value;
-            ast_str = format("{s} " GREY "<" BLUE "Functions" RESET ": {i}, " BLUE "Variables" RESET ": {i}, " BLUE "Path" RESET ": '{s}'" GREY ">" RESET, ast_str, module->functions->size, module->variables->size, module->path);
+            ast_str = format("{s} " GREY "<" BLUE "Symbols" RESET ": {i}, " BLUE "Path" RESET ": '{s}'" GREY ">" RESET, ast_str, module->symbols->total, module->path);
             break;
         }
         case AST_FUNCTION:
@@ -404,7 +415,10 @@ void print_ast(const char * template, struct Ast * ast) {
         case AST_LITERAL:
         {
             a_literal * literal = ast->value;
-            ast_str = format("{s} " GREY "<" BLUE "Type" RESET ": Number, " BLUE "Value" RESET ": {s}" GREY ">" RESET, ast_str, literal->value);
+            const char * literal_type = (literal->literal_type == LITERAL_NUMBER) ? "Number" : "String";
+            const char * type_str = type_to_str(literal->type->value);
+
+            ast_str = format("{s} " GREY "<" BLUE "Literal" RESET ": {s}, " BLUE "Type" RESET ": {s}, " BLUE "Value" RESET ": {s}" GREY ">" RESET, ast_str, literal_type, type_str, literal->value);
             break;
         }
         case AST_DECLARATION:

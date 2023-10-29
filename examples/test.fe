@@ -1,6 +1,6 @@
-package "numeric"
+//package "numeric"
 
-fn main(argc: u32, args: &[]String) -> (u8, []String) {
+fn main(argc: u32) -> u8 {
     argc + argc
 }
 

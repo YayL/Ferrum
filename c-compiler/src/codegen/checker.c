@@ -5,6 +5,7 @@ struct Ast * get_variable(struct Ast * variable) {
     struct Ast * scope = variable->scope,
                * ast;
     struct List * list;
+    char * name = ((a_variable *) variable->value)->name;
 
     while(scope->type != AST_ROOT) {
         switch(scope->type) {
@@ -15,7 +16,10 @@ struct Ast * get_variable(struct Ast * variable) {
             }
             case AST_MODULE:
             {
-                list = ((a_module *) scope->value)->variables;
+                ast = hashmap_get(((a_module *) scope->value)->symbols, name);
+                if (ast != NULL)
+                    return ast;
+                list = NULL;
                 break;
             }
             case AST_FUNCTION:
@@ -36,7 +40,7 @@ struct Ast * get_variable(struct Ast * variable) {
         if (list != NULL) {
             for (int i = 0; i < list->size; ++i) {
                 ast = list_at(list, i);
-                if (!strcmp(((a_variable *) ast->value)->name, ((a_variable *) variable->value)->name))
+                if (!strcmp(((a_variable *) ast->value)->name, name))
                     return ast;
             }
         }
@@ -155,6 +159,9 @@ struct Ast * checker_check_op(struct Ast * ast) {
     if (func == NULL) {
         ASSERT1(right != NULL);
         ASSERT1(right->value != NULL);
+    
+        print_ast_tree(ast);
+
         if (left != NULL)
             logger_log(format("Operator '{s}' is not defined for ({2s:, })", op->op->str, type_to_str(left->value), type_to_str(right->value)), CHECKER, ERROR);
         else 

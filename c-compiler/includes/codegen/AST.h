@@ -3,6 +3,7 @@
 #include "parser/types.h"
 
 #include "common/list.h"
+#include "common/hashmap.h"
 #include "common/string.h"
 
 enum AST_type {
@@ -48,6 +49,11 @@ typedef struct a_root {
 typedef struct a_module {
     char * path;
     struct HashMap * symbols;
+    struct List * variables;
+    struct List * functions;
+    struct List * structures;
+    struct List * traits;
+    struct List * impls;
 } a_module;
 
 typedef struct a_function {
@@ -56,6 +62,7 @@ typedef struct a_function {
     struct Ast * return_type;
     struct Ast * param_type;
     struct Ast * arguments; // expression node
+    char is_inline;
 } a_function;
 
 typedef struct a_scope {
@@ -87,8 +94,15 @@ typedef struct a_enum {
 
 typedef struct a_trait {
     char * name;
+    struct List * impls;
     struct List * children;
 } a_trait;
+
+typedef struct a_impl {
+    char * name;
+    struct Ast * types;
+    struct List * list;
+} a_impl;
 
 typedef struct a_op {
     struct Operator * op;
@@ -109,8 +123,8 @@ typedef struct a_literal {
     struct Ast * type;
     char * value;
     enum LITERAL_TYPE {
-        NUMBER,
-        STRING,
+        LITERAL_NUMBER,
+        LITERAL_STRING,
     } literal_type;
 } a_literal;
 

@@ -8,6 +8,8 @@ typedef struct HM_pair {
 	void * value;
 } HM_Pair;
 
+#include "common/sparselist.h"
+
 struct HashMap {
 	size_t buckets;
 	size_t total;

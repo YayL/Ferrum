@@ -116,6 +116,27 @@ struct Ast * parser_parse_type(struct Parser * parser) {
                 parser_eat(parser, parser->token->type);
             }
             parser_eat(parser, TOKEN_GT);
+        // check if not type Self as that is a special compile time type
+        } else if (strcmp(type->name, "Self")) { // predfined types are parsed here
+            Numeric_T * num = init_intrinsic_type(INumeric);
+            switch (type->name[0]) {
+                case 'i':
+                    num->type = NUMERIC_SIGNED; break;
+                case 'u':
+                    num->type = NUMERIC_UNSIGNED; break;
+                case 'f':
+                    num->type = NUMERIC_FLOAT; break;
+            }
+
+            unsigned int size = atoi(type->name + 1);
+
+            if (size == 0) {
+                logger_log(format("{2u::} Unknown type: {s}", parser->token->line, parser->token->pos, type->name), PARSER, ERROR);
+                exit(1);
+            }
+
+            num->width = size;
+            type->ptr = num;
         }
     }
 
@@ -253,11 +274,26 @@ char is_equal_type(Type * type1, Type * type2) {
 
 char * type_to_str(Type * type) {
     switch (type->intrinsic) {
-        case INumeric:
         case IStruct:
         case IEnum:
         {
             return type->name;
+        }
+        case INumeric:
+        {
+            Numeric_T * num = type->ptr;
+            char c = 'i';
+            switch (num->type) {
+                case NUMERIC_SIGNED:
+                    break;
+                case NUMERIC_UNSIGNED:
+                    c = 'u'; break;
+                case NUMERIC_FLOAT:
+                    c = 'f'; break;
+                default:
+                    logger_log(format("Invalid numeric type: {i}", num->type), CHECKER, ERROR);
+            }
+            return format("{c}{u}", c, num->width);
         }
         case IArray:
         {

@@ -147,7 +147,7 @@ void gen_call(struct Generator * gen, struct Ast * ast) {
             case AST_LITERAL:
             {
                 a_literal * literal = node->value;
-                if (literal->type != NUMBER) {
+                if (literal->type != LITERAL_NUMBER) {
                     logger_log("Only literal type implemented is numeric literals", IR, ERROR);
                     exit(1);
                 }
