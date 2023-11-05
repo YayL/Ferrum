@@ -72,4 +72,10 @@ void list_reserve(struct List *, unsigned int);
  * @brief Copy the current list
  * @return Pointer to the list cop copy
  */
-void * list_copy(struct List * src, size_t start, size_t end);
+struct List * list_copy(struct List * src, size_t start, size_t end);
+
+/**
+ * @brief Combine two lists into a new one
+ * @return Pointer to the new list
+ */
+struct List * list_combine(struct List * first, struct List * second);

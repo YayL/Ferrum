@@ -1,0 +1,8 @@
+fn main (args: i32) -> u8 {
+    let num: u32 = 23
+
+    for num = 2; num; ++num {
+
+    }
+
+}

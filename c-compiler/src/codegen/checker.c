@@ -1,9 +1,8 @@
 #include "codegen/checker.h"
+#include "common/hashmap.h"
 
-struct Ast * get_variable(struct Ast * variable) {
-    
-    struct Ast * scope = variable->scope,
-               * ast;
+struct Ast * get_symbol(char * const name, struct Ast const * scope) {    
+    struct Ast * ast;
     struct List * list;
 
     while(scope->type != AST_ROOT) {
@@ -15,12 +14,18 @@ struct Ast * get_variable(struct Ast * variable) {
             }
             case AST_MODULE:
             {
-                list = ((a_module *) scope->value)->variables;
+                ast = hashmap_get(((a_module *) scope->value)->symbols, name);
+                if (ast != NULL)
+                    return ast;
+                list = NULL;
                 break;
             }
             case AST_FUNCTION:
             {
-                list = ((a_function *) scope->value)->arguments;
+                ast = ((a_function *) scope->value)->arguments;
+                if (ast == NULL)
+                    return NULL;
+                list = ((a_expr *) ast->value)->children;
                 break;
             }
             default:
@@ -29,16 +34,148 @@ struct Ast * get_variable(struct Ast * variable) {
                 exit(1);
             }
         }
-
-        for (int i = 0; i < list->size; ++i) {
-            ast = list_at(list, i);
-            if (!strcmp(((a_variable *) ast->value)->name, ((a_variable *) variable->value)->name))
-                return ast;
+        
+        if (list != NULL) {
+            for (int i = 0; i < list->size; ++i) {
+                ast = list_at(list, i);
+                if (!strcmp(((a_variable *) ast->value)->name, name))
+                    return ast;
+            }
         }
 
         scope = scope->scope;
     }
     
+    return NULL;
+
+}
+
+struct Ast * get_variable(struct Ast * variable) {
+    return get_symbol(((a_variable *) variable->value)->name, variable->scope);
+}
+
+char * get_name(struct Ast * ast) {
+    switch (ast->type) {
+        case AST_FUNCTION:
+            return ((a_function *) ast->value)->name;
+        case AST_DECLARATION:
+            return ((a_variable *) ((a_declaration *) ast->value)->variable->value)->name; 
+        default:
+            print_ast("get_name invalid type: {s}", ast);
+            exit(1);
+    }
+}
+
+struct Ast * get_declared_function(const char * name, struct List * list1, struct Ast * scope) {
+    while (scope->type != AST_ROOT) {
+        if (scope->type == AST_MODULE) {
+            a_module * module = scope->value;
+            for (int i = 0; i < module->functions->size; ++i) {
+                struct Ast * node = list_at(module->functions, i);
+                a_function * function = node->value;
+
+
+                if (strcmp(function->name, name))
+                    continue;
+
+                struct List * list2 = ((Tuple_T *)((a_type *) function->param_type->value)->ptr)->types;
+
+                if (list1->size != list2->size)
+                    continue;
+
+                char found = 1;
+                for (int j = 0; j < list1->size; ++j) {
+                    if (!is_equal_type(DEREF_AST(list_at(list1, j)), DEREF_AST(list_at(list2, j)), NULL)) {
+                        print_ast("{s}\n", node);
+                        found = 0;
+                        break;
+                    }
+                }
+                if (found)
+                    return node;
+            }
+        }
+        scope = scope->scope;
+    }
+
+    return NULL;
+}
+
+void add_member_function(struct Ast * marker, struct Ast * new_member_to_add, struct Ast * current_scope) {
+    while (current_scope->type != AST_ROOT)
+        current_scope = current_scope->scope;
+
+    a_root * root = current_scope->value;
+    a_type * type = marker->value;
+
+    const char * marker_name = get_base_type_str(type);
+    ASSERT1(marker_name != NULL);
+
+    struct List * members = hashmap_get(root->markers, marker_name);
+
+    if (members == NULL) {
+        members = init_list(sizeof(struct Ast *));
+        ASSERT1(marker_name != NULL);
+        hashmap_set(root->markers, marker_name, members);
+    }
+
+    list_push(members, new_member_to_add);
+}
+
+struct Ast * get_member_function(struct Ast * marker, const char * member_name, 
+                                 struct List * member_argument_types, struct Ast * current_scope) {
+    if (marker == NULL) {
+        logger_log(format("Unknown type for marker when calling '{s}'", member_name), CHECKER, ERROR);
+        exit(1);
+    }
+
+    while (current_scope->type != AST_ROOT)
+        current_scope = current_scope->scope;
+
+    a_root * root = current_scope->value;
+    a_type * type = marker->value;
+
+    const char * marker_name = get_base_type_str(type);
+    ASSERT1(marker_name != NULL);
+
+    struct List * members = hashmap_get(root->markers, marker_name);
+    
+    if (members == NULL)
+        return NULL;
+
+    ASSERT(members->size != 0, "Member list is empty and stored in marker table??");
+
+    const int size = members->size;
+    struct Ast * node;
+    for (int i = 0; i < size; ++i) {
+        node = list_at(members, i);
+
+        if (node->type != AST_FUNCTION) {
+            logger_log("uhoh member must be function", CHECKER, ERROR);
+            exit(1);
+        }
+
+        a_function * function = node->value;
+        if (strcmp(function->name, member_name))
+            continue;
+        
+        struct List * function_argument_types = ((Tuple_T *)((a_type *) function->param_type->value)->ptr)->types;
+
+        if (function_argument_types->size != member_argument_types->size)
+            continue;
+
+        char found = 1;
+        for (int j = 0; j < function_argument_types->size || !(found = 1); ++j) {
+            if (!is_equal_type(DEREF_AST(list_at(function_argument_types, j)), DEREF_AST(list_at(member_argument_types, j)), type)) {
+                found = 0;
+                break;
+            }
+        }
+
+        if (found)
+            return node;
+    }
+
     return NULL;
 }
 
@@ -58,41 +195,103 @@ char is_declared_function(char * name, struct Ast * scope) {
     return 0;
 }
 
-void checker_check_expr_node(struct Ast * ast) {
-    switch (ast->type) {
-        case AST_OP:
-            checker_check_op(ast);
-            break;
-        case AST_VARIABLE:
-            checker_check_variable(ast);
-            break;
-        case AST_EXPR:
-            checker_check_expression(ast);
-            break;
-        default:
-            break;
+void checker_check_type(struct Ast * ast, struct Ast * type) {
+    a_type * left = ast->value, * right = type->value;
+
+    if (left->intrinsic != right->intrinsic) {
+        logger_log(format("{2s::} Missmatched types; {s} is not the same as {s}", left->name, right->name), CHECKER, ERROR);
+        exit(1);
     }
 }
 
-void checker_check_op(struct Ast * ast) {
-    struct Ast * node;
+struct Ast * checker_check_expr_node(struct Ast * ast) {
+    switch (ast->type) {
+        case AST_OP:
+            return checker_check_op(ast);
+        case AST_VARIABLE:
+            return checker_check_variable(ast);
+        case AST_EXPR:
+            return checker_check_expression(ast);
+        case AST_LITERAL:
+            return ((a_literal *)ast->value)->type;
+        case AST_TYPE:
+            return ast;
+        default:
+            logger_log(format("Unimplemented expr node type: {s}", ast_type_to_str(ast->type)), CHECKER, ERROR);
+            exit(1);
+    }
+}
+
+struct Ast * checker_check_op(struct Ast * ast) {
+    struct Ast * left = NULL,
+               * right = NULL;
     a_op * op = ast->value;
 
-    if (op->op->key == CALL && op->left->type == AST_VARIABLE) {
+    if (op->op->key == CALL) {
+        if (op->left->type != AST_VARIABLE)
+            return NULL;
+
         a_variable * var = op->left->value;
         if (!is_declared_function(var->name, ast->scope)) {
             logger_log(format("Call to unknown function: '{s}'", var->name), CHECKER, WARN);
+            return NULL;
         }
+
+        right = checker_check_expr_node(op->right);
+        ASSERT1(right->type == AST_TYPE);
+        ASSERT1(((a_type *) right->value)->intrinsic == ITuple);
+        left = get_declared_function(var->name, ((Tuple_T *)((a_type *) right->value)->ptr)->types, ast->scope);
+
+    if (left == NULL) {
+        ASSERT1(right != NULL);
+        ASSERT1(right->value != NULL);
+    
+        logger_log(format("Unknown function: {2s}", var->name, get_type_str(right)), CHECKER, ERROR);
+
+        exit(1);
+    }
+
+        return left;
+
     } else if (op->op->key == TERNARY && ((a_op *) op->right->value)->op->key != TERNARY_BODY) {
         logger_log("Detected an error with the ternary operator. This was most likely caused by operator precedence or nested ternary operators. To remedy this try applying parenthesis around the seperate ternary body entries", CHECKER, ERROR);
         exit(1);
     } else if (op->left) {
-        checker_check_expr_node(op->left);
-    } 
+        left = checker_check_expr_node(op->left);
+    }
 
-    checker_check_expr_node(op->right);
+    right = checker_check_expr_node(op->right);
 
+    const char * name = get_operator_runtime_name(op->op->key);
 
+    struct List * temp_list = init_list(sizeof(struct Ast *));
+
+    if (left != NULL)
+        list_push(temp_list, left);
+    list_push(temp_list, right);
+
+    struct Ast * type = left == NULL ? left : right;
+
+    struct Ast * func = get_member_function(type, name, temp_list, ast->scope);
+
+    if (func == NULL) {
+        ASSERT1(right != NULL);
+        ASSERT1(right->value != NULL);
+    
+        print_ast_tree(ast);
+
+        if (left != NULL)
+            logger_log(format("Operator '{s}'({s}) is not defined for ({2s:, })", op->op->str, name, type_to_str(left->value), type_to_str(right->value)), CHECKER, ERROR);
+        else 
+            logger_log(format("Operator '{s}'({s}) is not defined for ({s})", op->op->str, name, type_to_str(right->value)), CHECKER, ERROR);
+
+        exit(1);
+    }
+
+    op->definition = func;
+    op->type = replace_self_in_type(((a_function *) func->value)->return_type, type);
+ 
+    return op->type;
 }
 
 void checker_check_if(struct Ast * ast) {
@@ -108,27 +307,46 @@ void checker_check_if(struct Ast * ast) {
 }
 
 void checker_check_while(struct Ast * ast) {
-    println("while checker has not been implemented!");
-    exit(1);
+    a_while_statement * while_statement = ast->value;
+
+    checker_check_expression(while_statement->expression);
+    checker_check_scope(while_statement->body);
 }
 
-void checker_check_expression(struct Ast * ast) {
-    struct Ast * node;
+void checker_check_for(struct Ast * ast) {
+    a_for_statement * for_statement = ast->value;
+
+    checker_check_expression(for_statement->expression);
+    checker_check_scope(for_statement->body);
+}
+
+void checker_check_return(struct Ast * ast) {
+    a_return * return_statement = ast->value;
+
+    checker_check_expression(return_statement->expression);
+}
+
+struct Ast * checker_check_expression(struct Ast * ast) {
+    struct Ast * node, * type_ast = init_ast(AST_TYPE, ast->scope);
     a_expr * expr = ast->value;
+    a_type * type = type_ast->value;
 
     for (int i = 0; i < expr->children->size; ++i) {
         node = list_at(expr->children, i);
-        checker_check_expr_node(node);
+        if (node != NULL)
+            checker_check_expr_node(node);
     }
 
+    return expr->type = ast_to_type(ast);
 }
 
-void checker_check_variable(struct Ast * ast) {
+struct Ast * checker_check_variable(struct Ast * ast) {
     struct Ast * var_ast = get_variable(ast);
-
+    
     if (var_ast == NULL || !((a_variable *) var_ast->value)->is_declared) {
         a_variable * variable = ast->value;
         logger_log(format("Variable '{s}' used before having been declared", variable->name), CHECKER, ERROR);
+        return NULL;
         exit(1);
     }
 
@@ -136,6 +354,101 @@ void checker_check_variable(struct Ast * ast) {
         free(ast->value);
         ast->value = var_ast->value;
     }
+
+    return ((a_variable *)ast->value)->type;
+}
+
+struct Ast * checker_check_struct(struct Ast * ast) {
+    a_struct * _struct = ast->value;
+
+    if (ast != get_symbol(_struct->name, ast->scope)) {
+        logger_log(format("Multiple definitions for struct '{s}'", _struct->name), CHECKER, ERROR);
+        exit(1);
+    }
+
+    return ast;
+}
+
+struct Ast * checker_check_impl(struct Ast * ast) {
+    a_impl * impl = ast->value;
+    struct Ast * node = get_symbol(impl->name, ast->scope),
+               * temp1,
+               * temp2;
+
+    if (node == NULL) {
+        logger_log(format("Invalid trait '{s}' for impl", impl->name), CHECKER, ERROR);
+        exit(1);
+    }
+
+    a_trait * trait = node->value;
+
+    if (trait->children->size != impl->members->size) {
+        logger_log(format("Trait '{s}' is not fully implemented for {s}", impl->name, type_to_str(impl->type->value)), CHECKER, ERROR);
+        exit(1);
+    }
+    
+    size_t size = impl->members->size;
+    char * name1, * name2;
+
+    for (int i = 0; i < size; ++i) {
+        char found = 0;
+        temp1 = list_at(impl->members, i);
+        name1 = get_name(temp1);
+        for (int j = 0; j < size; ++j) {
+            temp2 = list_at(trait->children, j);
+ 
+            if (temp1->type == temp2->type && !strcmp(name1, get_name(temp2))) {
+                found = 1;
+                break;
+            }
+        }
+        if (!found) {
+            logger_log(format("Trait '{s}' is not validly implemented for {s}. Correct member definitions", impl->name, type_to_str(impl->type->value)), CHECKER, ERROR);
+            exit(1);
+        }
+    }
+    
+    a_type * type = impl->type->value;
+    struct List * list;
+    if (type->intrinsic != ITuple) {
+        list = init_list(sizeof(struct Ast *));
+        list_push(list, impl->type);
+    } else {
+        list = ((Tuple_T *) type->ptr)->types;
+    }
+
+    if (ast->scope->type != AST_MODULE) {
+        logger_log("impl is not at module scope?", CHECKER, ERROR);
+        exit(1);
+    }
+
+    a_module * module = ast->scope->value;
+
+    size = list->size;
+    for (int i = 0; i < size; ++i) {
+        temp1 = list_at(list, i); // current type/marker that is to be added to
+        for (int j = 0; j < impl->members->size; ++j) {
+            temp2 = list_at(impl->members, j);
+            add_member_function(temp1, list_at(impl->members, j), ast->scope);
+        }
+    }
+    
+    return ast;
+
+}
+
+struct Ast * checker_check_trait(struct Ast * ast) {
+    a_trait * trait = ast->value;
+
+    struct Ast * node = get_symbol(trait->name, ast->scope);
+
+    if (ast != node) {
+        logger_log(format("Multiple definitions for trait '{s}'", trait->name), CHECKER, ERROR);
+        exit(1);
+    }
+
+    return ast;
+
 }
 
 void checker_check_scope(struct Ast * ast) {
@@ -156,6 +469,15 @@ void checker_check_scope(struct Ast * ast) {
                 break;
             case AST_WHILE:
                 checker_check_while(node);
+                break;
+            case AST_FOR:
+                checker_check_for(node);
+                break;
+            case AST_RETURN:
+                checker_check_return(node);
+                break;
+            default:
+                logger_log(format("Invalid scope node type: {s}\n", ast_type_to_str(node->type)), CHECKER, ERROR);
                 break;
         }
     }
@@ -192,7 +514,7 @@ void checker_check_declaration(struct Ast * ast) {
                         }
                     default:
                         {
-                            logger_log(format("Unsupported type '{s}' as variable holder", ast_type_to_str(ast->scope->type)), PARSER, ERROR);
+                            logger_log(format("Unsupported type '{s}' as variable holder", ast_type_to_str(ast->scope->type)), CHECKER, ERROR);
                             exit(1);
                         }
                 }
@@ -216,7 +538,7 @@ void checker_check_declaration(struct Ast * ast) {
                     }
                 default:
                     {
-                        logger_log(format("Unsupported type '{s}' as variable holder", ast_type_to_str(ast->scope->type)), PARSER, ERROR);
+                        logger_log(format("Unsupported type '{s}' as variable holder", ast_type_to_str(ast->scope->type)), CHECKER, ERROR);
                         exit(1);
                     }
             }
@@ -229,9 +551,11 @@ void checker_check_declaration(struct Ast * ast) {
 void checker_check_function(struct Ast * ast) {
     struct Ast * node;
     a_function * function = ast->value;
+    a_expr * arguments = function->arguments->value;
 
-    for (int i = 0; i < function->arguments->size; ++i) {
-        node = list_at(function->arguments, i);
+    for (int i = 0; i < arguments->children->size; ++i) {
+        node = list_at(arguments->children, i);
+        ASSERT(node->type == AST_VARIABLE, "Function arguments currently only support variable definition");
         ((a_variable *) node->value)->is_declared = 1;
         checker_check_variable(node);
     }
@@ -241,12 +565,28 @@ void checker_check_function(struct Ast * ast) {
 
 void checker_check_module(struct Ast * ast) {
     a_module * module = ast->value;
-    int size = module->variables->size;
+    int size;
 
+    size = module->variables->size;
     for (int i = 0; i < size; ++i) {
         checker_check_variable(list_at(module->variables, i));
     }
-    
+
+    size = module->structures->size;
+    for (int i = 0; i < size; ++i) {
+        checker_check_struct(list_at(module->structures, i));
+    }
+
+    size = module->traits->size;
+    for (int i = 0; i < size; ++i) {
+        checker_check_trait(list_at(module->traits, i));
+    }
+
+    size = module->impls->size;
+    for (int i = 0; i < size; ++i) {
+        checker_check_impl(list_at(module->impls, i));
+    }
+
     size = module->functions->size;
     for (int i = 0; i < size; ++i) {
         checker_check_function(list_at(module->functions, i));
@@ -256,7 +596,7 @@ void checker_check_module(struct Ast * ast) {
 void checker_check(struct Ast * ast) {
     a_root * root = ast->value;
 
-    for (int i = 0; i < root->modules->size; ++i) {
+    for (int i = root->modules->size; i--;) {
         checker_check_module(list_at(root->modules, i));
     }
 }

@@ -37,11 +37,12 @@ void string_append(String * dest, const char * to_append) {
 }
 
 void string_concat(String * dest, String * to_append) {
-    size_t append_size = to_append->size; // this might be have some sort of offset error so use with caution
+    size_t append_size = to_append->size - 1; // this might be have some sort of offset error so use with caution
     size_t new_size = dest->size + append_size;
 
     dest->_ptr = realloc(dest->_ptr, sizeof(char) * new_size);
     memcpy(dest->_ptr + dest->size, to_append->_ptr, append_size);
+    dest->_ptr[new_size] = 0;
 
     dest->size = new_size;
 }

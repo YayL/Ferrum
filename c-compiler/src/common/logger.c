@@ -5,6 +5,13 @@
  * Add better color support for logger?
  */
 
+void _assert(char expr, const char * file, const unsigned line, const char * msg) {
+    if (!expr) {
+        println(YELLOW "{s}" RESET ":" CYAN "{u}" RESET RED "\nASSERTION ERROR" RESET ": " RED "{s}" RESET, file, line, msg);
+        exit(1);
+    }
+}
+
 void logger_log(char * msg, enum LOG_SOURCE source, enum LOG_LEVEL level) {
     if (level > MAX_LOG_LEVEL)
         return;

@@ -47,10 +47,12 @@ struct Ast * parser_parse_id(struct Parser * parser);
 struct Ast * parser_parse_operator(struct Parser * parser);
 
 struct Ast * parser_parse_int(struct Parser * parser);
+struct Ast * parser_parse_string(struct Parser * parser);
 struct Ast * parser_parse_operator(struct Parser * parser);
 struct Ast * parser_parse_statement(struct Parser * parser);
 
 struct Ast * parser_parse_identifier(struct Parser * parser);
+struct Ast * parser_parse_expr_exit_on(struct Parser * parser, enum Operators op);
 struct Ast * parser_parse_expr(struct Parser * parser);
 struct Ast * parser_parse_statement_expr(struct Parser * parser);
 

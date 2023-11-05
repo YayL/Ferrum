@@ -1,8 +1,13 @@
 #pragma once
 #include "parser/operators.h"
+#include "parser/types.h"
 
 #include "common/list.h"
+#include "common/hashmap.h"
 #include "common/string.h"
+
+#define DEREF_AST(ast) ((struct Ast *) ast)->value
+#define get_type_str(ast) (ast != NULL ? type_to_str((a_type *) ast->value) : "void")
 
 enum AST_type {
     AST_ROOT,
@@ -25,8 +30,14 @@ enum AST_type {
     AST_MATCH,
     AST_DO,
     AST_BREAK,
-    AST_CONTINUE
+    AST_CONTINUE,
+    AST_STRUCT,
+    AST_ENUM,
+    AST_TRAIT,
+    AST_IMPL
 };
+
+typedef Type a_type;
 
 struct Ast {
     enum AST_type type;
@@ -36,22 +47,26 @@ struct Ast {
 
 typedef struct a_root {
     struct List * modules;
+    struct HashMap * markers;
 } a_root;
 
 typedef struct a_module {
     char * path;
+    struct HashMap * symbols;
     struct List * variables;
     struct List * functions;
-    //struct List * structures;
-    //struct List * traits;
+    struct List * structures;
+    struct List * traits;
+    struct List * impls;
 } a_module;
 
 typedef struct a_function {
     char * name;
     struct Ast * body;
-    // struct Ast * type; might implement at some point?
-    char * type;
-    struct List * arguments;
+    struct Ast * param_type;
+    struct Ast * return_type;
+    struct Ast * arguments; // expression node
+    char is_inline;
 } a_function;
 
 typedef struct a_scope {
@@ -60,39 +75,63 @@ typedef struct a_scope {
 } a_scope;
 
 typedef struct a_declaration {
-    char is_const;
     struct Ast * expression;
+    struct Ast * variable;
+    char is_const;
 } a_declaration;
 
 typedef struct a_expr {
     struct List * children;
+    struct Ast * type;
 } a_expr;
+
+typedef struct a_struct {
+    char * name;
+    struct List * generics; // struct NAME<GEN1, GEN2>
+    struct List * variables;
+    struct List * functions;
+} a_struct;
+
+typedef struct a_enum {
+    char * name;
+    struct List * variants;
+} a_enum;
+
+typedef struct a_trait {
+    char * name;
+    struct List * impls;
+    struct List * children;
+} a_trait;
+
+typedef struct a_impl {
+    char * name;
+    struct Ast * type;
+    struct List * members;
+} a_impl;
 
 typedef struct a_op {
     struct Operator * op;
     struct Ast * left;
     struct Ast * right;
+    struct Ast * type;
+    struct Ast * definition;
 } a_op;
 
 typedef struct a_variable {
     char * name;
-    // struct Ast * type; same as function here
+    struct Ast * type;
     unsigned int reg;
-    char * type;
     char is_const;
     char is_declared;
 } a_variable;
 
-typedef struct a_type {
-    char * name;
-} a_type;
-
 typedef struct a_literal {
-    enum LITERAL_TYPE {
-        NUMBER,
-        STRING,
-    } type;
+    struct Ast * type;
     char * value;
+    enum LITERAL_TYPE {
+        LITERAL_NUMBER,
+        LITERAL_STRING,
+    } literal_type;
 } a_literal;
 
 typedef struct a_return {
@@ -124,6 +163,7 @@ void set_ast(struct Ast * dest, struct Ast * src);
 
 const char * ast_type_to_str_ast(struct Ast * ast);
 const char * ast_type_to_str(enum AST_type type);
+struct Ast * ast_get_type_of(struct Ast * ast);
 
 void print_ast_tree(struct Ast * node);
 void print_ast(const char * template, struct Ast * node);

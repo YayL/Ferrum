@@ -1,4 +1,6 @@
 #include "parser/parser.h"
+#include "common/string.h"
+#include <string.h>
 
 struct Keyword str_to_keyword(const char * str) {
     if (str == NULL)
@@ -8,6 +10,7 @@ struct Keyword str_to_keyword(const char * str) {
         if (!strcmp(str, conversion[i].str))
             return conversion[i];
     }
+
     return conversion[0];
 }
 
@@ -21,11 +24,11 @@ struct Parser * init_parser(char * path) {
     parser->path = path;
     parser->lexer = lexer;
     parser->error = 0;
-    parser->prev = NULL;
+    parser->prev = init_token();
 
     lexer_next_token(lexer);
     parser->token = lexer->tok;
-    
+   
     return parser;
 }
 
@@ -38,19 +41,60 @@ void parser_eat(struct Parser * parser, enum token_t type) {
         parser->error = 1;
     }
 
-    parser->prev = parser->token;
+    if (parser->prev != NULL && parser->token != NULL)
+        copy_token(parser->prev, parser->token);
     lexer_next_token(parser->lexer);
     parser->token = parser->lexer->tok;
 }
 
 struct Ast * parser_parse_int(struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_LITERAL, parser->current_scope);
+    struct Ast * ast = init_ast(AST_LITERAL, parser->current_scope), * type_ast = init_ast(AST_TYPE, parser->current_scope);
     a_literal * number = ast->value;
+    a_type * type = type_ast->value;
 
-    number->type = NUMBER;
+    Numeric_T * num = init_intrinsic_type(INumeric);
+    num->type = NUMERIC_SIGNED;
+    num->width = 32;
+
+    type->name = "i32";
+    type->ptr = num;
+    type->intrinsic = INumeric;
+
+    number->type = type_ast;
     number->value = parser->token->value;
 
     parser_eat(parser, TOKEN_INT);
+
+    return ast;
+}
+
+struct Ast * parser_parse_string(struct Parser * parser) {
+    struct Ast * ast = init_ast(AST_LITERAL, parser->current_scope),
+               * type_ast = init_ast(AST_TYPE, parser->current_scope);
+    a_literal * string = ast->value;
+    a_type * type = type_ast->value;
+
+    Array_T * array = init_intrinsic_type(IArray);
+    array->size = parser->token->length;
+    
+    a_type * basetype = init_ast_of_type(AST_TYPE);
+    Numeric_T * num = init_intrinsic_type(INumeric);
+    num->type = NUMERIC_UNSIGNED;
+    num->width = 8;
+
+    basetype->ptr = num;
+    basetype->intrinsic = INumeric;
+
+    array->basetype = basetype;
+
+    type->ptr = array;
+    type->intrinsic = IArray;
+
+    string->type = type_ast;
+    string->literal_type = LITERAL_STRING;
+    string->value = parser->token->value;
+
+    parser_eat(parser, TOKEN_STRING_LITERAL);
 
     return ast;
 }
@@ -63,22 +107,10 @@ struct Ast * parser_parse_id(struct Parser * parser) {
 
     parser_eat(parser, TOKEN_ID);
 
-    if (parser->token->type == TOKEN_OP && !strcmp(parser->token->value, ":")) {
-        parser_eat(parser, TOKEN_OP);
-        
-        // TODO: Parse type here
-
-        if (parser->token->type != TOKEN_ID) {
-            print_token("[Parser] Unexepected variable type: {s}\n", parser->token);
-            exit(1);
-        }
-
-        variable->type = parser->token->value;
-        parser_eat(parser, TOKEN_ID);
+    if (parser->token->type == TOKEN_COLON) {
+        parser_eat(parser, TOKEN_COLON); 
+        variable->type = parser_parse_type(parser);
     }
-
-    if (get_variable(ast))
-        return ast;
 
     return ast;
 }
@@ -162,11 +194,17 @@ struct Ast * parser_parse_while(struct Parser * parser) {
 struct Ast * parser_parse_do(struct Parser * parser) {
     struct Ast * ast = init_ast(AST_DO, parser->current_scope);
 
+    logger_log("Do statements are not implemented yet", PARSER, ERROR);
+    exit(1);
+
     return ast;
 }
 
 struct Ast * parser_parse_match(struct Parser * parser) {
     struct Ast * ast = init_ast(AST_MATCH, parser->current_scope);
+
+    logger_log("Match statements are not implemented yet", PARSER, ERROR);
+    exit(1);
 
     return ast;
 }
@@ -181,14 +219,151 @@ struct Ast * parser_parse_return(struct Parser * parser) {
     return ast;
 }
 
+struct Ast * parser_parse_struct(struct Parser * parser) {
+    struct Ast * ast = init_ast(AST_STRUCT, parser->current_scope), * temp;
+    a_struct * _struct = ast->value;
+    
+    parser_eat(parser, TOKEN_ID);
+    _struct->name = parser->token->value;
+    parser_eat(parser, TOKEN_ID);
+
+    if (parser->token->type == TOKEN_LT) {
+        parser_eat(parser, TOKEN_LT);
+
+        while (1) {
+            list_push(_struct->generics, init_string_with_length(parser->token->value, parser->token->length));
+            parser_eat(parser, TOKEN_ID);
+            if (parser->token->type == TOKEN_GT)
+                break;
+            parser_eat(parser, TOKEN_COMMA);
+        }
+
+        parser_eat(parser, TOKEN_GT);
+    }
+
+    parser_eat(parser, TOKEN_LBRACE);
+    parser_eat(parser, TOKEN_LINE_BREAK);
+
+    do {
+        temp = parser_parse_identifier(parser);
+        if (temp != NULL) {
+            switch (temp->type) {
+                case AST_DECLARATION:
+                    {
+                        a_expr * expr = ((a_declaration *) temp->value)->expression->value;
+                        for (int i = 0; i < expr->children->size; ++i) {
+                            list_push(_struct->variables, list_at(expr->children, i));
+                        }
+                    } break;
+                case AST_FUNCTION:
+                    {
+                        list_push(_struct->functions, temp);
+                    } break;
+                default:
+                    {
+                        logger_log(format("{2i::} Invalid identifier '{s}' in struct declaration", parser->lexer->line, parser->lexer->pos, ast_type_to_str(temp->type)), PARSER, ERROR);
+                        exit(1);
+                    }
+            }
+        }
+
+        while (parser->token->type == TOKEN_LINE_BREAK)
+            parser_eat(parser, TOKEN_LINE_BREAK);
+
+    } while (parser->token->type != TOKEN_RBRACE);
+
+    parser_eat(parser, TOKEN_RBRACE);
+
+    return ast;
+}
+
+struct Ast * parser_parse_trait(struct Parser * parser) {
+    struct Ast * ast = init_ast(AST_TRAIT, parser->current_scope),
+               * node;
+    a_trait * trait = ast->value;
+    parser_eat(parser, TOKEN_ID);
+    trait->name = parser->token->value;
+    parser_eat(parser, TOKEN_ID);
+
+    parser_eat(parser, TOKEN_LBRACE);
+    
+    while (1) {
+        while (parser->token->type == TOKEN_LINE_BREAK)
+            parser_eat(parser, TOKEN_LINE_BREAK);
+
+        if (parser->token->type == TOKEN_RBRACE)
+            break;
+        
+        node = parser_parse_identifier(parser);
+        if (node != NULL)
+            list_push(trait->children, node);
+    }
+
+    parser_eat(parser, TOKEN_RBRACE);
+    
+
+    return ast;
+}
+
+struct Ast * parser_parse_impl(struct Parser * parser) {
+    struct Ast * ast = init_ast(AST_IMPL, parser->current_scope),
+               * node,
+               * type;
+    a_impl * impl = ast->value;
+
+    impl->members = init_list(sizeof(struct Ast *));
+
+    parser_eat(parser, TOKEN_ID);
+    impl->name = parser->token->value;
+    parser_eat(parser, TOKEN_ID);
+    parser_eat(parser, TOKEN_ID);
+
+    impl->type = parser_parse_type(parser);
+
+    parser_eat(parser, TOKEN_LBRACE);
+
+    while (1) {
+        while (parser->token->type == TOKEN_LINE_BREAK)
+            parser_eat(parser, TOKEN_LINE_BREAK);
+
+        if (parser->token->type == TOKEN_RBRACE)
+            break;
+
+        node = parser_parse_identifier(parser);
+        if (node != NULL) {
+            list_push(impl->members, node);
+        }
+    }
+
+    parser_eat(parser, TOKEN_RBRACE);
+
+    return ast;
+}
+
 struct Ast * parser_parse_declaration(struct Parser * parser, enum Keywords keyword) {
-    struct Ast * ast = init_ast(AST_DECLARATION, parser->current_scope);
+    struct Ast * ast = init_ast(AST_DECLARATION, parser->current_scope),
+               * node;
     a_declaration * declaration = ast->value;
     declaration->is_const = keyword == CONST;
 
     parser_eat(parser, TOKEN_ID);
 
+
     declaration->expression = parser_parse_expr(parser);
+    a_expr * expr = declaration->expression->value;
+
+    node = list_at(expr->children, 0);
+    if (node->type == AST_OP) {
+        a_op * op = node->value;
+        node = op->left;
+    }
+
+    if (node->type != AST_VARIABLE) {
+        logger_log(format("{2i::} LHS of declaration must be a variable", parser->token->line, parser->token->pos), PARSER, ERROR);
+        exit(1);
+    }
+
+    declaration->variable = node;
 
     return ast;
 }
@@ -196,7 +371,7 @@ struct Ast * parser_parse_declaration(struct Parser * parser, enum Keywords keyw
 struct Ast * parser_parse_statement(struct Parser * parser) {
     struct Keyword keyword = str_to_keyword(parser->token->value);
 
-    if (keyword.key == KEYWORD_NOT_FOUND) { // variable assignment probably
+    if (keyword.key == KEYWORD_NOT_FOUND) { // no identifier should mean there is an expression
         return parser_parse_expr(parser);
     }
 
@@ -221,7 +396,7 @@ struct Ast * parser_parse_statement(struct Parser * parser) {
             return parser_parse_return(parser);
         default:
             if (keyword.flag == GLOBAL_ONLY && keyword.flag != ANY) {
-                println("[Parser]: {s} is not allowed in the function scope", parser->prev);
+                print_token("[Parser]: {s} is not allowed in the function scope\n", parser->prev);
                 exit(1);
             }
     }
@@ -235,20 +410,36 @@ struct Ast * parser_parse_scope(struct Parser * parser) {
     a_scope * scope = ast->value;
     parser->current_scope = ast;
     
-    parser_eat(parser, TOKEN_LBRACE);
+    if (parser->token->type != TOKEN_LBRACE) {
+        if (parser->token->type == TOKEN_LINE_BREAK)
+                parser_eat(parser, TOKEN_LINE_BREAK);
 
-    while (1) {
-        while (parser->token->type == TOKEN_LINE_BREAK)
+        if (parser->token->type == TOKEN_LINE_BREAK) {
+            logger_log("Scopes without curly brackets must follow the scope initializer immidiatly(1 line or less)", PARSER, WARN);
+        } else {
+            list_push(scope->nodes, parser_parse_statement(parser));
+        }
+    } else {
+        parser_eat(parser, TOKEN_LBRACE);
+
+        while (1) {
+            while (parser->token->type == TOKEN_LINE_BREAK) {
+                parser_eat(parser, TOKEN_LINE_BREAK);
+            }
+
+            if (parser->token->type == TOKEN_RBRACE)
+                break;
+            else if (parser->token->type == TOKEN_EOF) {
+                logger_log("Unclosed scope", PARSER, ERROR);
+                exit(1);
+            }
+
+            list_push(scope->nodes, parser_parse_statement(parser));
             parser_eat(parser, TOKEN_LINE_BREAK);
-        
-        if (parser->token->type == TOKEN_RBRACE)
-            break;
+        }
 
-        statement = parser_parse_statement(parser);
-        list_push(scope->nodes, statement);
+        parser_eat(parser, TOKEN_RBRACE);
     }
-
-    parser_eat(parser, TOKEN_RBRACE);
     parser->current_scope = ast->scope;
 
     return ast;
@@ -257,45 +448,45 @@ struct Ast * parser_parse_scope(struct Parser * parser) {
 struct Ast * parser_parse_function(struct Parser * parser) {
     
     struct Ast * ast = init_ast(AST_FUNCTION, parser->current_scope), 
-               * argument;
+               * argument,
+               * param_types;
     struct a_function * function = ast->value;
     parser->current_scope = ast;
-
+    
     parser_eat(parser, TOKEN_ID);
-
-    function->name = parser->token->value;
-    parser_eat(parser, TOKEN_ID);
-    parser_eat(parser, TOKEN_OP);
-
-    // replace this with an expression call (perhaps?)
-
-function_loop: 
-    {
-        argument = init_ast(AST_VARIABLE, parser->current_scope);
-        ((a_variable *) argument->value)->name = parser->token->value;
-        
+    
+    if (parser->token->type && !strcmp("inline", parser->token->value)) {
+        function->is_inline = 1;
         parser_eat(parser, TOKEN_ID);
-        parser_eat(parser, TOKEN_OP);
+    }
 
-        ((a_variable *) argument->value)->type = parser->token->value;
+    if (parser->token->type == TOKEN_ID) {
+        function->name = parser->token->value;
         parser_eat(parser, TOKEN_ID);
+    }
 
-        list_push(function->arguments, argument);
+    parser_eat(parser, TOKEN_LPAREN);
+    
+    function->arguments = parser_parse_expr_exit_on(parser, PARENTHESES);
+    ASSERT1(function->arguments->type == AST_EXPR);
 
-        if (parser->token->type == TOKEN_COMMA) {
-            parser_eat(parser, TOKEN_COMMA);
-            goto function_loop;
-        }
+    if (((a_expr *) function->arguments->value)->children->size != 0) {
+        function->param_type = ast_to_type(function->arguments);
     }
     
-    parser_eat(parser, TOKEN_OP);
-    parser_eat(parser, TOKEN_OP);
+    if (parser->token->type == TOKEN_MINUS) {
+        parser_eat(parser, TOKEN_MINUS);
+        parser_eat(parser, TOKEN_GT);
 
-    function->type = parser->token->value;
+        function->return_type = parser_parse_type(parser);
+    }
 
-    parser_eat(parser, TOKEN_ID);
-
-    function->body = parser_parse_scope(parser);
+    if (parser->token->type == TOKEN_SEMI) {
+        parser_eat(parser, TOKEN_SEMI);
+        function->body = NULL;
+    } else {
+        function->body = parser_parse_scope(parser);
+    }
     parser->current_scope = ast->scope;
 
     return ast;
@@ -361,14 +552,20 @@ struct Ast * parser_parse_identifier(struct Parser * parser) {
             return parser_parse_declaration(parser, identifier.key);
         case PACKAGE:
             return parser_parse_package(parser);
+        case STRUCT:
+            return parser_parse_struct(parser);
+        case TRAIT:
+            return parser_parse_trait(parser);
+        case IMPL:
+            return parser_parse_impl(parser);
         default:
-            logger_log("Unknown identifier", PARSER, ERROR);
+            logger_log(format("Unknown identifier: '{s}'", identifier.str), PARSER, ERROR);
             exit(1);
     }
 }
 
 struct Ast * parser_parse_module(struct Parser * parser, struct Ast * ast) {
-    struct Ast * node;
+    struct Ast * node = NULL;
     parser->current_scope = ast;
     a_module * module = ast->value;
 
@@ -383,18 +580,42 @@ struct Ast * parser_parse_module(struct Parser * parser, struct Ast * ast) {
 
         if (node == NULL)
             continue;
-        
+
         switch (node->type) {
             case AST_FUNCTION:
                 list_push(module->functions, node);
+                hashmap_set(module->symbols, ((a_function *) node->value)->name, node);
                 break;
             case AST_DECLARATION:
+            {
                 list_push(module->variables, node);
+
+                a_declaration * decl = node->value;
+                a_expr * expr = decl->expression->value;
+                struct Ast * temp = list_at(expr->children, 0);
+                if (temp->type != AST_VARIABLE) {
+                    logger_log(format("{2i::} Global variable declarations have to have variable as the LHS parameter", parser->token->line, parser->token->pos), PARSER, ERROR);
+                    exit(1);
+                }
+
+                hashmap_set(module->symbols, ((a_variable *) temp->value)->name, node);
+            } break;
+            case AST_STRUCT:
+                list_push(module->structures, node);
+                hashmap_set(module->symbols, ((a_struct *) node->value)->name, node);
+                break;
+            case AST_TRAIT:
+                list_push(module->traits, node);
+                hashmap_set(module->symbols, ((a_trait *) node->value)->name, node);
+                break;
+            case AST_IMPL:
+                list_push(module->impls, node);
                 break;
             default:
                 println("probably a package but exiting!");
                 exit(1);
         }
+
     }
     
     return ast;

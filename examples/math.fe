@@ -8,9 +8,11 @@ fn pow(base: i32, exp: i32) -> i32 {
     let pow: i32 = base
     let i: i32 = base ? 2 : 0
 
-    for (; i < pow; ++i) {
-        pow *= base
+    while (i < pow) {
+        pow *= base, ++i
     }
     
     pow
 }
+
+
