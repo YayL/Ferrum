@@ -6,6 +6,9 @@
 #include "common/hashmap.h"
 #include "common/string.h"
 
+#define DEREF_AST(ast) ((struct Ast *) ast)->value
+#define get_type_str(ast) (ast != NULL ? type_to_str((a_type *) ast->value) : "void")
+
 enum AST_type {
     AST_ROOT,
     AST_MODULE,
@@ -44,6 +47,7 @@ struct Ast {
 
 typedef struct a_root {
     struct List * modules;
+    struct HashMap * markers;
 } a_root;
 
 typedef struct a_module {
@@ -59,8 +63,8 @@ typedef struct a_module {
 typedef struct a_function {
     char * name;
     struct Ast * body;
-    struct Ast * return_type;
     struct Ast * param_type;
+    struct Ast * return_type;
     struct Ast * arguments; // expression node
     char is_inline;
 } a_function;
@@ -71,8 +75,9 @@ typedef struct a_scope {
 } a_scope;
 
 typedef struct a_declaration {
-    char is_const;
     struct Ast * expression;
+    struct Ast * variable;
+    char is_const;
 } a_declaration;
 
 typedef struct a_expr {
@@ -100,8 +105,8 @@ typedef struct a_trait {
 
 typedef struct a_impl {
     char * name;
-    struct Ast * types;
-    struct List * list;
+    struct Ast * type;
+    struct List * members;
 } a_impl;
 
 typedef struct a_op {
@@ -109,6 +114,7 @@ typedef struct a_op {
     struct Ast * left;
     struct Ast * right;
     struct Ast * type;
+    struct Ast * definition;
 } a_op;
 
 typedef struct a_variable {
@@ -157,6 +163,7 @@ void set_ast(struct Ast * dest, struct Ast * src);
 
 const char * ast_type_to_str_ast(struct Ast * ast);
 const char * ast_type_to_str(enum AST_type type);
+struct Ast * ast_get_type_of(struct Ast * ast);
 
 void print_ast_tree(struct Ast * node);
 void print_ast(const char * template, struct Ast * node);

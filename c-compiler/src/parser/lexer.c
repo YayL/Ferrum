@@ -167,15 +167,12 @@ void lexer_parse_int(struct Lexer * lexer) {
 	set_token(lexer->tok, number_string, length + 1, TOKEN_INT, lexer->line, _start);
 }
 
-
 void lexer_parse_multi_line_comment(struct Lexer * lexer) {
     struct Token token = *lexer->tok;
-    char prev;
+    char prev = 0;
 
-    while(lexer->c != EOF) {
-        if (prev == '*' && lexer->c == '/')
-            break;
-        else if (lexer->c == '\n') {
+    while(lexer->c != EOF && !(prev == '*' && lexer->c == '/')) {
+        if (lexer->c == '\n') {
             lexer->pos = 0;
             lexer->line += 1;
         } else if (lexer->c == '\0') {
@@ -185,8 +182,8 @@ void lexer_parse_multi_line_comment(struct Lexer * lexer) {
         prev = lexer->c;
         lexer_advance(lexer);
     }
-    lexer_advance(lexer); // advance past '/'
-	lexer_next_token(lexer);
+
+    lexer_advance(lexer);
 }
 
 
@@ -197,7 +194,6 @@ void lexer_parse_single_line_comment(struct Lexer * lexer) {
             && lexer_peek(lexer, offset) != EOF);
 
     lexer_update(lexer, offset);
-    lexer_next_token(lexer);
 }
 
 void lexer_parse_operator(struct Lexer * lexer) {
@@ -277,7 +273,7 @@ void lexer_next_token(struct Lexer * lexer) {
     
     char peek;
     lexer_skip_whitespace(lexer);
-
+    
     switch (lexer->c) {
         case (0):
             set_token(lexer->tok, NULL, 0, TOKEN_EOF, lexer->line, lexer->pos);
@@ -317,7 +313,7 @@ void lexer_next_token(struct Lexer * lexer) {
                 break;
             }
 
-            return lexer_advance_current(lexer, TOKEN_PLUS);
+            return lexer_advance_current(lexer, TOKEN_SLASH);
         case '-':
             return lexer_advance_current(lexer, TOKEN_MINUS);
         case '=':

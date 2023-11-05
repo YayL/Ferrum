@@ -24,7 +24,7 @@ struct Parser * init_parser(char * path) {
     parser->path = path;
     parser->lexer = lexer;
     parser->error = 0;
-    parser->prev = NULL;
+    parser->prev = init_token();
 
     lexer_next_token(lexer);
     parser->token = lexer->tok;
@@ -41,7 +41,8 @@ void parser_eat(struct Parser * parser, enum token_t type) {
         parser->error = 1;
     }
 
-    parser->prev = parser->token;
+    if (parser->prev != NULL && parser->token != NULL)
+        copy_token(parser->prev, parser->token);
     lexer_next_token(parser->lexer);
     parser->token = parser->lexer->tok;
 }
@@ -310,14 +311,14 @@ struct Ast * parser_parse_impl(struct Parser * parser) {
                * type;
     a_impl * impl = ast->value;
 
-    impl->list = init_list(sizeof(struct Ast *));
+    impl->members = init_list(sizeof(struct Ast *));
 
     parser_eat(parser, TOKEN_ID);
     impl->name = parser->token->value;
     parser_eat(parser, TOKEN_ID);
     parser_eat(parser, TOKEN_ID);
 
-    type = parser_parse_type(parser);
+    impl->type = parser_parse_type(parser);
 
     parser_eat(parser, TOKEN_LBRACE);
 
@@ -330,7 +331,7 @@ struct Ast * parser_parse_impl(struct Parser * parser) {
 
         node = parser_parse_identifier(parser);
         if (node != NULL) {
-            list_push(impl->list, node);
+            list_push(impl->members, node);
         }
     }
 
@@ -340,13 +341,29 @@ struct Ast * parser_parse_impl(struct Parser * parser) {
 }
 
 struct Ast * parser_parse_declaration(struct Parser * parser, enum Keywords keyword) {
-    struct Ast * ast = init_ast(AST_DECLARATION, parser->current_scope);
+    struct Ast * ast = init_ast(AST_DECLARATION, parser->current_scope),
+               * node;
     a_declaration * declaration = ast->value;
     declaration->is_const = keyword == CONST;
 
     parser_eat(parser, TOKEN_ID);
 
+
     declaration->expression = parser_parse_expr(parser);
+    a_expr * expr = declaration->expression->value;
+
+    node = list_at(expr->children, 0);
+    if (node->type == AST_OP) {
+        a_op * op = node->value;
+        node = op->left;
+    }
+
+    if (node->type != AST_VARIABLE) {
+        logger_log(format("{2i::} LHS of declaration must be a variable", parser->token->line, parser->token->pos), PARSER, ERROR);
+        exit(1);
+    }
+
+    declaration->variable = node;
 
     return ast;
 }
@@ -406,8 +423,9 @@ struct Ast * parser_parse_scope(struct Parser * parser) {
         parser_eat(parser, TOKEN_LBRACE);
 
         while (1) {
-            while (parser->token->type == TOKEN_LINE_BREAK)
+            while (parser->token->type == TOKEN_LINE_BREAK) {
                 parser_eat(parser, TOKEN_LINE_BREAK);
+            }
 
             if (parser->token->type == TOKEN_RBRACE)
                 break;
@@ -417,6 +435,7 @@ struct Ast * parser_parse_scope(struct Parser * parser) {
             }
 
             list_push(scope->nodes, parser_parse_statement(parser));
+            parser_eat(parser, TOKEN_LINE_BREAK);
         }
 
         parser_eat(parser, TOKEN_RBRACE);
@@ -591,7 +610,6 @@ struct Ast * parser_parse_module(struct Parser * parser, struct Ast * ast) {
                 break;
             case AST_IMPL:
                 list_push(module->impls, node);
-                hashmap_set(module->symbols, ((a_impl *) node->value)->name, node);
                 break;
             default:
                 println("probably a package but exiting!");

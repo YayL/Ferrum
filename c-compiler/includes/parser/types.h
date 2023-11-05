@@ -12,7 +12,8 @@ typedef struct Type {
         IRef,
         IStruct,
         IEnum,
-        ITuple
+        ITuple,
+        ISelf
     } intrinsic;
 } Type;
 
@@ -53,8 +54,11 @@ typedef struct Tuple_T {
 } Tuple_T;
 
 void * init_intrinsic_type(enum intrinsic_type type);
+const char * get_base_type_str(Type * type);
 char * type_to_str(Type * type);
 
 struct Ast * get_type(struct Ast * ast, char * name);
-char is_equal_type(Type * type1, Type * type2);
+char is_equal_type(Type * type1, Type * type2, Type * self);
 struct Ast * ast_to_type(struct Ast * ast);
+
+struct Ast * replace_self_in_type(struct Ast * ast, struct Ast * self);

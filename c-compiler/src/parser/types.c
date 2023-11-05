@@ -1,5 +1,7 @@
+#include "codegen/AST.h"
 #include "parser/parser.h"
 #include "parser/types.h"
+#include <string.h>
 
 struct Ast * parser_parse_type(struct Parser * parser) {
     struct Ast * ast = init_ast(AST_TYPE, parser->current_scope);
@@ -7,6 +9,8 @@ struct Ast * parser_parse_type(struct Parser * parser) {
            * ref_type = NULL,
            * arr_type = NULL,
            * tuple_type = NULL;
+    
+    type->intrinsic = 0;
 
     String * value = init_string("");
     unsigned int pos = 0;
@@ -90,10 +94,11 @@ struct Ast * parser_parse_type(struct Parser * parser) {
                         // set basetype to be struct, and then set list to struct_t->generics or whatever it will be called
                         Struct_T * struct_t = init_intrinsic_type(IStruct);
                         list = struct_t->fields;
+                        type->intrinsic = IStruct;
                     } break;
                 case AST_ENUM:
                     {
-
+                        type->intrinsic = IEnum;
                     } break;
                 default: {}
             }
@@ -117,7 +122,9 @@ struct Ast * parser_parse_type(struct Parser * parser) {
             }
             parser_eat(parser, TOKEN_GT);
         // check if not type Self as that is a special compile time type
-        } else if (strcmp(type->name, "Self")) { // predfined types are parsed here
+        } else if (!strcmp(type->name, "Self")) { // predfined types are parsed here
+            type->intrinsic = ISelf;
+        } else {
             Numeric_T * num = init_intrinsic_type(INumeric);
             switch (type->name[0]) {
                 case 'i':
@@ -137,6 +144,7 @@ struct Ast * parser_parse_type(struct Parser * parser) {
 
             num->width = size;
             type->ptr = num;
+            type->intrinsic = INumeric;
         }
     }
 
@@ -188,6 +196,9 @@ void * init_intrinsic_type(enum intrinsic_type type) {
             Tuple->types = init_list(sizeof(struct Ast *));
             return Tuple;
         }
+        case ISelf:
+            logger_log("Intrinsic ISelf can not be initiated.", PARSER, ERROR);
+            exit(1);
     }
 }
 
@@ -214,13 +225,13 @@ struct Ast * get_type(struct Ast * ast, char * name) {
 }
 
 struct Ast * ast_to_type(struct Ast * ast) {
-    struct Ast * node;
     switch (ast->type) {
         case AST_EXPR:
         {
             a_expr * expr = ast->value;
 
-            struct Ast * node = init_ast(AST_TYPE, ast->scope);
+            struct Ast * node = init_ast(AST_TYPE, ast->scope),
+                       * temp;
             
             Type * type = node->value;
             Tuple_T * tuple = init_intrinsic_type(ITuple);
@@ -229,27 +240,33 @@ struct Ast * ast_to_type(struct Ast * ast) {
             type->ptr = tuple;
             
             for (int i = 0; i < expr->children->size; ++i) {
-                list_push(tuple->types, ((a_variable *) ((struct Ast *) list_at(expr->children, i))->value)->type);
+                list_push(tuple->types, ast_get_type_of(list_at(expr->children, i)));
             }
 
             return node;
         }
         default:
         {
-            logger_log(format("AST type '{s}' is not an implemented type for type conversion", ast_type_to_str(ast->type)), PARSER, FATAL);
+            logger_log(format("'{u}' is not an implemented type for type conversion", ast_type_to_str(ast->type)), PARSER, FATAL);
             exit(1);
         }
     }
 }
 
-char is_equal_type(Type * type1, Type * type2) {
+char is_equal_type(Type * type1, Type * type2, Type * self) {
     if (type1 == type2)
         return 1;
 
-    if (type1->intrinsic != type2->intrinsic)
+    if (type1->intrinsic != type2->intrinsic) {
+        if (self != NULL && ((type1->intrinsic == ISelf && is_equal_type(self, type2, NULL)) || (type2->intrinsic == ISelf && is_equal_type(type1, self, NULL))))
+            return 1;
         return 0;
+    }
 
     switch (type1->intrinsic) {
+        case ISelf:
+        case INumeric:
+            break;
         case ITuple:
         {
             Tuple_T * tuple1 = type1->ptr,
@@ -258,13 +275,13 @@ char is_equal_type(Type * type1, Type * type2) {
                 return 0;
             
             for (int i = 0; i < tuple1->types->size; ++i) {
-                if (!is_equal_type(((struct Ast *) list_at(tuple1->types, i))->value, ((struct Ast *) list_at(tuple1->types, i))->value))
+                if (!is_equal_type(((struct Ast *) list_at(tuple1->types, i))->value, ((struct Ast *) list_at(tuple1->types, i))->value, NULL))
                     return 0;
             }
         } break;
         default:
         {
-            logger_log(format("{i} is not an implemented intrinsic for checking type equivalance", type1->intrinsic), CHECKER, FATAL);
+            logger_log(format("{u} is not an implemented intrinsic for checking type equivalance", type1->intrinsic), CHECKER, FATAL);
             exit(1);
         }
     }
@@ -272,8 +289,26 @@ char is_equal_type(Type * type1, Type * type2) {
     return 1;
 }
 
+const char * get_base_type_str(Type * type) {
+    switch (type->intrinsic) {
+        case IStruct:
+        case INumeric:
+        case ISelf:
+        case IEnum:
+            return type_to_str(type);
+        case IArray:
+            return get_base_type_str(((Array_T *) type->ptr)->basetype);
+        case IRef:
+            return get_base_type_str(((Ref_T *) type->ptr)->basetype);
+        case ITuple:
+            return NULL;
+    }
+}
+
 char * type_to_str(Type * type) {
     switch (type->intrinsic) {
+        case ISelf:
+            return "Self";
         case IStruct:
         case IEnum:
         {
@@ -316,15 +351,96 @@ char * type_to_str(Type * type) {
         case ITuple:
         {
             Tuple_T * tuple = type->ptr;
-            Type * temp = ((struct Ast *) list_at(tuple->types, 0))->value;
-            char * buf = format("({s}", type_to_str(temp));
+            struct Ast * temp = list_at(tuple->types, 0);
+            char * buf = format("({s}", get_type_str(temp));
 
             for (int i = 1; i < tuple->types->size; ++i) {
-                temp = ((struct Ast *) list_at(tuple->types, i))->value;
-                buf = format("{2s:, }", buf, type_to_str(temp));
+                temp = list_at(tuple->types, i);
+                buf = format("{2s:, }", buf, get_type_str(temp));
             }
 
             return format("{s})", buf);
         }
     }
 }
+
+Type * __replace_self_in_type_using_type(Type * type, struct Ast * self) {
+    switch (type->intrinsic) {
+        case INumeric:
+        case IStruct:
+        case IEnum:
+            return type;
+        case ISelf:
+            return self->value;
+        case IRef:
+        {
+            Type * ref = init_ast_of_type(AST_TYPE);
+            memcpy(ref, type, sizeof(Type));
+            
+            Ref_T * ref_t = init_intrinsic_type(IRef);
+            memcpy(ref_t, type->ptr, sizeof(Ref_T));
+            
+            ref_t->basetype = __replace_self_in_type_using_type(ref_t->basetype, self);
+            ref->ptr = ref_t;
+
+            return ref;
+        }
+        case IArray:
+        {
+            Type * arr = init_ast_of_type(AST_TYPE);
+            memcpy(arr, type, sizeof(Type));
+            
+            Array_T * arr_t = init_intrinsic_type(IArray);
+            memcpy(arr_t, type->ptr, sizeof(Array_T));
+            
+            arr_t->basetype = __replace_self_in_type_using_type(arr_t->basetype, self);
+            arr->ptr = arr_t;
+
+            return arr;
+        }
+        case ITuple:
+        {
+            Type * tuple = init_ast_of_type(AST_TYPE);
+            memcpy(tuple, type, sizeof(Type));
+            
+            Tuple_T * tuple_t = init_intrinsic_type(ITuple),
+                    * r_tuple_t = type->ptr;
+            
+            
+            for (int i = 0; i < r_tuple_t->types->size; ++i) {
+                list_push(tuple_t->types, replace_self_in_type(list_at(r_tuple_t->types, i), self));
+            }
+
+            tuple->ptr = tuple_t;
+
+            return tuple;
+        }
+    }
+}
+
+struct Ast * replace_self_in_type(struct Ast * ast, struct Ast * self) {
+    if (ast == NULL)
+        return NULL;
+    switch (((a_type *) ast->value)->intrinsic) {
+        case INumeric:
+        case IStruct:
+        case IEnum:
+            return ast;
+        case ISelf:
+        {
+            return self;
+        }
+        case IRef:
+        case IArray:
+        case ITuple:
+        {
+            struct Ast * node = init_ast(AST_TYPE, ast->scope);
+            node->value = ast->value;
+            __replace_self_in_type_using_type(node->value, self);
+            return node;
+        }
+    }
+
+}
+
+

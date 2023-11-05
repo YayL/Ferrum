@@ -6,3 +6,4 @@
 #define IR_DEBUG
 #define VISITOR_DEBUG
 //#define SHALLOW_PRINT
+//#define IMPL_PRINT

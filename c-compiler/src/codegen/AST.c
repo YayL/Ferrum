@@ -20,6 +20,7 @@ void * init_ast_of_type(enum AST_type type) {
         {
             a_root * root = malloc(sizeof(a_root));
             root->modules = init_list(sizeof(a_module *));
+            root->markers = init_hashmap(8);
 
             return root;
         }
@@ -226,6 +227,11 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
             free_string(&next_pad);
 
             next_pad = string_copy(pad);
+            string_append(next_pad, AST_TREE_PADDING(module->impls->size > 1));
+            AST_TREE_PRINT_CHILDREN(module->impls, next_pad);
+            free_string(&next_pad);
+
+            next_pad = string_copy(pad);
             string_append(next_pad, AST_TREE_PADDING(module->functions->size > 1));
             AST_TREE_PRINT_CHILDREN(module->functions, next_pad);
             free_string(&next_pad);
@@ -254,9 +260,19 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
             string_append(next_pad, AST_TREE_PADDING(list->size > 1));
             AST_TREE_PRINT_CHILDREN(list, next_pad);
             free_string(&next_pad);
+        } break;
+#ifdef IMPL_PRINT
+        case AST_IMPL:
+        {
+            a_impl * impl = ast->value;
+            String * next_pad = string_copy(pad);
+            
+            string_append(next_pad, AST_TREE_PADDING(impl->members->size > 1));
+            AST_TREE_PRINT_CHILDREN(impl->members, next_pad);
+            free_string(&next_pad);
 
-            break;
-        }
+        } break;
+#endif
         case AST_DECLARATION:
         {
             a_declaration * decl = ast->value;
@@ -368,8 +384,6 @@ void print_ast_tree(struct Ast * ast) {
     free_string(&string);
 }
 
-#define get_type_str(ast) (ast != NULL ? type_to_str((a_type *) ast->value) : "void")
-
 void print_ast(const char * template, struct Ast * ast) {
 	const char * type_str = ast_type_to_str_ast(ast);
 	const char * scope = ast_type_to_str_ast(ast->scope);
@@ -380,21 +394,25 @@ void print_ast(const char * template, struct Ast * ast) {
         case AST_MODULE:
         {
             a_module * module = ast->value;
-            ast_str = format("{s} " GREY "<" BLUE "Symbols" RESET ": {i}, " BLUE "Path" RESET ": '{s}'" GREY ">" RESET, ast_str, module->symbols->total, module->path);
+            ast_str = format("{s} " GREY "<" BLUE "Symbols" RESET ": {i}, " BLUE "Path" RESET ": {s}" GREY ">" RESET, ast_str, module->symbols->total, module->path);
             break;
         }
         case AST_FUNCTION:
         {
             a_function * func = ast->value;
-            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {s} -> {s}" GREY ">" RESET, ast_str, func->name, get_type_str(func->param_type), get_type_str(func->return_type));
+            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {2s: -> }" GREY ">" RESET, ast_str, func->name, get_type_str(func->param_type), get_type_str(func->return_type));
             break;
         }
         case AST_SCOPE:
         {
             a_scope * scope = ast->value;
             ast_str = format("{s} " GREY "<" BLUE "Variables" RESET ": {i}, " BLUE "Nodes" RESET ": {i}" GREY ">" RESET, ast_str, scope->variables->size, scope->nodes->size);
-            break;
-        }
+        } break;
+        case AST_IMPL:
+        {
+            a_impl * impl = ast->value;
+            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Types" RESET ": {s}" GREY ">" RESET, ast_str, impl->name, get_type_str(impl->type));
+        } break;
         case AST_OP:
         {
             a_op * op = ast->value;
@@ -436,4 +454,26 @@ void print_ast(const char * template, struct Ast * ast) {
 
 	print(template, ast_str);
 	free(ast_str);
+}
+
+struct Ast * ast_get_type_of(struct Ast * ast) {
+    switch (ast->type) {
+        case AST_OP:
+        {
+            a_op * op = ast->value;
+            // ASSERT1(op->type != NULL);
+            return op->type;
+        }
+        case AST_LITERAL:
+        {
+            return ((a_literal *) ast->value)->type;
+        }
+        case AST_VARIABLE:
+        {
+            return ((a_variable *) ast->value)->type;
+        }
+        default:
+            logger_log(format("Unable to get a type from ast type '{s}'", ast_type_to_str(ast->type)), CHECKER, ERROR);
+            exit(1);
+    }
 }

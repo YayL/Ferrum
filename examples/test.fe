@@ -1,7 +1,18 @@
-//package "numeric"
+package "arithmetic"
 
-fn main(argc: u32) -> u8 {
-    argc + argc
+fn mult(a: i32, b: i32) -> i32 {
+    a * b
 }
 
+fn main(argc: i32) -> u8 {
+    //let a = i8::From(argc)
+    let b: i32 = 2
+    //u32::#OP_ADDITION(argc, argc)
+    mult(argc + argc, 2)
+    /* currently trying to fix this call to mult. 
+       as it is a (u32, i32) call(mult is defined as (i32, i32))
+       but operators do not return the correct type
+       , it is returning void, which is used to check
+    */
+}
 

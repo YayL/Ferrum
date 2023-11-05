@@ -1,65 +1,73 @@
-trait Numeric {
+trait Arithmetic {
     fn inline #OP_ADDITION(first: Self, second: Self) -> Self;
     fn inline #OP_SUBTRACTION(first: Self, second: Self) -> Self;
     fn inline #OP_MULTIPLICATION(first: Self, second: Self) -> Self;
     fn inline #OP_DIVISION(first: Self, second: Self) -> Self;
+    fn inline #OP_ASSIGNMENT(first: Self, second: Self) -> Self;
 }
 
-impl Numeric for (i8, i16, i32, i64, i128) {
+impl Arithmetic for (i8, i16, i32, i64, i128) {
     fn inline #OP_ADDITION(first: Self, second: Self) -> Self {
         #llvm_op(#new_register(), "add", #llvm_type_of(Self), #register_of(first), #register_of(second))
     }
 
-    fn inline #OP_SUBTRACTION(first: Self, second: Self) {
+    fn inline #OP_SUBTRACTION(first: Self, second: Self) -> Self {
         #llvm_op(#new_register(), "sub", #llvm_type_of(Self), #register_of(first), #register_of(second))
     }
 
-    fn inline #OP_MULTIPLICATION(first: Self, second: Self) {
+    fn inline #OP_MULTIPLICATION(first: Self, second: Self) -> Self {
         #llvm_op(#new_register(), "mul", #llvm_type_of(Self), #register_of(first), #register_of(second))
     }
 
-    fn inline #OP_DIVISION(first: Self, second: Self) {
+    fn inline #OP_DIVISION(first: Self, second: Self) -> Self {
         #llvm_op(#new_register(), "idiv", #llvm_type_of(Self), #register_of(first), #register_of(second))
     }
+
+    fn inline #OP_ASSIGNMENT(first: Self, second: Self) -> Self {
+        #llvm_load(#register_of(first), #llvm_type_of(Self), #register_of(second))
+    }
 }
 
-impl Numeric for (u8, u16, u32, u64, u128) {
-    fn inline #OP_ADDITION(first: Self, second: Self) {
+impl Arithmetic for (u8, u16, u32, u64, u128) {
+    fn inline #OP_ADDITION(first: Self, second: Self) -> Self {
         #llvm_op(#new_register(), "add", #llvm_type_of(Self), #register_of(first), #register_of(second))
     }
 
-    fn inline #OP_SUBTRACTION(first: Self, second: Self) {
+    fn inline #OP_SUBTRACTION(first: Self, second: Self) -> Self {
         #llvm_op(#new_register(), "sub", #llvm_type_of(Self), #register_of(first), #register_of(second))
     }
 
-    fn inline #OP_MULTIPLICATION(first: Self, second: Self) {
+    fn inline #OP_MULTIPLICATION(first: Self, second: Self) -> Self {
         #llvm_op(#new_register(), "mul", #llvm_type_of(Self), #register_of(first), #register_of(second))
     }
 
-    fn inline #OP_DIVISION(first: Self, second: Self) {
+    fn inline #OP_DIVISION(first: Self, second: Self) -> Self {
         #llvm_op(#new_register(), "udiv", #llvm_type_of(Self), #register_of(first), #register_of(second))
+    }
+
+    fn inline #OP_ASSIGNMENT(first: Self, second: Self) -> Self {
+        #llvm_load(#register_of(first), #llvm_type_of(Self), #register_of(second))
     }
 }
 
-impl Numeric for (f8, f16, f32, f64, f128) {
-    fn inline #OP_ADDITION(first: Self, second: Self) {
+impl Arithmetic for (f8, f16, f32, f64, f128) {
+    fn inline #OP_ADDITION(first: Self, second: Self) -> Self {
         #llvm_op(#new_register(), "add", #llvm_type_of(Self), #register_of(first), #register_of(second))
     }
 
-    fn inline #OP_SUBTRACTION(first: Self, second: Self) {
+    fn inline #OP_SUBTRACTION(first: Self, second: Self) -> Self {
         #llvm_op(#new_register(), "sub", #llvm_type_of(Self), #register_of(first), #register_of(second))
     }
 
-    fn inline #OP_MULTIPLICATION(first: Self, second: Self) {
+    fn inline #OP_MULTIPLICATION(first: Self, second: Self) -> Self {
         #llvm_op(#new_register(), "fmul", #llvm_type_of(Self), #register_of(first), #register_of(second))
     }
 
-    fn inline #OP_DIVISION(first: Self, second: Self) {
+    fn inline #OP_DIVISION(first: Self, second: Self) -> Self {
         #llvm_op(#new_register(), "fdiv", #llvm_type_of(Self), #register_of(first), #register_of(second))
     }
-}
 
-fn main() -> (u8, u8) {
-    let a: u8 = 2;
-    a + a, a * 2
+    fn inline #OP_ASSIGNMENT(first: Self, second: Self) -> Self {
+        #llvm_load(#register_of(first), #llvm_type_of(Self), #register_of(second))
+    }
 }
