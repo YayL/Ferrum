@@ -267,6 +267,7 @@ struct Ast * parser_parse_struct(struct Parser * parser) {
             }
         }
 
+        parser_eat(parser, TOKEN_LINE_BREAK);
         while (parser->token->type == TOKEN_LINE_BREAK)
             parser_eat(parser, TOKEN_LINE_BREAK);
 

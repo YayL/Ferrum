@@ -26,7 +26,8 @@ char* read_file(const char * filename, size_t * length) {
 	fclose(fp);
     buffer[size] = '\0';
     
-    *length = size;
+    if (length != NULL)
+        *length = size;
 
 	return buffer;
 }
