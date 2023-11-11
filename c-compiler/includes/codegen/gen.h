@@ -6,10 +6,9 @@
 #include "codegen/checker.h"
 
 struct Generator {
-    String * globals;
-    String * current;
-    int reg_count;
-    int block_count;
+    unsigned int reg_count;
+    unsigned int block_count;
+    unsigned int ret_reg;
 };
 
 void gen(FILE * fp, struct Ast * root);
