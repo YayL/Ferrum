@@ -1,24 +1,21 @@
 package "arithmetic"
 
-struct test {
-    let a: [32]i32
-    let b: i64
+struct String {
+    let buf: &u8
+    let length: i32
+
+    fn new() -> Self {
+        self.buf = 0
+        self.length = 0
+    }
 }
 
-struct other {
-    let test: test
-}
-
-fn mult(a: i32, b: i32) -> i32 {
+fn mult(a: i64, b: i64) -> i64 {
     a * b
 }
 
-fn main(argc: i32) -> u8 {
+fn main(argc: i32, args: String) -> u8 {
     let b: i32 = 0
-
-    for b + 3 {
-        b = 4
-    }
 
     mult(argc + argc, 2)
 }

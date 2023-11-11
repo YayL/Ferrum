@@ -22,3 +22,13 @@ const char * llvm_type_to_llvm_type(Type * type) {
 const char * llvm_ast_type_to_llvm_type(struct Ast * ast) {
     return llvm_type_to_llvm_type(ast->value);
 }
+
+const char * llvm_ast_type_to_llvm_arg_type(struct Ast * ast) {
+    Type * type = ast->value;
+    switch (type->intrinsic) {
+        case IStruct:
+            return format("ptr byval(%struct.{s})", type->name);
+        default:
+            return llvm_type_to_llvm_type(type);
+    }
+}
