@@ -245,6 +245,19 @@ struct Ast * ast_to_type(struct Ast * ast) {
 
             return node;
         }
+        case AST_STRUCT:
+        {
+            a_struct * _struct = ast->value;
+            struct Ast * node = init_ast(AST_TYPE, ast->scope);
+
+            Type * type = node->value;
+            
+            type->name = _struct->name;
+            type->intrinsic = IStruct;
+            type->ptr = NULL;
+
+            return node;
+        }
         default:
         {
             logger_log(format("'{u}' is not an implemented type for type conversion", ast_type_to_str(ast->type)), PARSER, FATAL);
@@ -265,8 +278,12 @@ char is_equal_type(Type * type1, Type * type2, Type * self) {
 
     switch (type1->intrinsic) {
         case ISelf:
-        case INumeric:
             break;
+        case INumeric:
+        {
+            Numeric_T * num1 = type1->ptr, * num2 = type2->ptr;
+            return num1->type == num2->type && num1->width == num2->width;
+        }
         case ITuple:
         {
             Tuple_T * tuple1 = type1->ptr,

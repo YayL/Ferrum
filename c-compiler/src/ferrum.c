@@ -58,19 +58,17 @@ void ferrum_compile(char * file_path) {
 
     fclose(fp);
 
-    /* start_timer(); */
-    /* system("clang ./build/ferrum.ll -emit-llvm -S -c -O3 -o ferrum.ll && llc ferrum.ll"); */
-    /* time = stop_timer(); */
-    /* total += time; */
-    /* asprintf(&optimization_time, "Time for optimizer:\t%.3fms", (double)time / 1000); */
-
-    println("\nOutput:\n======================\n{s}======================", read_file(OUTPUT_PATH, NULL));
+    start_timer();
+    system("clang ./build/ferrum.ll -emit-llvm -S -c -O3 -o ferrum.ll && llc ferrum.ll");
+    time = stop_timer();
+    total += time;
+    asprintf(&optimization_time, "Time for optimizer:\t%.3fms", (double)time / 1000);
 
     puts(LINE_BREAKER);
     puts(parser_time);
     puts(checker_time);
     puts(gen_time);
-    //puts(optimization_time);
+    puts(optimization_time);
     puts(LINE_BREAKER);
     printf("Total: %.3fms\n", (double)total / 1000);
 }

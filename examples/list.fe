@@ -1,9 +1,0 @@
-struct List<T> {
-    let buf: &T
-    let size: i32
-    let capacity: i32
-}
-
-trait Printable {
-    fn to_string(self) -> String;
-}

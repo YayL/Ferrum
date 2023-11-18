@@ -74,7 +74,6 @@ struct Ast * get_declared_function(const char * name, struct List * list1, struc
                 struct Ast * node = list_at(module->functions, i);
                 a_function * function = node->value;
 
-
                 if (strcmp(function->name, name))
                     continue;
 
@@ -232,6 +231,11 @@ struct Ast * checker_check_op(struct Ast * ast) {
             return NULL;
 
         a_variable * var = op->left->value;
+        if (var->name[0] == '#') {
+            checker_check_expr_node(op->right);
+            return NULL;
+        }
+
         if (!is_declared_function(var->name, ast->scope)) {
             logger_log(format("Call to unknown function: '{s}'", var->name), CHECKER, WARN);
             return NULL;
@@ -242,16 +246,19 @@ struct Ast * checker_check_op(struct Ast * ast) {
         ASSERT1(((a_type *) right->value)->intrinsic == ITuple);
         left = get_declared_function(var->name, ((Tuple_T *)((a_type *) right->value)->ptr)->types, ast->scope);
 
-    if (left == NULL) {
-        ASSERT1(right != NULL);
-        ASSERT1(right->value != NULL);
-    
-        logger_log(format("Unknown function: {2s}", var->name, get_type_str(right)), CHECKER, ERROR);
+        if (left == NULL) {
+            ASSERT1(right != NULL);
+            ASSERT1(right->value != NULL);
 
-        exit(1);
-    }
+            logger_log(format("Unknown function: {2s}", var->name, get_type_str(right)), CHECKER, ERROR);
 
-        return left;
+            exit(1);
+        }
+
+        op->type = ((a_function *) left->value)->return_type;
+        op->definition = left;
+
+        return op->type;
 
     } else if (op->op->key == TERNARY && ((a_op *) op->right->value)->op->key != TERNARY_BODY) {
         logger_log("Detected an error with the ternary operator. This was most likely caused by operator precedence or nested ternary operators. To remedy this try applying parenthesis around the seperate ternary body entries", CHECKER, ERROR);
@@ -270,7 +277,7 @@ struct Ast * checker_check_op(struct Ast * ast) {
         list_push(temp_list, left);
     list_push(temp_list, right);
 
-    struct Ast * type = left == NULL ? left : right;
+    struct Ast * type = left != NULL ? left : right;
 
     struct Ast * func = get_member_function(type, name, temp_list, ast->scope);
 
@@ -278,7 +285,9 @@ struct Ast * checker_check_op(struct Ast * ast) {
         ASSERT1(right != NULL);
         ASSERT1(right->value != NULL);
     
-        print_ast_tree(ast);
+        if (left != NULL)
+            print_ast("left: {s}\n", left);
+        print_ast("right: {s}\n", right);
 
         if (left != NULL)
             logger_log(format("Operator '{s}'({s}) is not defined for ({2s:, })", op->op->str, name, type_to_str(left->value), type_to_str(right->value)), CHECKER, ERROR);
@@ -342,7 +351,7 @@ struct Ast * checker_check_expression(struct Ast * ast) {
 
 struct Ast * checker_check_variable(struct Ast * ast) {
     struct Ast * var_ast = get_variable(ast);
-    
+ 
     if (var_ast == NULL || !((a_variable *) var_ast->value)->is_declared) {
         a_variable * variable = ast->value;
         logger_log(format("Variable '{s}' used before having been declared", variable->name), CHECKER, ERROR);
@@ -365,6 +374,8 @@ struct Ast * checker_check_struct(struct Ast * ast) {
         logger_log(format("Multiple definitions for struct '{s}'", _struct->name), CHECKER, ERROR);
         exit(1);
     }
+
+    _struct->type = ast_to_type(ast);
 
     return ast;
 }
@@ -429,6 +440,7 @@ struct Ast * checker_check_impl(struct Ast * ast) {
         temp1 = list_at(list, i); // current type/marker that is to be added to
         for (int j = 0; j < impl->members->size; ++j) {
             temp2 = list_at(impl->members, j);
+            checker_check_function(temp2);
             add_member_function(temp1, list_at(impl->members, j), ast->scope);
         }
     }
