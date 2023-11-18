@@ -1,22 +1,9 @@
-package "arithmetic"
+package "std/ops/op"
 
-struct String {
-    let buf: &u8
-    let length: i32
+fn main(argc: i32) -> i32 {
 
-    fn new() -> Self {
-        self.buf = 0
-        self.length = 0
-    }
-}
+    let a: i32 = 2 + 2
 
-fn mult(a: i64, b: i64) -> i64 {
-    a * b
-}
-
-fn main(argc: i32, args: String) -> u8 {
-    let b: i32 = 0
-
-    mult(argc + argc, 2)
+    a
 }
 
