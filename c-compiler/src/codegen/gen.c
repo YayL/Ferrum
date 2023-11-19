@@ -36,8 +36,6 @@ const char * gen_call(struct Ast * ast, struct Ast * self_type) {
 
     a_expr * args = op->right->value;
     a_function * func = op->definition->value;
-    
-    Tuple_T * tuple = ((Type *) func->param_type->value)->ptr;
 
     struct List * parameters = init_list(sizeof(char *));
 
@@ -47,23 +45,14 @@ const char * gen_call(struct Ast * ast, struct Ast * self_type) {
         list_push(parameters, (void *) gen_expr_node(list_at(args->children, i), self_type));
     }
     
-    gen_call_with_info(func->name, llvm_ast_type_to_llvm_type(op->type, self_type), tuple->types, parameters, self_type);
+    gen_call_with_info(func->name, llvm_ast_type_to_llvm_type(op->type, self_type), ast_to_ast_type_list(func->param_type), parameters, self_type);
     return NULL;
 }
 
 void gen_inline_function(struct Ast * ast, struct List * arguments, struct Ast * self_type) {
     a_function * func = ast->value;
-    Type * param_type = func->param_type->value;
 
-    struct List * params;
-
-    switch (param_type->intrinsic) {
-        case ITuple:
-            params = ((Tuple_T *) param_type->ptr)->types; break;
-        default:
-            params = init_list(sizeof(struct Ast *));
-            list_push(params, func->param_type);
-    }
+    struct List * params = ast_to_ast_type_list(func->param_type);
 
     struct List * list = init_list(sizeof(char *));
 
@@ -137,6 +126,8 @@ const char * gen_op(struct Ast * ast, struct Ast * self_type) {
 }
 
 const char * gen_expr_node(struct Ast * ast, struct Ast * self_type) {
+    print("reg: {u} | ", generator.reg_count);
+    print_ast("node: {s}\n", ast);
     switch (ast->type) {
         case AST_EXPR:
             gen_expr(ast, self_type); break;
@@ -174,9 +165,17 @@ void gen_expr(struct Ast * ast, struct Ast * self_type) {
 
     for (int i = 0; i < expr->children->size; ++i) {
         gen_expr_node(list_at(expr->children, i), self_type);
-
     }
+}
 
+void gen_if(struct Ast * ast, struct Ast * self_type) {
+    a_if_statement * _if = ast->value;
+
+    unsigned int if_start = generator.reg_count;
+
+    gen_expr(_if->expression, self_type);
+
+    println("reg: {u}", generator.reg_count);
 }
 
 void gen_scope(struct Ast * ast, struct Ast * self_type) {
@@ -196,6 +195,8 @@ void gen_scope(struct Ast * ast, struct Ast * self_type) {
                 gen_expr(node, self_type); break;
             case AST_DECLARATION:
                 gen_expr(((a_declaration *) node->value)->expression, self_type); break;
+            case AST_IF:
+                gen_if(node, self_type); break;
             default:
                 logger_log(format("AST type '{s}' code generation is not implemented in scope", ast_type_to_str(node->type)), IR, ERROR);
                 exit(1);

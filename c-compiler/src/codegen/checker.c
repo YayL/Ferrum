@@ -80,7 +80,7 @@ struct Ast * get_declared_function(const char * name, struct List * list1, struc
                 if (strcmp(function->name, name))
                     continue;
 
-                struct List * list2 = ((Tuple_T *)((a_type *) function->param_type->value)->ptr)->types;
+                struct List * list2 = ast_to_ast_type_list(function->param_type);
 
                 if (list1->size != list2->size)
                     continue;
@@ -162,18 +162,8 @@ struct Ast * get_member_function(struct Ast * marker, const char * member_name,
         if (strcmp(function->name, member_name))
             continue;
         
-        struct List * function_argument_types;
+        struct List * function_argument_types = ast_to_ast_type_list(function->param_type);
         
-        Type * func_type = function->param_type->value;
-
-        switch (func_type->intrinsic) {
-            case ITuple:
-                function_argument_types = ((Tuple_T *) func_type->ptr)->types; break;
-            default:
-                function_argument_types = init_list(sizeof(struct Ast *));
-                list_push(function_argument_types, function->param_type);
-        }
-
         if (function_argument_types->size != member_argument_types->size)
             continue;
 
@@ -330,9 +320,9 @@ struct Ast * checker_check_op(struct Ast * ast) {
         }
 
         right = checker_check_expr_node(op->right);
-        ASSERT1(right->type == AST_TYPE);
-        ASSERT1(((a_type *) right->value)->intrinsic == ITuple);
-        left = get_declared_function(var->name, ((Tuple_T *)((a_type *) right->value)->ptr)->types, ast->scope);
+ 
+        struct List * func_args = ast_to_ast_type_list(right);
+        left = get_declared_function(var->name, func_args, ast->scope);
 
         if (left == NULL) {
             ASSERT1(right != NULL);

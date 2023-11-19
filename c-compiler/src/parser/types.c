@@ -124,7 +124,13 @@ struct Ast * parser_parse_type(struct Parser * parser) {
         // check if not type Self as that is a special compile time type
         } else if (!strcmp(type->name, "Self")) { // predfined types are parsed here
             type->intrinsic = ISelf;
-        } else {
+        } else if (!strcmp(type->name, "bool")) {
+            Numeric_T * num = init_intrinsic_type(INumeric);
+            num->width = 1;
+            num->type = NUMERIC_UNSIGNED;
+            type->intrinsic = INumeric;
+            type->ptr = num;
+        }else {
             Numeric_T * num = init_intrinsic_type(INumeric);
             switch (type->name[0]) {
                 case 'i':
@@ -338,6 +344,21 @@ char is_equal_type(Type * type1, Type * type2, Type * self) {
     }
 
     return 1;
+}
+
+struct List * ast_to_ast_type_list(struct Ast * ast) {
+    ASSERT(ast->type == AST_TYPE, "type_to_type_list not type AST");
+    Type * type = ast->value;
+    switch (type->intrinsic) {
+        case ITuple:
+            return ((Tuple_T *) type->ptr)->types;
+        default:
+        {
+            struct List * list = init_list(sizeof(struct Ast *));
+            list_push(list, ast);
+            return list;
+        }
+    }
 }
 
 Type * get_base_type(Type * type) {
