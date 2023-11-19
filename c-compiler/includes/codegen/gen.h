@@ -28,6 +28,7 @@ void gen_function_argument_list(struct Ast * ast, struct Ast * self_type);
 
 void gen_function_with_name(struct Ast * ast, const char * name, struct Ast * self_type);
 void gen_function(struct Ast * ast, struct Ast * self_type);
+void gen_inline_function(struct Ast * ast, struct List * arguments, struct Ast * self_type);
 
 void gen_structs(struct Ast * ast, struct Ast * self_type);
 void gen_impl(struct Ast * ast);

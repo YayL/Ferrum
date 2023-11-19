@@ -2,8 +2,12 @@ package "std/ops/op"
 
 fn main(argc: i32) -> i32 {
 
-    let a: i32 = 2 + 2
+    let a: i32 = (2 + 2) * argc
 
-    a
+    let b: i32 = a - argc
+ 
+    let i: i32 = 0
+
+    b
 }
 

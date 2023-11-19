@@ -230,6 +230,10 @@ struct Ast * ast_to_type(struct Ast * ast) {
         {
             a_expr * expr = ast->value;
 
+            if (expr->children->size == 1) {
+                return ast_get_type_of(list_at(expr->children, 0));
+            }
+
             struct Ast * node = init_ast(AST_TYPE, ast->scope),
                        * temp;
             
@@ -264,6 +268,36 @@ struct Ast * ast_to_type(struct Ast * ast) {
             exit(1);
         }
     }
+}
+
+char is_implicitly_equal(Type * type1, Type * type2, Type * self) {
+    if (!is_equal_type(get_base_type(type1), get_base_type(type2), self))
+        return 0;
+
+    char r1 = type1->intrinsic == IRef, r2 = type2->intrinsic == IRef;
+
+    if (r1 && r2) {
+        int diff = ((Ref_T *) type1->ptr)->depth - ((Ref_T *) type2->ptr)->depth;
+        if (diff == 1) {
+            type1->implicit = IE_DEREFERENCE;
+            return 1;
+        } else if (diff == -1) {
+            type1->implicit = IE_REFERENCE;
+            return 1;
+        }
+    } else if (r1 && !r2) {
+        if (((Ref_T *) type1->ptr)->depth == 1) {
+            type1->implicit = IE_DEREFERENCE; 
+            return 1;
+        } 
+    } else if (!r1 && r2) {
+        if (((Ref_T *) type2->ptr)->depth == 1) {
+            type1->implicit = IE_REFERENCE;
+            return 1;
+        }
+    }
+    
+    return 0;
 }
 
 char is_equal_type(Type * type1, Type * type2, Type * self) {
@@ -306,6 +340,21 @@ char is_equal_type(Type * type1, Type * type2, Type * self) {
     return 1;
 }
 
+Type * get_base_type(Type * type) {
+    switch (type->intrinsic) {
+        case IStruct:
+        case INumeric:
+        case ISelf:
+        case IEnum:
+        case ITuple:
+            return type;
+        case IArray:
+            return get_base_type(((Array_T *) type->ptr)->basetype);
+        case IRef:
+            return get_base_type(((Ref_T *) type->ptr)->basetype);
+    }
+}
+
 const char * get_base_type_str(Type * type) {
     switch (type->intrinsic) {
         case IStruct:
@@ -318,7 +367,12 @@ const char * get_base_type_str(Type * type) {
         case IRef:
             return get_base_type_str(((Ref_T *) type->ptr)->basetype);
         case ITuple:
+        {
+            Tuple_T * tuple = type->ptr;
+            if (tuple->types->size == 1)
+                return list_at(tuple->types, 0);
             return NULL;
+        }
     }
 }
 
@@ -452,12 +506,48 @@ struct Ast * replace_self_in_type(struct Ast * ast, struct Ast * self) {
         case ITuple:
         {
             struct Ast * node = init_ast(AST_TYPE, ast->scope);
-            node->value = ast->value;
-            __replace_self_in_type_using_type(node->value, self);
+            node->value = __replace_self_in_type_using_type(ast->value, self);
             return node;
         }
     }
 
 }
 
+Type * __get_self_type(Type * type1, Type * type2) {
+    if (type2->intrinsic == ISelf)
+        return type1;
 
+    switch (type1->intrinsic) {
+        case IRef:
+        {
+            Ref_T * ref1 = type1->ptr, * ref2 = type2->ptr;
+
+            if (ref1->depth != ref2->depth)
+                break;
+
+            return __get_self_type(ref1->basetype, ref2->basetype);
+        }
+    }
+
+    return NULL;
+}
+
+struct Ast * get_self_type(struct Ast * first, struct Ast * second) {
+    ASSERT1(first->type == AST_TYPE && second->type == AST_TYPE);
+    Type * type1 = first->value, * type2 = second->value;
+
+    if (type2->intrinsic == ISelf)
+        return first;
+
+    ASSERT(type1->intrinsic == type2->intrinsic, "get_self_type not same intrinsic");
+
+    Type * res = __get_self_type(type1, type2);
+    if (res != NULL) {
+        struct Ast * ast = init_ast(AST_TYPE, first->scope);
+        ast->value = res;
+        return ast;
+    }
+
+    logger_log("get_self_type unable to find self representative", CHECKER, ERROR);
+    exit(1);
+}

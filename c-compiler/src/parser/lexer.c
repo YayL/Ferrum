@@ -121,7 +121,7 @@ void lexer_parse_string_literal(struct Lexer * lexer) {
     const unsigned int _start = lexer->pos;
 	int start = lexer->index + 1, end = start;
 
-	while (lexer->src[++end] != lexer->c) {
+	while (lexer->src[end] != lexer->c) {
 		if(end == lexer->size) {
 			println("\nEnd of file found while reading string.");
 			exit(1);
@@ -131,6 +131,7 @@ void lexer_parse_string_literal(struct Lexer * lexer) {
 						"is not allowed\n", lexer->line, lexer->pos);
 			exit(1);
 		}
+        end += 1;
 	}
 
 	const size_t length = end - start;

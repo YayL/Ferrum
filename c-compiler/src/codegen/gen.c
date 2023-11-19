@@ -1,5 +1,7 @@
 #include "codegen/gen.h"
+#include "codegen/AST.h"
 #include "codegen/llvm.h"
+#include "parser/types.h"
 
 FILE * output = NULL;
 struct Generator generator = {0};
@@ -51,17 +53,40 @@ const char * gen_call(struct Ast * ast, struct Ast * self_type) {
 
 void gen_inline_function(struct Ast * ast, struct List * arguments, struct Ast * self_type) {
     a_function * func = ast->value;
-    Tuple_T * tuple = ((a_type *) func->param_type->value)->ptr;
+    Type * param_type = func->param_type->value;
+
+    struct List * params;
+
+    switch (param_type->intrinsic) {
+        case ITuple:
+            params = ((Tuple_T *) param_type->ptr)->types; break;
+        default:
+            params = init_list(sizeof(struct Ast *));
+            list_push(params, func->param_type);
+    }
+
+    struct List * list = init_list(sizeof(char *));
+
+    for (int i = 0; i < arguments->size; ++i) {
+        list_push(list, (void *) gen_expr_node(list_at(arguments, i), self_type));
+    }
 
     writef(output, "\n; inline call: {s}\n", func->name);
 
     for (int i = 0; i < arguments->size; ++i) {
-        const char * type_str = llvm_ast_type_to_llvm_type(list_at(tuple->types, i), self_type);
-        struct Ast * node = list_at(((a_expr *) func->arguments->value)->children, i);
-        ((a_variable *) node->value)->reg = generator.reg_count;
-        writef(output, "%{u} = alloca {s}\n", generator.reg_count, type_str);
-        writef(output, "store {s} {s}, ptr %{u}\n", type_str, list_at(arguments, i), generator.reg_count++); 
-    }
+        const char * type_str = llvm_ast_type_to_llvm_type(list_at(params, i), self_type);
+        struct Ast * param = list_at(((a_expr *) func->arguments->value)->children, i),
+                   * arg = list_at(arguments, i);
+    
+        if (arg->type == AST_VARIABLE) {
+            ((a_variable *) param->value)->reg = ((a_variable *) arg->value)->reg;
+        } else {
+            ((a_variable *) param->value)->reg = generator.reg_count;
+
+            writef(output, "%{u} = alloca {s}\n", generator.reg_count, type_str);
+            writef(output, "store {s} {s}, ptr %{u}\n", type_str, list_at(list, i), generator.reg_count++); 
+        }
+    } 
 
     gen_scope(func->body, self_type);
 
@@ -77,23 +102,36 @@ const char * gen_op(struct Ast * ast, struct Ast * self_type) {
     }
     
     struct Ast * first = op->right;
-    struct List * args = init_list(sizeof(char *));
+    struct List * args = init_list(sizeof(struct Ast *));
 
     if (op->left != NULL) {
         first = op->left;
-        list_push(args, (void *) gen_expr_node(op->left, self_type));
+        list_push(args, op->left);
     }
 
-    list_push(args, (void *) gen_expr_node(op->right, self_type));
+    list_push(args, op->right);
     
+    if (op->definition == NULL) {
+        gen_expr(op->right, self_type);
+        return NULL;
+    }
     a_function * func = op->definition->value;
     
     if (!func->is_inline) {
         logger_log("operator with inlined function definitions are not implemented yet", IR, ERROR);
         exit(1);
     }
+    struct Ast * func_first_arg;
+    struct Ast * func_param_ast_type = ((a_function *) op->definition->value)->param_type;
 
-    gen_inline_function(op->definition, args, ast_get_type_of(first));
+    switch (((Type *) func_param_ast_type->value)->intrinsic) {
+        case ITuple:
+            func_first_arg = list_at(((Tuple_T *) ((Type *) func_param_ast_type->value)->ptr)->types, 0); break;
+        default:
+            func_first_arg = func_param_ast_type; break;
+    }
+
+    gen_inline_function(op->definition, args, get_self_type(ast_get_type_of(first), func_first_arg));
 
     return NULL;
 }
@@ -114,6 +152,8 @@ const char * gen_expr_node(struct Ast * ast, struct Ast * self_type) {
             a_literal * literal = ast->value;
             /* const char * type_str = llvm_ast_type_to_llvm_type(literal->type, self_type); */
             if (literal->literal_type == LITERAL_NUMBER)
+                return literal->value;
+            else if (literal->literal_type == LITERAL_STRING)
                 return literal->value;
         } break;
         case AST_VARIABLE:

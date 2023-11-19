@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/common.h"
+#include "parser/token.h"
 #include "codegen/AST.h"
 
 enum Operators {
