@@ -62,11 +62,13 @@ void * init_intrinsic_type(enum intrinsic_type type);
 const char * get_base_type_str(Type * type);
 Type * get_base_type(Type * type);
 char * type_to_str(Type * type);
+struct Ast * ast_to_type(struct Ast * ast);
 
 struct Ast * get_type(struct Ast * ast, char * name);
+struct List * ast_to_ast_type_list(struct Ast * ast);
+
 char is_implicitly_equal(Type * type1, Type * type2, Type * self);
 char is_equal_type(Type * type1, Type * type2, Type * self);
-struct Ast * ast_to_type(struct Ast * ast);
 
 struct Ast * get_self_type(struct Ast * first, struct Ast * second);
 struct Ast * replace_self_in_type(struct Ast * ast, struct Ast * self);
