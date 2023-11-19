@@ -29,13 +29,13 @@ void gen_builtin_llvm_store(struct Ast * ast, struct Ast * self_type) {
         arr[i] = gen_expr_node(list_at(expr->children, i), self_type);
     }
 
-    gen_write(format("store {s} {s}, {s}\n", arr[0], arr[2], arr[1]));
+    gen_write(format("store {s} {s}, ptr {s}\n", arr[0], arr[2], arr[1]));
 }
 
 const char * gen_builtin_llvm_register_of(struct Ast * ast, struct Ast * self_type) {
     a_expr * expr = ast->value;
 
-    return format("ptr %{u}\n", llvm_get_register_of(list_at(expr->children, 0)));
+    return format("%{u}", llvm_get_register_of(list_at(expr->children, 0)));
 }
 
 void gen_builtin_llvm_load(struct Ast * ast, struct Ast * self_type) {
@@ -56,7 +56,9 @@ void gen_builtin_llvm_load(struct Ast * ast, struct Ast * self_type) {
 const char * gen_builtin_llvm_type_of(struct Ast * ast, struct Ast * self_type) {
     a_expr * expr = ast->value;
     
-    return llvm_ast_type_to_llvm_type(ast_get_type_of(list_at(expr->children, 0)), self_type);
+    struct Ast * type = ast_get_type_of(list_at(expr->children, 0));
+
+    return llvm_ast_type_to_llvm_type(type, self_type);
 }
 
 const char * gen_builtin(struct Ast * ast, struct Ast * self_type) {

@@ -6,6 +6,11 @@ typedef struct Type {
     char * name;
     short size;
     void * ptr;
+    enum implicitly_equal {
+        IE_EQUAL,
+        IE_REFERENCE,
+        IE_DEREFERENCE
+    } implicit;
     enum intrinsic_type {
         INumeric, // isize, usize, fsize
         IArray,
@@ -55,10 +60,13 @@ typedef struct Tuple_T {
 
 void * init_intrinsic_type(enum intrinsic_type type);
 const char * get_base_type_str(Type * type);
+Type * get_base_type(Type * type);
 char * type_to_str(Type * type);
 
 struct Ast * get_type(struct Ast * ast, char * name);
+char is_implicitly_equal(Type * type1, Type * type2, Type * self);
 char is_equal_type(Type * type1, Type * type2, Type * self);
 struct Ast * ast_to_type(struct Ast * ast);
 
+struct Ast * get_self_type(struct Ast * first, struct Ast * second);
 struct Ast * replace_self_in_type(struct Ast * ast, struct Ast * self);

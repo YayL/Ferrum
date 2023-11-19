@@ -7,10 +7,12 @@ struct Operator str_to_operator(const char * str, enum OP_mode mode, char * encl
 
         if (op_conversion[i].enclosed == ENCLOSED && op_conversion[i].mode == mode) {
             if (!strcmp(str, op_str)) {
-                *enclosed_flag = 0;
+                if (enclosed_flag != NULL)
+                    *enclosed_flag = 0;
                 return op_conversion[i];
             } else if (!strcmp(str, op_str + strlen(op_str) + 1)) {
-                *enclosed_flag = 1;
+                if (enclosed_flag != NULL)
+                    *enclosed_flag = 1;
                 return op_conversion[i];
             }
         }

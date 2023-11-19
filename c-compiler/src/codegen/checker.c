@@ -1,5 +1,8 @@
 #include "codegen/checker.h"
+#include "codegen/AST.h"
 #include "common/hashmap.h"
+#include "parser/operators.h"
+#include "parser/types.h"
 
 struct Ast * get_symbol(char * const name, struct Ast const * scope) {    
     struct Ast * ast;
@@ -84,7 +87,9 @@ struct Ast * get_declared_function(const char * name, struct List * list1, struc
 
                 char found = 1;
                 for (int j = 0; j < list1->size; ++j) {
-                    if (!is_equal_type(DEREF_AST(list_at(list1, j)), DEREF_AST(list_at(list2, j)), NULL)) {
+                    void * item1 = DEREF_AST(list_at(list1, j)),
+                         * item2 = DEREF_AST(list_at(list2, j));
+                    if (!is_equal_type(item1, item2, NULL)) {
                         print_ast("{s}\n", node);
                         found = 0;
                         break;
@@ -138,7 +143,6 @@ struct Ast * get_member_function(struct Ast * marker, const char * member_name,
     ASSERT1(marker_name != NULL);
 
     struct List * members = hashmap_get(root->markers, marker_name);
-    
     if (members == NULL)
         return NULL;
 
@@ -158,14 +162,26 @@ struct Ast * get_member_function(struct Ast * marker, const char * member_name,
         if (strcmp(function->name, member_name))
             continue;
         
-        struct List * function_argument_types = ((Tuple_T *)((a_type *) function->param_type->value)->ptr)->types;
+        struct List * function_argument_types;
+        
+        Type * func_type = function->param_type->value;
+
+        switch (func_type->intrinsic) {
+            case ITuple:
+                function_argument_types = ((Tuple_T *) func_type->ptr)->types; break;
+            default:
+                function_argument_types = init_list(sizeof(struct Ast *));
+                list_push(function_argument_types, function->param_type);
+        }
 
         if (function_argument_types->size != member_argument_types->size)
             continue;
 
         char found = 1;
-        for (int j = 0; j < function_argument_types->size || !(found = 1); ++j) {
-            if (!is_equal_type(DEREF_AST(list_at(function_argument_types, j)), DEREF_AST(list_at(member_argument_types, j)), type)) {
+        for (int j = 0; j < function_argument_types->size || !(found); ++j) {
+            void * item1 = DEREF_AST(list_at(member_argument_types, j)), 
+                 * item2 = DEREF_AST(list_at(function_argument_types, j));
+            if (!is_equal_type(item1, item2, type) && !is_implicitly_equal(item1, item2, type)) {
                 found = 0;
                 break;
             }
@@ -194,6 +210,39 @@ char is_declared_function(char * name, struct Ast * scope) {
     return 0;
 }
 
+struct Ast * get_function_for_operator(struct Operator * op, struct Ast * left, struct Ast * right, struct Ast ** self_type, struct Ast * scope) {
+    struct List * temp_list = init_list(sizeof(struct Ast *));
+
+    if (left != NULL) {
+        list_push(temp_list, left);
+    }
+    list_push(temp_list, right);
+
+    if (*self_type == NULL)
+        *self_type = list_at(temp_list, 0);
+
+    const char * name = get_operator_runtime_name(op->key);
+    struct Ast * func = get_member_function(*self_type, name, temp_list, scope);
+
+    if (func == NULL) {
+        ASSERT1(right != NULL);
+        ASSERT1(right->value != NULL);
+    
+        if (left != NULL)
+            print_ast("left: {s}\n", left);
+        print_ast("right: {s}\n", right);
+
+        if (left != NULL)
+            logger_log(format("Operator '{s}'({s}) is not defined for ({2s:, })", op->str, name, type_to_str(left->value), type_to_str(right->value)), CHECKER, ERROR);
+        else 
+            logger_log(format("Operator '{s}'({s}) is not defined for ({s})", op->str, name, type_to_str(right->value)), CHECKER, ERROR);
+
+        exit(1);
+    }
+
+    return func;
+}
+
 void checker_check_type(struct Ast * ast, struct Ast * type) {
     a_type * left = ast->value, * right = type->value;
 
@@ -218,6 +267,45 @@ struct Ast * checker_check_expr_node(struct Ast * ast) {
         default:
             logger_log(format("Unimplemented expr node type: {s}", ast_type_to_str(ast->type)), CHECKER, ERROR);
             exit(1);
+    }
+}
+
+struct Ast * checker_check_implicit(struct Ast * child, struct Ast * type, struct Ast ** self_type) {
+    Type * t = type->value;
+
+    switch (t->implicit) {
+        case IE_EQUAL:
+            return child;
+        case IE_REFERENCE:
+        {
+            struct Ast * parent = init_ast(AST_OP, child->scope);
+            a_op * op = parent->value;
+
+            op->op = malloc(sizeof(struct Operator));
+            *op->op = str_to_operator("&", UNARY_PRE, NULL);
+            op->right = child;
+
+            op->definition = get_function_for_operator(op->op, NULL, type, self_type, child->scope);
+            op->type = replace_self_in_type(((a_function *) op->definition->value)->return_type, *self_type);
+
+            t->implicit = IE_EQUAL;
+            return parent;
+        }
+        case IE_DEREFERENCE:
+        {
+            struct Ast * parent = init_ast(AST_OP, child->scope);
+            a_op * op = parent->value;
+
+            op->op = malloc(sizeof(struct Operator));
+            *op->op = str_to_operator("*", UNARY_PRE, NULL);
+            op->right = child;
+
+            op->definition = get_function_for_operator(op->op, NULL, type, self_type, child->scope);
+            op->type = replace_self_in_type(((a_function *) op->definition->value)->return_type, *self_type);
+
+            t->implicit = IE_EQUAL;
+            return parent;
+        }
     }
 }
 
@@ -263,42 +351,28 @@ struct Ast * checker_check_op(struct Ast * ast) {
     } else if (op->op->key == TERNARY && ((a_op *) op->right->value)->op->key != TERNARY_BODY) {
         logger_log("Detected an error with the ternary operator. This was most likely caused by operator precedence or nested ternary operators. To remedy this try applying parenthesis around the seperate ternary body entries", CHECKER, ERROR);
         exit(1);
+    } else if (op->op->key == PARENTHESES) {
+        op->type = checker_check_expr_node(op->right);
+        return op->type;
     } else if (op->left) {
         left = checker_check_expr_node(op->left);
     }
 
     right = checker_check_expr_node(op->right);
 
-    const char * name = get_operator_runtime_name(op->op->key);
+    struct Ast * self_type = NULL;
 
-    struct List * temp_list = init_list(sizeof(struct Ast *));
+    struct Ast * func = get_function_for_operator(op->op, left, right, &self_type, ast->scope);
 
-    if (left != NULL)
-        list_push(temp_list, left);
-    list_push(temp_list, right);
-
-    struct Ast * type = left != NULL ? left : right;
-
-    struct Ast * func = get_member_function(type, name, temp_list, ast->scope);
-
-    if (func == NULL) {
-        ASSERT1(right != NULL);
-        ASSERT1(right->value != NULL);
-    
-        if (left != NULL)
-            print_ast("left: {s}\n", left);
-        print_ast("right: {s}\n", right);
-
-        if (left != NULL)
-            logger_log(format("Operator '{s}'({s}) is not defined for ({2s:, })", op->op->str, name, type_to_str(left->value), type_to_str(right->value)), CHECKER, ERROR);
-        else 
-            logger_log(format("Operator '{s}'({s}) is not defined for ({s})", op->op->str, name, type_to_str(right->value)), CHECKER, ERROR);
-
-        exit(1);
+    if (op->left) {
+        op->left = checker_check_implicit(op->left, left, &self_type);
+        op->right = checker_check_implicit(op->right, right, &self_type);
+    } else {
+        op->right = checker_check_implicit(op->right, right, &self_type);
     }
 
     op->definition = func;
-    op->type = replace_self_in_type(((a_function *) func->value)->return_type, type);
+    op->type = replace_self_in_type(((a_function *) func->value)->return_type, self_type);
  
     return op->type;
 }
