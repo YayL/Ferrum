@@ -13,6 +13,7 @@ struct Generator {
     unsigned int reg_count;
     unsigned int block_count;
     unsigned int ret_reg;
+    char * ret_type;
 };
 
 void gen_write(const char * src);
