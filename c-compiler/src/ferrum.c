@@ -39,13 +39,13 @@ void ferrum_compile(char * file_path) {
     total += time;
     asprintf(&parser_time, "Time for parser:\t%.3fms", (double)time / 1000);
 
-    print_ast_tree(ast);
-
     start_timer();
     checker_check(ast);
     time = stop_timer();
     total += time;
     asprintf(&checker_time, "Time for checker:\t%.3fms", (double)time / 1000);
+
+    print_ast_tree(ast);
 
     const char * OUTPUT_PATH = "./build/ferrum.ll";
     FILE * fp = open_file(get_abs_path(OUTPUT_PATH), "w");
@@ -59,7 +59,11 @@ void ferrum_compile(char * file_path) {
     fclose(fp);
 
     start_timer();
-    system("clang ./build/ferrum.ll -emit-llvm -S -c -O3 -o ferrum.ll && llc ferrum.ll");
+#ifdef OUTPUT_OPTIMISED_LLVM
+    system("clang ./build/ferrum.ll -emit-llvm -S -c -O3 -o ferrum.ll && clang ferrum.ll");
+#else
+    system("clang ./build/ferrum.ll -O3");
+#endif
     time = stop_timer();
     total += time;
     asprintf(&optimization_time, "Time for optimizer:\t%.3fms", (double)time / 1000);

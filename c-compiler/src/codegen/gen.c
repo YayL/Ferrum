@@ -168,14 +168,40 @@ void gen_expr(struct Ast * ast, struct Ast * self_type) {
     }
 }
 
+void gen_if_block(a_if_statement * _if, unsigned int end, struct Ast * self_type) {
+    gen_expr(_if->expression, self_type);
+    
+    unsigned int block_num = generator.reg_count;
+    
+    const char * next_block = _if->next == NULL ? format("%if_end_{u}", end) : format("%else_{u}", block_num);
+
+    if (_if->next == NULL)
+        writef(output, "br i1 %{u}, label %{u}, label {s}\n", generator.reg_count - 1, block_num, next_block);
+    writef(output, "\n{u}:\n", generator.reg_count++);
+
+    gen_scope(_if->body, self_type);
+    
+    if (_if->next != NULL) {
+        writef(output, "else_{u}:\n", block_num);
+        gen_if_block(_if->next, end, self_type);
+    }
+}
+
 void gen_if(struct Ast * ast, struct Ast * self_type) {
     a_if_statement * _if = ast->value;
 
-    unsigned int if_start = generator.reg_count;
+    unsigned int end = generator.reg_count;
+    gen_if_block(_if, end, self_type);
 
-    gen_expr(_if->expression, self_type);
+    writef(output, "if_end_{u}:\n", end);
+}
 
-    println("reg: {u}", generator.reg_count);
+void gen_return(struct Ast * ast, struct Ast * self_type) {    
+    a_return * ret = ast->value;
+    
+    gen_expr(ret->expression, self_type);
+    
+    writef(output, "ret {s} %{u}\n", generator.ret_type, generator.reg_count - 1);
 }
 
 void gen_scope(struct Ast * ast, struct Ast * self_type) {
@@ -197,6 +223,8 @@ void gen_scope(struct Ast * ast, struct Ast * self_type) {
                 gen_expr(((a_declaration *) node->value)->expression, self_type); break;
             case AST_IF:
                 gen_if(node, self_type); break;
+            case AST_RETURN:
+                gen_return(node, self_type); break;
             default:
                 logger_log(format("AST type '{s}' code generation is not implemented in scope", ast_type_to_str(node->type)), IR, ERROR);
                 exit(1);
@@ -233,8 +261,9 @@ void gen_function_with_name(struct Ast * ast, const char * name, struct Ast * se
     generator.reg_count = 0, generator.block_count = 0;
 
     const char * return_type_str = llvm_ast_type_to_llvm_type(func->return_type, self_type);
+    generator.ret_type = llvm_ast_type_to_llvm_type(func->return_type, self_type);
     
-    writef(output, "\ndefine dso_local {s} @{s}(", return_type_str, name); 
+    writef(output, "\ndefine dso_local {s} @{s}(", return_type_str, name);
     gen_function_argument_list(func->arguments, self_type);
 
     if (func->is_inline) {
@@ -256,6 +285,7 @@ void gen_function_with_name(struct Ast * ast, const char * name, struct Ast * se
     }
 
     gen_scope(func->body, self_type);
+
  
     fputs("br label %exit\n\nexit:\n", output);
     writef(output, "ret {s} %{u}\n", 

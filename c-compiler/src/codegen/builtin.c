@@ -48,7 +48,7 @@ void gen_builtin_llvm_load(struct Ast * ast, struct Ast * self_type) {
 
     struct Ast * node = list_at(expr->children, 0);
 
-    gen_write(format("%{u} = load {s}, ptr %{u}\n",  gen_new_register(), 
+    gen_write(format("%{u} = load {s}, ptr %{u}; #llvm_load\n",  gen_new_register(), 
                                                 llvm_ast_type_to_llvm_type(((a_variable *) node->value)->type, self_type),
                                                 llvm_get_register_of(node)));
 }
