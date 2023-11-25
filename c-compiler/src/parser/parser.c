@@ -179,13 +179,7 @@ struct Ast * parser_parse_while(struct Parser * parser) {
     a_while_statement * while_statement = ast->value;
     
     while_statement->expression = parser_parse_expr(parser);
-
-    // while without an expression
-    if (while_statement->expression->type != AST_CALL) {
-        print_token("[Parser] Invalid while statement: {s}\n", while_token);
-        exit(1);
-    }
-    
+     
     while_statement->body = parser_parse_scope(parser);
 
     return ast;
@@ -465,6 +459,21 @@ struct Ast * parser_parse_function(struct Parser * parser) {
         parser_eat(parser, TOKEN_ID);
     }
 
+    if (parser->token->type == TOKEN_LT) {
+        parser_eat(parser, TOKEN_LT);
+
+        function->parsed_templates = init_list(sizeof(struct Ast *));
+        
+        while (parser->token->type == TOKEN_ID) {
+            list_push(function->parsed_templates, parser_parse_id(parser));
+            if (parser->token->type == TOKEN_GT)
+                break;
+            parser_eat(parser, TOKEN_COMMA);
+        }
+
+        parser_eat(parser, TOKEN_GT);
+    }
+
     parser_eat(parser, TOKEN_LPAREN);
     
     function->arguments = parser_parse_expr_exit_on(parser, PARENTHESES);
@@ -507,7 +516,9 @@ struct Ast * parser_parse_package(struct Parser * parser) {
     path = format("{4s}", path, "/", parser->token->value, ".fe");
     parser->path[last] = '/';
 
-    println("[Info] Added package '{s}' at '{s}'", parser->token->value, path);
+    char * name = parser->token->value;
+
+    logger_log(format("Added package '{s}' at '{s}'", name, path), PARSER, INFO);
     parser_eat(parser, TOKEN_STRING_LITERAL);
 
     a_module * temp;
@@ -523,6 +534,7 @@ struct Ast * parser_parse_package(struct Parser * parser) {
     }
 
     parser_parse(parser->root, path);
+    logger_log(format("Parsed package '{s}'", name), PARSER, INFO);
 
     return NULL;
 }
@@ -541,6 +553,8 @@ struct Ast * parser_parse_identifier(struct Parser * parser) {
         exit(1);
     }
 
+    println("id key: {u}", identifier.key);
+    
     switch (identifier.key) {
         case OP_NOT_FOUND:
             print_token("[Parser]: {s} is not a valid identifier\n", parser->token);
@@ -571,11 +585,15 @@ struct Ast * parser_parse_module(struct Parser * parser, struct Ast * ast) {
 
     while (parser->token->type != TOKEN_EOF) {
         if (parser->token->type == TOKEN_LINE_BREAK) {
+            print_token("tok1: {s}\n", parser->token);
             parser_eat(parser, TOKEN_LINE_BREAK);
+            print_token("tok2: {s}\n", parser->token);
+            println("line_break");
             continue;
         }
 
         node = parser_parse_identifier(parser);
+
         parser->current_scope = ast;
 
         if (node == NULL)
