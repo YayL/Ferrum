@@ -55,6 +55,7 @@ typedef struct a_module {
     struct HashMap * symbols;
     struct List * variables;
     struct List * functions;
+    struct HashMap * functions_map;
     struct List * structures;
     struct List * traits;
     struct List * impls;
@@ -62,11 +63,17 @@ typedef struct a_module {
 
 typedef struct a_function {
     char * name;
+    struct Ast * arguments;
     struct Ast * body;
+    
     struct Ast * param_type;
     struct Ast * return_type;
-    struct Ast * arguments; // expression node
+
+    struct List * parsed_templates;
+    struct HashMap * template_types;
+    
     char is_inline;
+    char is_checked;
 } a_function;
 
 typedef struct a_scope {
@@ -116,6 +123,7 @@ typedef struct a_op {
     struct Ast * right;
     struct Ast * type;
     struct Ast * definition;
+    struct HashMap * template_types;
 } a_op;
 
 typedef struct a_variable {
@@ -168,3 +176,5 @@ struct Ast * ast_get_type_of(struct Ast * ast);
 
 void print_ast_tree(struct Ast * node);
 void print_ast(const char * template, struct Ast * node);
+
+struct Ast * get_scope(enum AST_type type, struct Ast * scope);

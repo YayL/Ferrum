@@ -23,6 +23,7 @@ unsigned long stop_timer() {
 
 void ferrum_compile(char * file_path) {
 
+
     struct Ast * ast = init_ast(AST_ROOT, NULL);
     
     char * abs_path = get_abs_path(file_path),
@@ -47,32 +48,32 @@ void ferrum_compile(char * file_path) {
 
     print_ast_tree(ast);
 
-    const char * OUTPUT_PATH = "./build/ferrum.ll";
-    FILE * fp = open_file(get_abs_path(OUTPUT_PATH), "w");
-
-    start_timer();
-    gen(fp, ast);
-    time = stop_timer();
-    total += time;
-    asprintf(&gen_time, "Time for generator:\t%.3fms", (double)time / 1000);
-
-    fclose(fp);
-
-    start_timer();
-#ifdef OUTPUT_OPTIMISED_LLVM
-    system("clang ./build/ferrum.ll -emit-llvm -S -c -O3 -o ferrum.ll && clang ferrum.ll");
-#else
-    system("clang ./build/ferrum.ll -O3");
-#endif
-    time = stop_timer();
-    total += time;
-    asprintf(&optimization_time, "Time for optimizer:\t%.3fms", (double)time / 1000);
+/*     const char * OUTPUT_PATH = "./build/ferrum.ll"; */
+/*     FILE * fp = open_file(get_abs_path(OUTPUT_PATH), "w"); */
+/*  */
+/*     start_timer(); */
+/*     gen(fp, ast); */
+/*     time = stop_timer(); */
+/*     total += time; */
+/*     asprintf(&gen_time, "Time for generator:\t%.3fms", (double)time / 1000); */
+/*  */
+/*     fclose(fp); */
+/*  */
+/*     start_timer(); */
+/* #ifdef OUTPUT_OPTIMISED_LLVM */
+/*     system("clang ./build/ferrum.ll -emit-llvm -S -c -O3 -o ferrum.ll && clang ferrum.ll"); */
+/* #else */
+/*     system("clang ./build/ferrum.ll -O3"); */
+/* #endif */
+/*     time = stop_timer(); */
+/*     total += time; */
+/*     asprintf(&optimization_time, "Time for optimizer:\t%.3fms", (double)time / 1000); */
 
     puts(LINE_BREAKER);
     puts(parser_time);
     puts(checker_time);
-    puts(gen_time);
-    puts(optimization_time);
+    /* puts(gen_time); */
+    /* puts(optimization_time); */
     puts(LINE_BREAKER);
     printf("Total: %.3fms\n", (double)total / 1000);
 }

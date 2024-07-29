@@ -11,7 +11,7 @@ void gen_builtin_llvm_op(struct Ast * ast, struct Ast * self_type) {
         arr[i - 1] = gen_expr_node(list_at(expr->children, i), self_type);
     }
 
-    gen_write(format("%{u} = {s} {s} {s}, {s}", gen_new_register(), op, arr[0], arr[1], arr[2]));
+    gen_write(format("%{u} = {s} {s} {s}, {s}\n", gen_new_register(), op, arr[0], arr[1], arr[2]));
 }
 
 void gen_builtin_llvm_store(struct Ast * ast, struct Ast * self_type) {

@@ -18,7 +18,8 @@ enum Keywords {
     ENUM,
     TRAIT,
     IMPL,
-    RETURN
+    RETURN,
+    TYPENAME
 };
 
 enum Keywords_usage {
@@ -50,7 +51,8 @@ const static struct Keyword {
     {WHILE, FUNCTION_ONLY, "while"},
     {DO, FUNCTION_ONLY, "do"},
     {MATCH, FUNCTION_ONLY, "match"},
-    {RETURN, FUNCTION_ONLY, "return"}
+    {RETURN, FUNCTION_ONLY, "return"},
+    {TYPENAME, FUNCTION_ONLY, "typename"}
 };
 
 struct Keyword str_to_keyword(const char * str);

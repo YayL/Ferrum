@@ -2,6 +2,7 @@
 
 #include "codegen/AST.h"
 #include "common/hashmap.h"
+#include "codegen/functions.h"
 
 struct Checker {
     // struct HashMap * types;
@@ -9,7 +10,11 @@ struct Checker {
     // struct HashMap * implementations;
 };
 
+struct Ast * get_symbol(char * const name, struct Ast const * scope);
 struct Ast * get_variable(struct Ast * variable);
+
+void add_marker(struct Ast * marker, const char * name);
+struct Ast * get_marker(struct Ast * ast, const char * name);
 
 void checker_check_if(struct Ast * ast);
 void checker_check_while(struct Ast * ast);
@@ -23,6 +28,6 @@ void checker_check_scope(struct Ast * ast);
 
 void checker_check_declaration(struct Ast * ast);
 void checker_check_function(struct Ast * ast);
-void checker_check_module(struct Ast * ast);
+struct Ast * checker_check_module(struct Ast * ast);
 
 void checker_check(struct Ast * ast);
