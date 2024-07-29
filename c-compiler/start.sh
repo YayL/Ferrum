@@ -20,7 +20,7 @@ elif [ "$1" == "p" ] ; then
     set +e
 else
     set -e
-	make
+	make CC="zig cc"
     set +e
 	cd ..
     rm coredump.* &> /dev/null # rm coredump.* > /dev/null 2>&1

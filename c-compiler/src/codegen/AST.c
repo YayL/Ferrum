@@ -1,4 +1,5 @@
 #include "codegen/AST.h"
+#include "common/hashmap.h"
 
 #define PADDING_DIRECT_CHILD  "  "
 #define PADDING_LIST_CHILDREN "  │"
@@ -29,6 +30,7 @@ void * init_ast_of_type(enum AST_type type) {
             a_module * module = malloc(sizeof(a_module));
             module->symbols = init_hashmap(8);
             module->functions = init_list(sizeof(struct Ast *));
+            module->functions_map = init_hashmap(6);
             module->variables = init_list(sizeof(struct Ast *));
             module->structures = init_list(sizeof(struct Ast *));
             module->traits = init_list(sizeof(struct Ast *));
@@ -183,23 +185,28 @@ void free_ast(struct Ast * ast) {
 	free(ast);
 }
 
-void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
-    if (is_list)
-        string_cut(pad, 1);
-    
+void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) { 
+    if (!is_last || (pad->size != 0 && pad->_ptr[pad->size - 1] == ' ')) {
+        string_append(pad, "  ");
+    } else if (is_list) {
+        string_cut(pad, 3);
+    }
+
+    // pad->size == 2 means that it has only appended two
     print("{2s}", pad->_ptr, pad->size == 0 ? "" : ((is_last || !is_list) ? "└─" : "├─"));
+    
     if (ast == NULL) {
         println("(NULL)");
         return;
     }
 
     print_ast("{s}\n", ast);
-
     if (is_list) {
-        if (is_last)
+        if (is_last) {
             string_append(pad, " ");
-        else
+        } else {
             string_append(pad, "│");
+        }
     }
 
     switch (ast->type) {
@@ -208,7 +215,6 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
             a_root * root = ast->value;
 
             String * next_pad = string_copy(pad);
-            string_append(next_pad, AST_TREE_PADDING(root->modules->size > 1));
             AST_TREE_PRINT_CHILDREN(root->modules, next_pad);
             free_string(&next_pad);
             
@@ -222,17 +228,14 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
             a_module * module = ast->value;
 
             String * next_pad = string_copy(pad);
-            string_append(next_pad, AST_TREE_PADDING(module->variables->size > 1));
             AST_TREE_PRINT_CHILDREN(module->variables, next_pad);
             free_string(&next_pad);
 
             next_pad = string_copy(pad);
-            string_append(next_pad, AST_TREE_PADDING(module->impls->size > 1));
             AST_TREE_PRINT_CHILDREN(module->impls, next_pad);
             free_string(&next_pad);
 
             next_pad = string_copy(pad);
-            string_append(next_pad, AST_TREE_PADDING(module->functions->size > 1));
             AST_TREE_PRINT_CHILDREN(module->functions, next_pad);
             free_string(&next_pad);
 
@@ -243,7 +246,6 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
             a_function * func = ast->value;
             
             String * next_pad = string_copy(pad);
-            string_append(next_pad, AST_TREE_PADDING(1));
 
             _print_ast_tree(func->arguments, next_pad, 1, 0);
             _print_ast_tree(func->body, next_pad, 1, 1);
@@ -257,7 +259,6 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
             String * next_pad = string_copy(pad);
             struct List * list = list_combine(scope->variables, scope->nodes);
 
-            string_append(next_pad, AST_TREE_PADDING(list->size > 1));
             AST_TREE_PRINT_CHILDREN(list, next_pad);
             free_string(&next_pad);
         } break;
@@ -267,7 +268,6 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
             a_impl * impl = ast->value;
             String * next_pad = string_copy(pad);
             
-            string_append(next_pad, AST_TREE_PADDING(impl->members->size > 1));
             AST_TREE_PRINT_CHILDREN(impl->members, next_pad);
             free_string(&next_pad);
 
@@ -278,7 +278,6 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
             a_declaration * decl = ast->value;
             
             String * next_pad = string_copy(pad);
-            string_append(next_pad, PADDING_DIRECT_CHILD);
             _print_ast_tree(decl->expression, next_pad, 0, 0);
             free_string(&next_pad);
 
@@ -289,7 +288,6 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
             a_expr * expr = ast->value;
 
             String * next_pad = string_copy(pad);
-            string_append(next_pad, AST_TREE_PADDING(expr->children->size > 1));
             AST_TREE_PRINT_CHILDREN(expr->children, next_pad);
             free_string(&next_pad);
             
@@ -301,7 +299,6 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
 
             String * next_pad = string_copy(pad);
             if (op->op->mode == BINARY) {
-                string_append(next_pad, PADDING_LIST_CHILDREN);
                 _print_ast_tree(op->left, next_pad, 1, 0);
                 _print_ast_tree(op->right, next_pad, 1, 1);
             } else {
@@ -318,7 +315,6 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
 
             if (ret->expression) {
                 String * next_pad = string_copy(pad);
-                string_append(next_pad, PADDING_DIRECT_CHILD);
                 _print_ast_tree(ret->expression, next_pad, 0, 0);
                 free_string(&next_pad);
             }
@@ -330,7 +326,6 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
             a_for_statement * for_statement = ast->value;
 
             String * next_pad = string_copy(pad);
-            string_append(next_pad, PADDING_LIST_CHILDREN);
             _print_ast_tree(for_statement->expression, next_pad, 1, 0);
             _print_ast_tree(for_statement->body, next_pad, 1, 1);
             free_string(&next_pad);
@@ -342,7 +337,6 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
             a_while_statement * while_statement = ast->value;
 
             String * next_pad = string_copy(pad);
-            string_append(next_pad, PADDING_LIST_CHILDREN);
             _print_ast_tree(while_statement->expression, next_pad, 1, 0);
             _print_ast_tree(while_statement->body, next_pad, 1, 1);
             free_string(&next_pad);
@@ -355,11 +349,6 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
 
             String * next_pad = string_copy(pad);
             
-            if (if_statement->expression || if_statement->next)
-                string_append(next_pad, PADDING_LIST_CHILDREN);
-            else
-                string_append(next_pad, PADDING_DIRECT_CHILD);
-
             while (1) {
                 if (if_statement->expression) {
                     _print_ast_tree(if_statement->expression, next_pad, 1, 0);
@@ -380,7 +369,7 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
 
 void print_ast_tree(struct Ast * ast) {
     String * string = init_string("");
-    _print_ast_tree(ast, string, 0, 0);
+    _print_ast_tree(ast, string, 0, 1);
     free_string(&string);
 }
 
@@ -433,10 +422,18 @@ void print_ast(const char * template, struct Ast * ast) {
         case AST_LITERAL:
         {
             a_literal * literal = ast->value;
-            const char * literal_type = (literal->literal_type == LITERAL_NUMBER) ? "Number" : "String";
-            const char * type_str = type_to_str(literal->type->value);
+            const char * fmt_string;
 
-            ast_str = format("{s} " GREY "<" BLUE "Literal" RESET ": {s}, " BLUE "Type" RESET ": {s}, " BLUE "Value" RESET ": {s}" GREY ">" RESET, ast_str, literal_type, type_str, literal->value);
+            switch (literal->literal_type) {
+                case LITERAL_NUMBER:
+                    fmt_string = "{s} " GREY "<" BLUE "Literal" RESET ": Number, " BLUE "Type" RESET ": {s}, " BLUE "Value" RESET ": {s}" GREY ">" RESET;
+                    break;
+                case LITERAL_STRING:
+                    fmt_string = "{s} " GREY "<" BLUE "Literal" RESET ": String, " BLUE "Type" RESET ": {s}, " BLUE "Value" RESET ": \"{s}\"" GREY ">" RESET;
+                    break;
+            }
+
+            ast_str = format(fmt_string, ast_str, type_to_str(literal->type->value), literal->value);
             break;
         }
         case AST_DECLARATION:
@@ -476,4 +473,12 @@ struct Ast * ast_get_type_of(struct Ast * ast) {
             logger_log(format("Unable to get a type from ast type '{s}'", ast_type_to_str(ast->type)), CHECKER, ERROR);
             exit(1);
     }
+}
+
+struct Ast * get_scope(enum AST_type type, struct Ast * scope) {
+    while (scope->type != AST_ROOT && scope->type != type) {
+        scope = scope->scope;
+    }
+
+    return scope;
 }

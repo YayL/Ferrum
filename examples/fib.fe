@@ -1,4 +1,4 @@
-package "std/ops/op"
+package "std/lib"
 
 fn fib(num: i32) -> i32 {
     if num <= 1
@@ -6,7 +6,8 @@ fn fib(num: i32) -> i32 {
     fib(num - 2) + fib(num - 1)
 }
 
-
 fn main() -> i32 {
-    fib(10)
+    let a: i32 = 5
+
+    fib(a)
 }

@@ -55,6 +55,14 @@ void hashmap_set(struct HashMap * map, char * key, void * value) {
     map->total += 1;
 }
 
+void hashmap_combine(struct HashMap * dest, struct HashMap * src) {
+    ASSERT(dest->buckets == src->buckets, "hashmap_combine must have two hashmaps of equal bucket count");
+    
+    for (int i = 0; i < dest->buckets; ++i) {
+        sparselist_combine(dest->list + i, src->list + i);
+    }
+}
+
 void * hashmap_remove(struct HashMap * map, const char * key) {
 	HM_Pair * current = sparselist_get(map->list + hashmap_hashcode(map, key), key);
 	

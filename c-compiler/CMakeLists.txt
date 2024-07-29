@@ -4,8 +4,10 @@ project(Compiler VERSION 1.0.0)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_C_FLAGS_DEBUG "-pg -g")
-set(CMAKE_C_FLAGS_RELEASE "-Wall")
+set(CMAKE_C_FLAGS_DEBUG "-pg -g ${CUSTOM_FLAGS}")
+set(CMAKE_C_FLAGS_RELEASE "-Wall ${CUSTOM_FLAGS}")
+
+message(STATUS "FLAGS: ${CMAKE_C_FLAGS_DEBUG}")
 
 add_subdirectory("submodule/String-Formatter")
 

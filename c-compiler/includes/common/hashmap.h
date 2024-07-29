@@ -24,6 +24,8 @@ char hashmap_has(struct HashMap * map, const char * key);
 void hashmap_set(struct HashMap * map, char * key, void* value);
 void * hashmap_remove(struct HashMap * map, const char * key);
 
+void hashmap_combine(struct HashMap * dest, struct HashMap * src);
+
 void hashmap_print(struct HashMap * map);
 void hashmap_clear (struct HashMap * map);
 void hashmap_free(struct HashMap * map);
