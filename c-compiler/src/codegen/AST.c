@@ -1,10 +1,11 @@
 #include "codegen/AST.h"
 #include "common/hashmap.h"
+#include "common/string.h"
 
-#define PADDING_DIRECT_CHILD  "  "
-#define PADDING_LIST_CHILDREN "  │"
+#define PADDING_DIRECT_CHILD  ""
+#define PADDING_LIST_CHILDREN "│"
 #define AST_TREE_PADDING(comp) (comp ? PADDING_LIST_CHILDREN : PADDING_DIRECT_CHILD)
-#define AST_TREE_PRINT_CHILDREN(list, pstring) for (int i = 0; i < list->size; ++i){ _print_ast_tree(list_at(list, i), pstring, 1, i+1 == list->size);}
+#define AST_TREE_PRINT_CHILDREN(list, pstring) {for (int i = 0; i < list->size; ++i){ _print_ast_tree(list_at(list, i), pstring, i == (list->size - 1));}}
 
 struct Ast * init_ast(enum AST_type type, struct Ast * scope) {
     struct Ast * ast = malloc(sizeof(struct Ast));
@@ -185,15 +186,11 @@ void free_ast(struct Ast * ast) {
 	free(ast);
 }
 
-void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) { 
-    if (!is_last || (pad->size != 0 && pad->_ptr[pad->size - 1] == ' ')) {
-        string_append(pad, "  ");
-    } else if (is_list) {
-        string_cut(pad, 3);
-    }
-
+void _print_ast_tree(struct Ast * ast, String * pad, char is_last) { 
     // pad->size == 2 means that it has only appended two
-    print("{2s}", pad->_ptr, pad->size == 0 ? "" : ((is_last || !is_list) ? "└─" : "├─"));
+    if (pad->size != 0) {
+        print("{2s}", pad->_ptr, is_last ? "└─" : "├─");
+    }
     
     if (ast == NULL) {
         println("(NULL)");
@@ -201,12 +198,13 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
     }
 
     print_ast("{s}\n", ast);
-    if (is_list) {
-        if (is_last) {
-            string_append(pad, " ");
-        } else {
-            string_append(pad, "│");
-        }
+
+    // create a new pointer so that this will not influence the next children
+    pad = string_copy(pad);
+    if (is_last) {
+        string_append(pad, "   ");
+    } else {
+        string_append(pad, "│  ");
     }
 
     switch (ast->type) {
@@ -247,8 +245,8 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
             
             String * next_pad = string_copy(pad);
 
-            _print_ast_tree(func->arguments, next_pad, 1, 0);
-            _print_ast_tree(func->body, next_pad, 1, 1);
+            _print_ast_tree(func->arguments, next_pad, 0);
+            _print_ast_tree(func->body, next_pad, 1);
             free_string(&next_pad);
 
             break;
@@ -278,7 +276,7 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
             a_declaration * decl = ast->value;
             
             String * next_pad = string_copy(pad);
-            _print_ast_tree(decl->expression, next_pad, 0, 0);
+            _print_ast_tree(decl->expression, next_pad, 1);
             free_string(&next_pad);
 
             break;
@@ -299,11 +297,11 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
 
             String * next_pad = string_copy(pad);
             if (op->op->mode == BINARY) {
-                _print_ast_tree(op->left, next_pad, 1, 0);
-                _print_ast_tree(op->right, next_pad, 1, 1);
+                _print_ast_tree(op->left, next_pad, 0);
+                _print_ast_tree(op->right, next_pad, 1);
             } else {
                 string_append(next_pad, PADDING_DIRECT_CHILD);
-                _print_ast_tree(op->right, next_pad, 0, 0);
+                _print_ast_tree(op->right, next_pad, 1);
             }
             free_string(&next_pad);
 
@@ -315,7 +313,7 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
 
             if (ret->expression) {
                 String * next_pad = string_copy(pad);
-                _print_ast_tree(ret->expression, next_pad, 0, 0);
+                _print_ast_tree(ret->expression, next_pad, 1);
                 free_string(&next_pad);
             }
 
@@ -326,8 +324,8 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
             a_for_statement * for_statement = ast->value;
 
             String * next_pad = string_copy(pad);
-            _print_ast_tree(for_statement->expression, next_pad, 1, 0);
-            _print_ast_tree(for_statement->body, next_pad, 1, 1);
+            _print_ast_tree(for_statement->expression, next_pad, 0);
+            _print_ast_tree(for_statement->body, next_pad, 1);
             free_string(&next_pad);
 
             break;
@@ -337,8 +335,8 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
             a_while_statement * while_statement = ast->value;
 
             String * next_pad = string_copy(pad);
-            _print_ast_tree(while_statement->expression, next_pad, 1, 0);
-            _print_ast_tree(while_statement->body, next_pad, 1, 1);
+            _print_ast_tree(while_statement->expression, next_pad, 0);
+            _print_ast_tree(while_statement->body, next_pad, 1);
             free_string(&next_pad);
 
             break;
@@ -351,10 +349,10 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
             
             while (1) {
                 if (if_statement->expression) {
-                    _print_ast_tree(if_statement->expression, next_pad, 1, 0);
-                    _print_ast_tree(if_statement->body, next_pad, 1, if_statement->next == NULL);
+                    _print_ast_tree(if_statement->expression, next_pad, 0);
+                    _print_ast_tree(if_statement->body, next_pad, if_statement->next == NULL);
                 } else {
-                    _print_ast_tree(if_statement->body, next_pad, 1, 1);
+                    _print_ast_tree(if_statement->body, next_pad, 1);
                 }
                 if (if_statement->next == NULL)
                     break;
@@ -369,7 +367,7 @@ void _print_ast_tree(struct Ast *ast, String *pad, char is_list, char is_last) {
 
 void print_ast_tree(struct Ast * ast) {
     String * string = init_string("");
-    _print_ast_tree(ast, string, 0, 1);
+    _print_ast_tree(ast, string, 1);
     free_string(&string);
 }
 
