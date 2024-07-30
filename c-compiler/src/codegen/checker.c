@@ -579,6 +579,4 @@ void checker_check(struct Ast * ast) {
     }
 
     checker_check_function(main);
-    print_ast_tree(main);
-    exit(0);
 }
