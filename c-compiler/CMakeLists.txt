@@ -7,12 +7,17 @@ set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_C_FLAGS_DEBUG "-pg -g")
 set(CMAKE_C_FLAGS_RELEASE "-Wall")
 
-add_subdirectory("submodule/String-Formatter")
+include(FetchContent)
+
+FetchContent_Declare(
+    fmt
+    GIT_REPOSITORY https://github.com/yayl/string-formatter
+    GIT_TAG main
+)
+
+FetchContent_MakeAvailable(fmt)
 
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.c)
-
-message(STATUS "SOURCES: ${SOURCES}")
-
 add_executable(compiler ${SOURCES})
 
 # Add other flags to the compiler
@@ -21,7 +26,8 @@ add_definitions(-DCMAKE_EXPORT_COMPILE_COMMANDS=ON)
 # Include header files
 target_include_directories(compiler PRIVATE 
 	${CMAKE_CURRENT_SOURCE_DIR}/includes
-    ${CMAKE_CURRENT_SOURCE_DIR}/submodule/String-Formatter/include)
+    ${fmt_SOURCE_DIR}/include
+)
 
 # Link libraries
 target_link_libraries(compiler PRIVATE fmt)
