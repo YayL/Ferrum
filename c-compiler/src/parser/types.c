@@ -352,9 +352,6 @@ char is_equal_type(Type * type1, Type * type2, struct HashMap * templates) {
         case INumeric:
         {
             Numeric_T * num1 = type1->ptr, * num2 = type2->ptr;
-            println("type1: {s}", type_to_str(type1));
-            println("type2: {s}", type_to_str(type2));
-            println("Type: {i}, Width: {i}", num2->type, num2->width);
             return num1->type == num2->type && num1->width == num2->width;
         }
         case ITuple:
@@ -535,9 +532,7 @@ struct Ast * replace_self_in_type(struct Ast * ast, struct Ast * replacement_ast
     do {
         switch (to_replace->intrinsic) {
             case ITemplate:
-                println("\ntemplate: {s}", type_to_str(replacement));
                 curr = copy_type(replacement);
-                println("curr: {s}\n", type_to_str(curr));
                 to_replace = NULL;
                 break;
             case IArray:
@@ -551,8 +546,7 @@ struct Ast * replace_self_in_type(struct Ast * ast, struct Ast * replacement_ast
             default:
                 ASSERT(0, format("Invalid intrinsic type: {i}", to_replace->intrinsic));
         }
-        /* print_ast("replaced: {s}\n", curr); */
-        println("{s}", type_to_str(curr));
+
         if (prev == NULL) {
             ret->value = curr;
         } else {

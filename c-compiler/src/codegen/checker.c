@@ -164,6 +164,7 @@ struct Ast * checker_check_op(struct Ast * ast) {
 
         a_variable * var = op->left->value;
         if (var->name[0] == '#') {
+            print_ast("right: {s}\n", op->right);
             checker_check_expr_node(op->right);
             return NULL;
         }
@@ -178,7 +179,6 @@ struct Ast * checker_check_op(struct Ast * ast) {
         struct List * func_args = ast_to_ast_type_list(right);
         left = get_declared_function(var->name, func_args, ast->scope);
 
-        println("func");
         checker_check_function(left);
 
         if (left == NULL) {
@@ -211,7 +211,6 @@ struct Ast * checker_check_op(struct Ast * ast) {
         
         op->left = get_address_ast;
 
-        print_ast_tree(ast);
         left = checker_check_expr_node(op->left);
         /* exit(0); */
     } else if (op->left) {
@@ -222,23 +221,15 @@ struct Ast * checker_check_op(struct Ast * ast) {
 
     struct Ast * self_type = NULL;
 
-    print_ast_tree(ast);
     struct Ast * func = get_function_for_operator(op->op, left, right, &self_type, ast->scope);
-    print_ast("self_type: {s}\n", self_type);
     struct a_function * f1 = func->value;
 
-    /* if (op->left) { */
-    /*     op->left = checker_check_implicit(op->left, left, &self_type); */
-    /*     op->right = checker_check_implicit(op->right, right, &self_type); */
-    /* } else { */
-    /*     op->right = checker_check_implicit(op->right, right, &self_type); */
-    /* } */
-
-    println("func");
     checker_check_function(func);
 
     op->definition = func;
-    op->type = replace_self_in_type(((a_function *) func->value)->return_type, self_type);
+    if (get_base_type(((a_function *) func->value)->return_type->value)->intrinsic == ITemplate) {
+        op->type = replace_self_in_type(((a_function *) func->value)->return_type, self_type);
+    }
  
     return op->type;
 }
