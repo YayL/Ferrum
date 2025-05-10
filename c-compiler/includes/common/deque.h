@@ -37,4 +37,4 @@ void * deque_remove (struct Deque * deque, int index);
 
 struct Deque * deque_copy (struct Deque * src);
 
-void deque_print (struct Deque * deque, void (*print_item)());
+void deque_print (struct Deque * deque, void (*print_item)(void *));

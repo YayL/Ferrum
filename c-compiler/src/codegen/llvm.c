@@ -19,11 +19,10 @@ const char * llvm_type_to_llvm_type(Type * type, struct Ast * self_type) {
             Array_T * array = type->ptr;
             return format("[{u} x {s}]", array->size, llvm_type_to_llvm_type(array->basetype, self_type));
         }
-        case ISelf:
-            return llvm_type_to_llvm_type(self_type->value, NULL);
+        /* case ISelf: */
+        /*     return llvm_type_to_llvm_type(self_type->value, NULL); */
         default:
-            logger_log(format("Intrinsic type not implemented: {i}", type->intrinsic), IR, ERROR);
-            exit(1);
+            FATAL("Intrinsic type not implemented: {i}", type->intrinsic);
     }
 }
 

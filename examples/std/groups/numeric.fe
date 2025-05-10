@@ -1,0 +1,11 @@
+trait Signed_Numeric {}
+impl Signed_Numeric for (i8, i16, i32, i64, i128) {}
+
+trait Unsigned_Numeric {}
+impl Unsigned_Numeric for (u8, u16, u32, u64, u128) {}
+
+trait Float_Numeric {}
+impl Float_Numeric for (f16, f32, f64, f128) {}
+
+//trait Numeric {}
+//impl Numeric for (impl Signed_Numeric, impl Unsigned_Numeric, impl Float_Numeric) {}

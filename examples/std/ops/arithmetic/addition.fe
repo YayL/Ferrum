@@ -1,0 +1,23 @@
+package "../../groups/numeric"
+
+trait Addition {
+    fn inline #OP_ADDITION(first: Self, second: Self) -> Self;
+}
+
+impl Addition for (impl Signed_Numeric) {
+    fn inline #OP_ADDITION(first: Self, second: Self) -> Self {
+        #llvm_op("add nsw", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))
+    }
+}
+
+impl Addition for (impl Unsigned_Numeric) {
+    fn inline #OP_ADDITION(first: Self, second: Self) -> Self {
+        #llvm_op("add nuw", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))
+    }
+}
+
+impl Addition for (impl Float_Numeric) {
+    fn inline #OP_ADDITION(first: Self, second: Self) -> Self {
+        #llvm_op("fadd", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))
+    }
+}

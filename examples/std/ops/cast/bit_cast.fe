@@ -1,0 +1,3 @@
+fn inline #OP_BIT_CAST<T, U>(value: T) -> U {
+    #llvm_cast(#llvm_load(value), U)
+}

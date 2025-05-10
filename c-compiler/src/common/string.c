@@ -49,8 +49,7 @@ void string_concat(String * dest, String * to_append) {
 
 void string_cut(String * dest, int count) {
     if (count > dest->size) {
-        logger_log("string_cut is cutting away more than the length of the string", LOGGER, ERROR);
-        exit(1);
+        FATAL("string_cut is cutting away more than the length of the string");
     }
 
     dest->size -= count;

@@ -1,0 +1,21 @@
+trait Multiplication {
+    fn inline #OP_MULTIPLICATION(first: Self, second: Self) -> Self;
+}
+
+impl Multiplication for (i8, i16, i32, i64, i128) {
+    fn inline #OP_MULTIPLICATION(first: Self, second: Self) -> Self {
+        #llvm_op("mul nsw", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))
+    }
+}
+
+impl Multiplication for (u8, u16, u32, u64, u128) {
+    fn inline #OP_MULTIPLICATION(first: Self, second: Self) -> Self {
+        #llvm_op("mul nuw", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))
+    }
+}
+
+impl Multiplication for (f8, f16, f32, f64, f128) {
+    fn inline #OP_MULTIPLICATION(first: Self, second: Self) -> Self {
+        #llvm_op("fmul", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))
+    }
+}

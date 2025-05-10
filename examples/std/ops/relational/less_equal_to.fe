@@ -1,0 +1,9 @@
+trait OP_Less_Equal_To {
+    fn inline #OP_LESS_EQUAL_TO(left: Self, right: Self) -> bool;
+}
+
+impl OP_Less_Equal_To for (i8, i16, i32, i64, i128) {
+    fn inline #OP_LESS_EQUAL_TO(left: Self, right: Self) -> bool {
+        #llvm_op("icmp sle", #llvm_type_of(left), #llvm_load(left), #llvm_load(right))
+    }
+}
