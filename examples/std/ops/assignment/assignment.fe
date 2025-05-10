@@ -1,0 +1,4 @@
+fn inline #OP_ASSIGNMENT<T>(first: &T, second: T) -> T {
+    #llvm_store(#llvm_type_of(second), #llvm_load(first), #llvm_load(second))
+    second
+}

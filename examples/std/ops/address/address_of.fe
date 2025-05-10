@@ -1,0 +1,5 @@
+fn inline #OP_ADDRESS_OF<T>(value: T) -> &T {
+    let ref: &T
+    #llvm_store("ptr", #llvm_register_of(ref), #llvm_register_of(value))
+    ref
+}
