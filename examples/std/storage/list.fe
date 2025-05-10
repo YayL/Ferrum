@@ -1,0 +1,38 @@
+struct List<T> {
+    let buf: &T
+    let size: i32
+    let capacity: i32
+
+    fn new(self: Self) -> Self {
+        let item: T
+        self.buf = calloc(1, #sizeof(item))
+        self.size = 0
+        self.capacity = 1
+    }
+
+    fn reserve(self: Self, additional: i32) {
+        let item: T
+        self.capacity = self.size + additional
+        self.buf = realloc(self.buf, #sizeof(item) * self.capacity)
+    }
+
+    fn push(self: Self, item: T) {
+        if self.size >= self.capacity {
+            self.reserve(self.size)
+        }
+
+        self.buf[self.size++] = item
+    }
+
+    fn at(self: Self, index: i32) -> T {
+        // panic if index is less than 0 or more/equal to self.size
+        self.buf[index]
+    }
+    
+    fn pop(self: Self) -> T {
+        // panic if self.size is 0
+        self.buf[--self.size]
+    }
+}
+
+
