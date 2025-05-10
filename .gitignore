@@ -1,12 +1,11 @@
-*.gdb*
+**
 
-/c-compiler/*
-!/c-compiler/includes/
-!/c-compiler/src/
-!/c-compiler/CMakeLists.txt
-!/c-compiler/start.sh
-!/c-compiler/
+!c-compiler/
+!c-compiler/src
+!c-compiler/src/**
+!c-compiler/include/**
+!c-compiler/CMakeLists.txt
+!c-compiler/start.sh
 
-/examples/*
-!/examples/*.fe
-/examples/*-long.fe
+!examples/
+!examples/**

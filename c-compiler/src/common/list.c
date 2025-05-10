@@ -25,7 +25,7 @@ void free_list(struct List * list, char free_items) {
 
 void list_push(struct List * list, void * item) {
 	if (!list->size++) { // Incrementing here as it is just easier and not wasting a line for it
-		list->items = calloc(1, list->item_size);
+		list->items = malloc(list->item_size);
 		list->capacity = 1;
 	}
 

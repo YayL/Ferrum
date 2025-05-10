@@ -39,11 +39,11 @@ const char * get_operator_runtime_name(enum Operators op) {
     switch (op) {
         case OP_NOT_FOUND: return "#OP_OP_NOT_FOUND";
         case PARENTHESES: return "#OP_PARENTHESES";
-        case BRACKETS: return "#OP_BRACKETS";
-        case ARROW: return "#OP_ARROW";
-
-        case INCREMENT: return "#OP_INCREMENT";
-        case DECREMENT: return "#OP_DECREMENT";
+        case ARRAY: return "#OP_ARRAY";
+        case PRE_INCREMENT: return "#OP_PRE_INCREMENT";
+        case PRE_DECREMENT: return "#OP_PRE_DECREMENT";
+        case POST_INCREMENT: return "#OP_POST_INCREMENT";
+        case POST_DECREMENT: return "#OP_POST_DECREMENT";
         case MEMBER_ACCESS: return "#OP_MEMBER_ACCESS";
         case MEMBER_ACCESS_PTR: return "#OP_MEMBER_ACCESS_PTR";
         case CALL: return "#OP_CALL";

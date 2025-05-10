@@ -1,0 +1,4 @@
+fn inline #OP_EQUAL<T>(left: T, right: T) -> bool {
+    #llvm_op("icmp eq", #llvm_type_of(left), #llvm_load(left), #llvm_load(right))
+}
+

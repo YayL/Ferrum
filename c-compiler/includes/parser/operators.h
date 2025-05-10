@@ -7,11 +7,13 @@
 enum Operators {
     OP_NOT_FOUND,
     PARENTHESES,
-    BRACKETS,
-    ARROW,
+    ARRAY,
 
-    INCREMENT,
-    DECREMENT,
+
+    PRE_INCREMENT,
+    PRE_DECREMENT,
+    POST_INCREMENT,
+    POST_DECREMENT,
     MEMBER_ACCESS,
     MEMBER_ACCESS_PTR,
     CALL,
@@ -96,15 +98,15 @@ const static struct Operator {
 } op_conversion [] = {
     {OP_NOT_FOUND, UNARY_PRE, 0, LEFT, NORMAL, 0, ""},
     {PARENTHESES, UNARY_PRE, 0, LEFT, ENCLOSED, 2, "(\0)"},
-    //{BRACKETS, UNARY_PRE, 0, LEFT, ENCLOSED, 0, "[\0]"}, ARRAY DEFINITION
+    /* {TEMPLATE, BINARY, 0, LEFT, ENCLOSED, 3, "<:\n:>"}, */
+    /* {ARRAY, UNARY_PRE, 0, LEFT, ENCLOSED, 0, "[\0]"}, */
     
-    {INCREMENT, UNARY_PRE, 1, LEFT, NORMAL, 0, "++"},
-    {INCREMENT, UNARY_POST, 1, LEFT, NORMAL, 0, "++"},
-    {DECREMENT, UNARY_PRE, 1, LEFT, NORMAL, 0, "--"},
-    {DECREMENT, UNARY_POST, 1, LEFT, NORMAL, 0, "--"},
+    {PRE_INCREMENT, UNARY_PRE, 1, LEFT, NORMAL, 0, "++"},
+    {POST_INCREMENT, UNARY_POST, 1, LEFT, NORMAL, 0, "++"},
+    {PRE_DECREMENT, UNARY_PRE, 1, LEFT, NORMAL, 0, "--"},
+    {POST_DECREMENT, UNARY_POST, 1, LEFT, NORMAL, 0, "--"},
 
     {MEMBER_ACCESS, BINARY, 1, LEFT, NORMAL, 0, "."},
-    {ARROW, BINARY, 1, LEFT, NORMAL, 0, "->"},
     {CALL, BINARY, 1, LEFT, ENCLOSED, 2, "(\0)"},
     {SUBSCRIPT, BINARY, 1, LEFT, ENCLOSED, 2, "[\0]"},
     

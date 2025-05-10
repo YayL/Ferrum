@@ -153,7 +153,7 @@ struct Deque * deque_copy (struct Deque * src) {
 	return copy;
 }
 
-void deque_print (struct Deque * deque, void (*print_item)()) {
+void deque_print (struct Deque * deque, void (*print_item)(void *)) {
 
 	for (size_t i = deque->start; i != deque->end; i = (i + 1) & (deque->capacity - 1)) {
 		print_item(deque->items[i]);

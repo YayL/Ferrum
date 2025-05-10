@@ -107,8 +107,7 @@ const char * gen_op(struct Ast * ast, struct Ast * self_type) {
     a_function * func = op->definition->value;
     
     if (!func->is_inline) {
-        logger_log("operator with inlined function definitions are not implemented yet", IR, ERROR);
-        exit(1);
+        FATAL("operator with inlined function definitions are not implemented yet");
     }
     struct Ast * func_first_arg;
     struct Ast * func_param_ast_type = ((a_function *) op->definition->value)->param_type;
@@ -120,7 +119,7 @@ const char * gen_op(struct Ast * ast, struct Ast * self_type) {
             func_first_arg = func_param_ast_type; break;
     }
 
-    gen_inline_function(op->definition, args, get_self_type(ast_get_type_of(first), func_first_arg));
+    /* gen_inline_function(op->definition, args, get_self_type(ast_get_type_of(first), func_first_arg)); */
 
     return NULL;
 }
@@ -153,8 +152,7 @@ const char * gen_expr_node(struct Ast * ast, struct Ast * self_type) {
             writef(output, "%{u} = load {s}, ptr %{u}\n", generator.reg_count++, llvm_ast_type_to_llvm_type(var->type, self_type), var->reg);
         } break;
         default:
-            logger_log(format("AST type '{s}' code generation is not implemented for expr node", ast_type_to_str(ast->type)), IR, ERROR);
-            exit(1);
+            FATAL("AST type '{s}' code generation is not implemented for expr node", ast_type_to_str(ast->type));
     }
 
     return format("%{u}", generator.reg_count - 1);
@@ -208,6 +206,7 @@ void gen_scope(struct Ast * ast, struct Ast * self_type) {
     a_scope * scope = ast->value;
     
     for (int i = 0; i < scope->variables->size; ++i) {
+        println("scope var: {i}", i);
         a_variable * var = ((struct Ast *) list_at(scope->variables, i))->value;
         var->reg = generator.reg_count;
 
@@ -226,8 +225,7 @@ void gen_scope(struct Ast * ast, struct Ast * self_type) {
             case AST_RETURN:
                 gen_return(node, self_type); break;
             default:
-                logger_log(format("AST type '{s}' code generation is not implemented in scope", ast_type_to_str(node->type)), IR, ERROR);
-                exit(1);
+                FATAL("AST type '{s}' code generation is not implemented in scope", ast_type_to_str(node->type));
         }
     }
 

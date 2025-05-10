@@ -1,0 +1,8 @@
+// T is required to implement #OP_SUBTRACTION
+
+fn inline #OP_PRE_DECREMENT<T>(ref: &T) -> T {
+    let res: T = *ref - 1
+    *ref = res
+    res
+}
+

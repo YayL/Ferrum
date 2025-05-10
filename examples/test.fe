@@ -1,7 +1,6 @@
-package "std/ops/op"
+package "std/lib"
 
 fn main(argc: i32) -> i32 {
-
     let a: i32 = (2 + 2) * argc
 
     let b: i32 = a - argc

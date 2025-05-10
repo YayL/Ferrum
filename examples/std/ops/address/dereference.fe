@@ -1,0 +1,3 @@
+fn inline #OP_DEREFERENCE<T>(ref: &T) -> T {
+    #llvm_load(ref)
+}

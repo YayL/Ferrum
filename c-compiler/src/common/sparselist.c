@@ -1,4 +1,5 @@
 #include "common/sparselist.h"
+#include "common/hashmap.h"
 
 struct SparseList * init_sparselist() {
     struct SparseList * list = calloc(1, sizeof(struct SparseList));
@@ -76,17 +77,45 @@ HM_Pair * sparselist_get(const struct SparseList * list, const char * key) {
 }
 
 void sparselist_balance(struct SparseList * list) {
-    HM_Pair * buffer = calloc(list->capacity, sizeof(HM_Pair));
+    /* HM_Pair * buffer = calloc(list->capacity, sizeof(HM_Pair)); */
     const int size = list->size;
+    int index = 0;
 
-    for (int i = 0, index = 0; index < size; ++i) {
+    for (int i = 0; index < size; ++i) {
         if (list->buf[i].is_set) {
-            buffer[index++] = list->buf[i];
+            /* buffer[index++] = list->buf[i]; */
+            list->buf[index++] = list->buf[i];
         }
     }
 
     list->is_sparse = 0;
+    list->size = index + 1;
 
-    free(list->buf);
-    list->buf = buffer;
+    /* free(list->buf); */
+    /* list->buf = buffer; */
+}
+
+void sparselist_combine(struct SparseList * dest, struct SparseList * src) {
+    if (src->size == 0) {
+        return;
+    }
+
+    if (dest->is_sparse) {
+        sparselist_balance(dest);
+    }
+    if (src->is_sparse) {
+        sparselist_balance(src);
+    }
+
+    const int size = dest->size + src->size;
+
+    if (dest->capacity < size) {
+        dest->capacity = size;
+        dest->buf = realloc(dest->buf, dest->capacity * sizeof(HM_Pair));
+    }
+
+    for (int i = dest->size; i < size; ++i) {
+        dest->buf[i] = src->buf[i - dest->size];
+    }
+    dest->size = size;
 }

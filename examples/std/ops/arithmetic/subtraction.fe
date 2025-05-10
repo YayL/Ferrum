@@ -1,0 +1,21 @@
+trait Subtraction {
+    fn inline #OP_SUBTRACTION(first: Self, second: Self) -> Self;
+}
+
+impl Subtraction for (i8, i16, i32, i64, i128) {
+    fn inline #OP_SUBTRACTION(first: Self, second: Self) -> Self {
+        #llvm_op("sub nsw", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))
+    }
+}
+
+impl Subtraction for (u8, u16, u32, u64, u128) {
+    fn inline #OP_SUBTRACTION(first: Self, second: Self) -> Self {
+        #llvm_op("sub nuw", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))
+    }
+}
+
+impl Subtraction for (f8, f16, f32, f64, f128) {
+    fn inline #OP_SUBTRACTION(first: Self, second: Self) -> Self {
+        #llvm_op("fsub", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))
+    }
+}

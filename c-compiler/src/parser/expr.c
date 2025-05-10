@@ -9,7 +9,7 @@ struct Operator * get_operator(const char * str, struct Token * token, enum OP_m
         *op = str_to_operator(str, UNARY_POST, enclosed_flag);
 
     if (op->key == OP_NOT_FOUND) {
-        logger_log(format("{s} operator '{s}' not found: ", mode == BINARY ? "Binary" : "Unary", str), PARSER, ERROR);
+        ERROR("{s} operator '{s}' not found: ", mode == BINARY ? "Binary" : "Unary", str);
         print_token("{s}\n", token);
         exit(1);
     }
@@ -22,8 +22,7 @@ void consume_add_operator(struct Operator * op, struct List * list, struct Parse
     a_op * operator = ast->value;
 
     if (list->size == 0) {
-        logger_log("Invalid expression: Operator without valid operands", PARSER, ERROR);
-        exit(1);
+        FATAL("Invalid expression: Operator without valid operands");
     }
 
     operator->op = op;
@@ -32,8 +31,7 @@ void consume_add_operator(struct Operator * op, struct List * list, struct Parse
 
     if (op->mode == BINARY) {
         if (list->size == 0) {
-            logger_log("Invalid expression: Binary operator without two valid operands", PARSER, ERROR);
-            exit(1);
+            FATAL("Invalid expression: Binary operator without two valid operands");
         }
         operator->left = list_at(list, -1);
         list_pop(list);
@@ -156,7 +154,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                     list_push(expressions, list_at(output, -1));
                     output = init_list(sizeof(struct Ast *));
                 }else if (output->size != 1) {
-                    logger_log("Unprecedentent usage of expression separator", PARSER, FATAL);
+                    ERROR("Unprecedentent usage of expression separator");
                     print_token("{s}\n", parser->token);
                     exit(1);
                 }
@@ -217,7 +215,7 @@ exit:
     if (output->size == 1) {
         list_push(expressions, list_at(output, 0));
     } else if (flag) {
-        logger_log(format("Invalid expression; too many discarded expressions({i})", output->size), PARSER, FATAL);
+        ERROR("Invalid expression; too many discarded expressions({i})", output->size);
         print_token("{s}\n", parser->token);
     }
 
