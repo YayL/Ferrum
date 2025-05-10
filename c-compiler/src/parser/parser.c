@@ -354,8 +354,6 @@ struct Ast * parser_parse_impl(struct Parser * parser) {
 
     parser->current_scope = ast->scope;
 
-    print_ast("{s}\n", ast);
-
     return ast;
 }
 
