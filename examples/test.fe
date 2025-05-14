@@ -7,6 +7,10 @@ fn main(argc: i32) -> i32 {
  
     let i: i32 = 0
 
+    for i < b, i++ {
+        i = i + 1
+    }
+
     b
 }
 

@@ -4,4 +4,4 @@
 #include "codegen/gen.h"
 #include "codegen/llvm.h"
 
-const char * gen_builtin(struct Ast * ast, struct Ast * self_type);
+const char * gen_builtin(struct AST * ast, struct AST * self_type);

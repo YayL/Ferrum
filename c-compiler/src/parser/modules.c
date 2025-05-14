@@ -3,31 +3,31 @@
 #include "common/hashmap.h"
 #include "common/list.h"
 
-void add_function_to_module(struct Ast * module, struct Ast * function) {
-    a_module * dest = module->value;
-    a_function * func = function->value;
+void add_function_to_module(struct AST * module, struct AST * function) {
+    a_module dest = module->value.module;
+    a_function func = function->value.function;
 
-    struct List * functions = hashmap_get(dest->functions_map, func->name);
+    struct List * functions = hashmap_get(dest.functions_map, func.name);
     if (functions == NULL) {
-        functions = init_list(sizeof(struct Ast *));
-        hashmap_set(dest->functions_map, func->name, functions);
+        functions = init_list(sizeof(struct AST *));
+        hashmap_set(dest.functions_map, func.name, functions);
     }
     
     list_push(functions, function);
 }
 
-void include_module(struct Ast * dest_ast, struct Ast * src_ast) {
-    a_module * dest = dest_ast->value, * src = src_ast->value;    
-    hashmap_combine(dest->functions_map, src->functions_map);
+void include_module(struct AST * dest_ast, struct AST * src_ast) {
+    a_module dest = dest_ast->value.module, src = src_ast->value.module;
+    hashmap_combine(dest.functions_map, src.functions_map);
 }
 
-struct Ast * find_module(struct Ast * root_ast, const char * module_name) {
-    struct Ast * temp;
-    a_root * root = root_ast->value;
+struct AST * find_module(struct AST * root_ast, const char * module_name) {
+    struct AST * temp;
+    a_root root = root_ast->value.root;
     a_module * module;
 
-    for (int i = 0; i < root->modules->size; ++i) {
-        module = (temp = root->modules->items[i])->value;
+    for (int i = 0; i < root.modules->size; ++i) {
+        module = &(temp = root.modules->items[i])->value.module;
 
         if (!strcmp(module_name, module->path)) {
             return temp;

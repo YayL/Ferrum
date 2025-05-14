@@ -3,6 +3,7 @@
 #include "fmt.h"
 #include "common/defines.h"
 #include "common/list.h"
+#include "common/arena.h"
 #include "common/logger.h"
 
 #include <linux/limits.h>

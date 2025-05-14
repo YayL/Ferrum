@@ -142,8 +142,8 @@ const static struct Operator {
     {LOGICAL_AND, BINARY, 11, LEFT, NORMAL, 0, "&&"},
     {LOGICAL_OR, BINARY, 12, LEFT, NORMAL, 0, "||"},
 
-    {CAST, BINARY, 13, LEFT, NORMAL, 0, "to"},
-    {BIT_CAST, BINARY, 13, LEFT, NORMAL, 0, "as"},
+    {CAST, UNARY_POST, 13, LEFT, NORMAL, 0, "to"},
+    {BIT_CAST, UNARY_POST, 13, LEFT, NORMAL, 0, "as"},
 
     {TERNARY, BINARY, 14, RIGHT, NORMAL, 0, "?"},
     {TERNARY_BODY, BINARY, 14, RIGHT, NORMAL, 0, ":"},

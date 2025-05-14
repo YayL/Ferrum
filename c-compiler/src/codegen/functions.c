@@ -2,18 +2,20 @@
 
 #include "codegen/AST.h"
 #include "codegen/checker.h"
+#include "common/arena.h"
 #include "common/list.h"
+#include "common/logger.h"
+#include "common/macro.h"
 #include "parser/types.h"
 
-struct Ast * get_member_function(const char * member_name, struct Ast * marker, struct List * arguments_type, struct Ast * scope) {
-    if (marker == NULL) {
-        FATAL("Unknown type for marker when calling '{s}'", member_name);
-    }
+struct AST * get_member_function(const char * member_name, Type arguments_type, Type return_type, struct AST * scope) {
+    ASSERT1(arguments_type.intrinsic == ITuple);
+    ASSERT1(return_type.intrinsic != IUnknown);
 
-    a_module * module = get_scope(AST_MODULE, scope)->value;
-    struct List * functions = hashmap_get(module->functions_map, member_name);
+    a_module module = get_scope(AST_MODULE, scope)->value.module;
+    struct List * functions = hashmap_get(module.functions_map, member_name);
 
-    if (functions->size == 0) {
+    if (functions == NULL || functions->size == 0) {
         FATAL("Unable to find member function: '{s}'", member_name);
     }
 
@@ -23,34 +25,34 @@ struct Ast * get_member_function(const char * member_name, struct Ast * marker, 
         print_ast("Func: {s}\n", list_at(functions, i));
     }
 
-    struct Ast * func;
+    struct AST * func;
     for (int i = 0; i < functions->size; ++i) {
         func = list_at(functions, i);
 
         ASSERT(func->type == AST_FUNCTION, "Member must be a function!");
 
-        a_function * function = func->value;
-        struct List * function_argument_types = ast_to_ast_type_list(function->param_type);
+        a_function function = func->value.function;
+        struct Arena function_argument_types = ast_to_ast_type_arena(*function.param_type);
         
-        if (function_argument_types->size != arguments_type->size) {
+        if (function_argument_types.size != arguments_type.size) {
             continue;
         }
         
-        println("fn scope: {s}", ast_type_to_str(func->scope->type));
-        if (function->parsed_templates->size != 0) {
-            char * type_name = list_at(function->parsed_templates, 0);
-            print_ast(format("Type ({s!}): {s}\n", type_name), hashmap_get(function->template_types, type_name));
+        DEBUG("fn scope: {s}", ast_type_to_str(func->scope->type));
+        if (function.parsed_templates->size != 0) {
+            char * type_name = list_at(function.parsed_templates, 0);
+            print_ast(format("Type ({s!}): {s}\n", type_name), hashmap_get(function.template_types, type_name));
         }
 
         char found = 1;
-        for (int j = 0; j < function_argument_types->size || !(found); ++j) {
-            Type * item1 = DEREF_AST(list_at(arguments_type, j)),
-                 * item2 = DEREF_AST(list_at(function_argument_types, j));
-            if (!check_types(item1, item2, function->template_types)) {
-                found = 0;
-                break;
-            }
-        }
+        // for (int j = 0; j < function_argument_types->size || !(found); ++j) {
+        //     Type item1 = DEREF_AST(list_at(arguments_type, j)).type,
+        //          item2 = DEREF_AST(list_at(function_argument_types, j)).type;
+        //     if (!check_types(item1, item2, function.template_types)) {
+        //         found = 0;
+        //         break;
+        //     }
+        // }
 
         if (found) {
             return func;
@@ -60,71 +62,71 @@ struct Ast * get_member_function(const char * member_name, struct Ast * marker, 
     return NULL;
 }
 
-struct Ast * get_function_for_operator(struct Operator * op, struct Ast * left, struct Ast * right, struct Ast ** self_type, struct Ast * scope) {
-    struct List * arg_types_list = init_list(sizeof(struct Ast *));
+struct AST * get_function_for_operator(struct Operator * op, Type lhs, Type rhs, Type * self_type, struct AST * scope) {
+    struct Arena arg_types_arena = arena_init(sizeof(Type));
 
-    if (left != NULL) {
-        list_push(arg_types_list, left);
+    DEBUG("LHS: {s}", type_to_str(lhs));
+    DEBUG("RHS: {s}", type_to_str(lhs));
+
+    if (lhs.intrinsic == IUnknown) {
+        ARENA_APPEND(&arg_types_arena, lhs);
     }
-    list_push(arg_types_list, right);
+    ARENA_APPEND(&arg_types_arena, rhs);
 
-    if (*self_type == NULL) {
-        struct Ast * ast = list_at(arg_types_list, 0);
-        Type * type = get_base_type(ast->value);
-        ast = init_ast(AST_TYPE, ast->scope);
-        ast->value = type;
-        *self_type = ast;
+    ASSERT1(self_type != NULL);
+    if (self_type->intrinsic == IUnknown) {
+        *self_type = *((Type *) arena_get(arg_types_arena, 0));
     }
 
     const char * name = get_operator_runtime_name(op->key);
-    struct Ast * func = get_member_function(name, *self_type, arg_types_list, scope);
+    struct AST * func = get_member_function(name, rhs, lhs, scope);
 
-    println("Name: {s}", name);
-    print_ast("Scope: {s}\n", scope);
-    print_ast("self: {s}\n", *self_type);
+    DEBUG("Name: {s}", name);
+    DEBUG("Scope: {s}", ast_to_string(scope));
+    DEBUG("Self: {s}", type_to_str(*self_type));
 
     if (func == NULL) {
-        ASSERT1(right != NULL);
-        ASSERT1(right->value != NULL);
+        ASSERT1(rhs.intrinsic != IUnknown);
  
-        if (left != NULL) {
-            print_ast("left: {s}\n", left);
+        if (lhs.intrinsic != IUnknown) {
+            DEBUG("Left: {s}", type_to_str(lhs));
         }
-        print_ast("right: {s}\n", right);
 
-        if (left != NULL) {
-            WARN("Operator '{s}'({s}) is not defined for ({2s:, })", op->str, name, type_to_str(left->value), type_to_str(right->value));
+        DEBUG("Right: {s}", type_to_str(rhs));
+
+        if (lhs.intrinsic != IUnknown) {
+            ERROR("Operator '{s}'({s}) is not defined for ({2s:, })", op->str, name, type_to_str(lhs), type_to_str(rhs));
         } else {
-            ERROR("Operator '{s}'({s}) is not defined for ({s})", op->str, name, type_to_str(right->value));
+            ERROR("Operator '{s}'({s}) is not defined for ({s})", op->str, name, type_to_str(rhs));
         }
 
-        ASSERT1(0);
+        exit(1);
     }
 
     return func;
 }
 
-struct Ast * get_declared_function(const char * name, struct List * list1, struct Ast * scope) {
+struct AST * get_declared_function(const char * name, struct Arena list1, struct AST * scope) {
     scope = get_scope(AST_MODULE, scope); 
-    a_module * module = scope->value;
+    a_module module = scope->value.module;
 
-    for (int i = 0; i < module->functions->size; ++i) {
-        struct Ast * node = list_at(module->functions, i);
-        a_function * function = node->value;
+    for (int i = 0; i < module.functions->size; ++i) {
+        struct AST * node = list_at(module.functions, i);
+        a_function function = node->value.function;
 
-        if (strcmp(function->name, name))
+        if (strcmp(function.name, name))
             continue;
 
-        struct List * list2 = ast_to_ast_type_list(function->param_type);
+        struct Arena list2 = ast_to_ast_type_arena(*function.param_type);
 
-        if (list1->size != list2->size)
+        if (list1.size != list2.size)
             continue;
 
         char found = 1;
-        for (int j = 0; j < list1->size; ++j) {
-            void * item1 = DEREF_AST(list_at(list1, j)),
-                 * item2 = DEREF_AST(list_at(list2, j));
-            if (!is_equal_type(item1, item2, NULL)) {
+        for (int j = 0; j < list1.size; ++j) {
+            Type * item1 = arena_get(list1, j),
+                 * item2 = arena_get(list2, j);
+            if (!is_equal_type(*item1, *item2, NULL)) {
                 print_ast("{s}\n", node);
                 found = 0;
                 break;
@@ -137,13 +139,13 @@ struct Ast * get_declared_function(const char * name, struct List * list1, struc
     return NULL;
 }
 
-char is_declared_function(char * name, struct Ast * scope) {
+char is_declared_function(char * name, struct AST * scope) {
     scope = get_scope(AST_MODULE, scope);
 
-    a_module * module = scope->value;
-    for (int i = 0; i < module->functions->size; ++i) {
-        a_function * function = ((struct Ast *)list_at(module->functions, i))->value;
-        if (!strcmp(function->name, name))
+    a_module module = scope->value.module;
+    for (int i = 0; i < module.functions->size; ++i) {
+        a_function function = DEREF_AST(list_at(module.functions, i)).function;
+        if (!strcmp(function.name, name))
             return 1;
     }
 

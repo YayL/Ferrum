@@ -2,8 +2,13 @@
 #include "codegen/AST.h"
 #include "common/hashmap.h"
 #include "common/list.h"
+#include "common/logger.h"
+#include "common/macro.h"
 #include "common/string.h"
 #include "parser/modules.h"
+#include "parser/token.h"
+#include "parser/types.h"
+#include <stdlib.h>
 #include <string.h>
 
 struct Keyword str_to_keyword(const char * str) {
@@ -51,20 +56,21 @@ void parser_eat(struct Parser * parser, enum token_t type) {
     parser->token = parser->lexer->tok;
 }
 
-struct Ast * parser_parse_int(struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_LITERAL, parser->current_scope), * type_ast = init_ast(AST_TYPE, parser->current_scope);
-    a_literal * number = ast->value;
-    a_type * type = type_ast->value;
+struct AST * parser_parse_int(struct Parser * parser) {
+    struct AST * ast = init_ast(AST_LITERAL, parser->current_scope);
+    a_literal * number = &ast->value.literal;
 
-    Numeric_T * num = init_intrinsic_type(INumeric);
-    num->type = NUMERIC_SIGNED;
-    num->width = 32;
+    Numeric_T num = init_intrinsic_type(INumeric).numeric;
+    num.type = NUMERIC_SIGNED;
+    num.width = 32;
+
+    ALLOC(number->type);
+    Type * type = number->type;
 
     type->name = "i32";
-    type->ptr = num;
+    type->value.numeric = num;
     type->intrinsic = INumeric;
 
-    number->type = type_ast;
     number->value = parser->token->value;
 
     parser_eat(parser, TOKEN_INT);
@@ -72,29 +78,27 @@ struct Ast * parser_parse_int(struct Parser * parser) {
     return ast;
 }
 
-struct Ast * parser_parse_string(struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_LITERAL, parser->current_scope),
-               * type_ast = init_ast(AST_TYPE, parser->current_scope);
-    a_literal * string = ast->value;
-    a_type * type = type_ast->value;
+struct AST * parser_parse_string(struct Parser * parser) {
+    struct AST * ast = init_ast(AST_LITERAL, parser->current_scope);
+    a_literal * string = &ast->value.literal;
 
-    Array_T * array = init_intrinsic_type(IArray);
-    array->size = parser->token->length;
+    ALLOC(string->type);
+    Type * type = string->type;
+
+    Array_T array = init_intrinsic_type(IArray).array;
+    array.size = parser->token->length;
+    array.basetype = malloc(sizeof(Type));
     
-    a_type * basetype = init_ast_of_type(AST_TYPE);
-    Numeric_T * num = init_intrinsic_type(INumeric);
-    num->type = NUMERIC_UNSIGNED;
-    num->width = 8;
+    Numeric_T num = init_intrinsic_type(INumeric).numeric;
+    num.type = NUMERIC_UNSIGNED;
+    num.width = 8;
 
-    basetype->ptr = num;
-    basetype->intrinsic = INumeric;
+    array.basetype->value.numeric = num;
+    array.basetype->intrinsic = INumeric;
 
-    array->basetype = basetype;
-
-    type->ptr = array;
+    type->value.array = array;
     type->intrinsic = IArray;
 
-    string->type = type_ast;
     string->literal_type = LITERAL_STRING;
     string->value = parser->token->value;
 
@@ -103,9 +107,9 @@ struct Ast * parser_parse_string(struct Parser * parser) {
     return ast;
 }
 
-struct Ast * parser_parse_id(struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_VARIABLE, parser->current_scope);
-    a_variable * variable = ast->value;
+struct AST * parser_parse_id(struct Parser * parser) {
+    struct AST * ast = init_ast(AST_VARIABLE, parser->current_scope);
+    a_variable * variable = &ast->value.variable;
 
     variable->name = parser->token->value;
 
@@ -113,14 +117,15 @@ struct Ast * parser_parse_id(struct Parser * parser) {
 
     if (parser->token->type == TOKEN_COLON) {
         parser_eat(parser, TOKEN_COLON); 
-        variable->type = parser_parse_type(parser);
+        ALLOC(variable->type);
+        *variable->type = parser_parse_type(parser);
     }
 
     return ast;
 }
 
-struct Ast * parser_parse_if(struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_IF, parser->current_scope);
+struct AST * parser_parse_if(struct Parser * parser) {
+    struct AST * ast = init_ast(AST_IF, parser->current_scope);
     
     a_if_statement * if_statement = NULL,
                    * previous;
@@ -138,11 +143,13 @@ struct Ast * parser_parse_if(struct Parser * parser) {
         }
 
         if (if_statement) {
-            if_statement->next = init_ast_of_type(AST_IF);
+            if_statement->next = malloc(sizeof(a_if_statement));
+            *if_statement->next = init_ast_value(AST_IF).if_statement;
+
             previous = if_statement;
             if_statement = if_statement->next;
         } else {
-            if_statement = ast->value;
+            if_statement = &ast->value.if_statement;
         }
 
         if (parser->token->type == TOKEN_ID && !strcmp(parser->token->value, "if")) {
@@ -163,9 +170,9 @@ struct Ast * parser_parse_if(struct Parser * parser) {
     return ast;
 }
 
-struct Ast * parser_parse_for(struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_FOR, parser->current_scope);
-    a_for_statement * for_statement = ast->value;
+struct AST * parser_parse_for(struct Parser * parser) {
+    struct AST * ast = init_ast(AST_FOR, parser->current_scope);
+    a_for_statement * for_statement = &ast->value.for_statement;
 
     struct Token * for_token = parser->token;
     parser_eat(parser, TOKEN_ID);
@@ -176,11 +183,11 @@ struct Ast * parser_parse_for(struct Parser * parser) {
     return ast;
 }
 
-struct Ast * parser_parse_while(struct Parser * parser) {
+struct AST * parser_parse_while(struct Parser * parser) {
     struct Token * while_token = parser->token;
     parser_eat(parser, TOKEN_ID);
-    struct Ast * ast = init_ast(AST_WHILE, parser->current_scope);
-    a_while_statement * while_statement = ast->value;
+    struct AST * ast = init_ast(AST_WHILE, parser->current_scope);
+    a_while_statement * while_statement = &ast->value.while_statement;
     
     while_statement->expression = parser_parse_expr(parser);
      
@@ -189,25 +196,25 @@ struct Ast * parser_parse_while(struct Parser * parser) {
     return ast;
 }
 
-struct Ast * parser_parse_do(struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_DO, parser->current_scope);
+struct AST * parser_parse_do(struct Parser * parser) {
+    struct AST * ast = init_ast(AST_DO, parser->current_scope);
 
     FATAL("Do statements are not implemented yet");
 
     return ast;
 }
 
-struct Ast * parser_parse_match(struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_MATCH, parser->current_scope);
+struct AST * parser_parse_match(struct Parser * parser) {
+    struct AST * ast = init_ast(AST_MATCH, parser->current_scope);
 
     FATAL("Match statements are not implemented yet");
 
     return ast;
 }
 
-struct Ast * parser_parse_return(struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_RETURN, parser->current_scope);
-    a_return * return_statement = ast->value;
+struct AST * parser_parse_return(struct Parser * parser) {
+    struct AST * ast = init_ast(AST_RETURN, parser->current_scope);
+    a_return * return_statement = &ast->value.return_statement;
 
     parser_eat(parser, TOKEN_ID);    
     return_statement->expression = parser_parse_expr(parser);
@@ -218,9 +225,9 @@ struct Ast * parser_parse_return(struct Parser * parser) {
 void parser_parse_template_types(struct Parser * parser, struct HashMap * map) { 
 }
 
-struct Ast * parser_parse_struct(struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_STRUCT, parser->current_scope), * temp;
-    a_struct * _struct = ast->value;
+struct AST * parser_parse_struct(struct Parser * parser) {
+    struct AST * ast = init_ast(AST_STRUCT, parser->current_scope), * temp;
+    a_struct * _struct = &ast->value.structure;
     
     parser_eat(parser, TOKEN_ID);
     _struct->name = parser->token->value;
@@ -249,9 +256,9 @@ struct Ast * parser_parse_struct(struct Parser * parser) {
             switch (temp->type) {
                 case AST_DECLARATION:
                     {
-                        a_expr * expr = ((a_declaration *) temp->value)->expression->value;
-                        for (int i = 0; i < expr->children->size; ++i) {
-                            list_push(_struct->variables, list_at(expr->children, i));
+                        a_expr expr = temp->value.declaration.expression->value.expression;
+                        for (int i = 0; i < expr.children->size; ++i) {
+                            list_push(_struct->variables, list_at(expr.children, i));
                         }
                     } break;
                 case AST_FUNCTION:
@@ -276,13 +283,13 @@ struct Ast * parser_parse_struct(struct Parser * parser) {
     return ast;
 }
 
-struct Ast * parser_parse_trait(struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_TRAIT, parser->current_scope),
+struct AST * parser_parse_trait(struct Parser * parser) {
+    struct AST * ast = init_ast(AST_TRAIT, parser->current_scope),
                * node;
     
     parser->current_scope = ast;
 
-    a_trait * trait = ast->value;
+    a_trait * trait = &ast->value.trait;
     parser_eat(parser, TOKEN_ID);
     trait->name = parser->token->value;
     add_marker(ast, trait->name);
@@ -309,14 +316,14 @@ struct Ast * parser_parse_trait(struct Parser * parser) {
     return ast;
 }
 
-struct Ast * parser_parse_impl(struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_IMPL, parser->current_scope),
+struct AST * parser_parse_impl(struct Parser * parser) {
+    struct AST * ast = init_ast(AST_IMPL, parser->current_scope),
                * node,
                * type;
-    a_impl * impl = ast->value;
+    a_impl * impl = &ast->value.implementation;
     parser->current_scope = ast;
 
-    impl->members = init_list(sizeof(struct Ast *));
+    impl->members = init_list(sizeof(struct AST *));
 
     parser_eat(parser, TOKEN_ID);
     impl->name = parser->token->value;
@@ -324,7 +331,10 @@ struct Ast * parser_parse_impl(struct Parser * parser) {
 
     parser_eat(parser, TOKEN_ID);
 
-    impl->type = parser_parse_type(parser);
+    ALLOC(impl->type);
+    *impl->type = parser_parse_type(parser);
+
+    DEBUG("\"{s}\" {s}", impl->name, type_to_str(*impl->type));
 
     parser_eat(parser, TOKEN_LBRACE);
 
@@ -339,8 +349,9 @@ struct Ast * parser_parse_impl(struct Parser * parser) {
         switch (node->type) {
             case AST_FUNCTION:
             {
-                a_module * module = get_scope(AST_MODULE, parser->current_scope)->value;
+                // a_module * module = get_scope(AST_MODULE, parser->current_scope)->value;
                 add_function_to_module(get_scope(AST_MODULE, parser->current_scope), node);
+                DEBUG("Added function: {s}", ast_to_string(node));
             }
             default:
                 list_push(impl->members, node);
@@ -354,22 +365,22 @@ struct Ast * parser_parse_impl(struct Parser * parser) {
     return ast;
 }
 
-struct Ast * parser_parse_declaration(struct Parser * parser, enum Keywords keyword) {
-    struct Ast * ast = init_ast(AST_DECLARATION, parser->current_scope),
+struct AST * parser_parse_declaration(struct Parser * parser, enum Keywords keyword) {
+    struct AST * ast = init_ast(AST_DECLARATION, parser->current_scope),
                * node;
-    a_declaration * declaration = ast->value;
+    a_declaration * declaration = &ast->value.declaration;
     declaration->is_const = keyword == CONST;
 
     parser_eat(parser, TOKEN_ID);
 
 
     declaration->expression = parser_parse_expr(parser);
-    a_expr * expr = declaration->expression->value;
+    a_expr expr = declaration->expression->value.expression;
 
-    node = list_at(expr->children, 0);
+    node = list_at(expr.children, 0);
     if (node->type == AST_OP) {
-        a_op * op = node->value;
-        node = op->left;
+        a_op op = node->value.operator;
+        node = op.left;
     }
 
     if (node->type != AST_VARIABLE) {
@@ -381,7 +392,7 @@ struct Ast * parser_parse_declaration(struct Parser * parser, enum Keywords keyw
     return ast;
 }
 
-struct Ast * parser_parse_statement(struct Parser * parser) {
+struct AST * parser_parse_statement(struct Parser * parser) {
     struct Keyword keyword = str_to_keyword(parser->token->value);
 
     if (keyword.key == KEYWORD_NOT_FOUND) { // no identifier should mean there is an expression
@@ -417,10 +428,10 @@ struct Ast * parser_parse_statement(struct Parser * parser) {
     exit(1);
 }
 
-struct Ast * parser_parse_scope(struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_SCOPE, parser->current_scope),
+struct AST * parser_parse_scope(struct Parser * parser) {
+    struct AST * ast = init_ast(AST_SCOPE, parser->current_scope),
                * statement;
-    a_scope * scope = ast->value;
+    a_scope scope = ast->value.scope;
     parser->current_scope = ast;
     
     if (parser->token->type == TOKEN_LBRACE) {
@@ -437,7 +448,7 @@ struct Ast * parser_parse_scope(struct Parser * parser) {
                 FATAL("Unclosed scope");
             }
 
-            list_push(scope->nodes, parser_parse_statement(parser));
+            list_push(scope.nodes, parser_parse_statement(parser));
         }
 
         parser_eat(parser, TOKEN_RBRACE);
@@ -448,7 +459,7 @@ struct Ast * parser_parse_scope(struct Parser * parser) {
         if (parser->token->type == TOKEN_LINE_BREAK) {
             WARN("Scopes without curly brackets must follow the scope initializer immidiatly(1 line or less)");
         } else {
-            list_push(scope->nodes, parser_parse_statement(parser));
+            list_push(scope.nodes, parser_parse_statement(parser));
         }
     }
     parser->current_scope = ast->scope;
@@ -456,12 +467,12 @@ struct Ast * parser_parse_scope(struct Parser * parser) {
     return ast;
 }
 
-struct Ast * parser_parse_function(struct Parser * parser) {
+struct AST * parser_parse_function(struct Parser * parser) {
     
-    struct Ast * ast = init_ast(AST_FUNCTION, parser->current_scope), 
+    struct AST * ast = init_ast(AST_FUNCTION, parser->current_scope), 
                * argument,
                * param_types;
-    struct a_function * function = ast->value;
+    a_function * function = &ast->value.function;
     char * name;
     parser->current_scope = ast;
     
@@ -481,10 +492,11 @@ struct Ast * parser_parse_function(struct Parser * parser) {
         function->template_types = init_hashmap(3);
         function->parsed_templates = init_list(sizeof(char *));
         list_push(function->parsed_templates, "Self");
-        struct Ast * type = NULL;
+        Type * type = NULL;
         if (ast->scope->type == AST_IMPL) {
-            type = ((a_impl *) ast->scope->value)->type;
+            type = ast->scope->value.implementation.type;
         }
+
         hashmap_set(function->template_types, "Self", type);
     }
 
@@ -496,13 +508,13 @@ struct Ast * parser_parse_function(struct Parser * parser) {
             function->parsed_templates = init_list(sizeof(char *));
         }
 
-        struct Ast * ast;
+        struct AST * ast;
         char * name;
 
         while (parser->token->type == TOKEN_ID) {
             ast = parser_parse_id(parser);
             ASSERT1(ast->type == AST_VARIABLE);
-            name = ((a_variable *) ast->value)->name;
+            name = ast->value.variable.name;
             list_push(function->parsed_templates, name);
             hashmap_set(function->template_types, name, ast);
 
@@ -519,15 +531,17 @@ struct Ast * parser_parse_function(struct Parser * parser) {
     function->arguments = parser_parse_expr_exit_on(parser, PARENTHESES);
     ASSERT1(function->arguments->type == AST_EXPR);
 
-    if (((a_expr *) function->arguments->value)->children->size != 0) {
-        function->param_type = ast_to_type(function->arguments);
+    if (function->arguments->value.expression.children->size != 0) {
+        ALLOC(function->param_type);
+        *function->param_type = ast_to_type(function->arguments);
     }
     
     if (parser->token->type == TOKEN_MINUS) {
         parser_eat(parser, TOKEN_MINUS);
         parser_eat(parser, TOKEN_GT);
 
-        function->return_type = parser_parse_type(parser);
+        ALLOC(function->return_type);
+        *function->return_type = parser_parse_type(parser);
     }
 
     if (parser->token->type == TOKEN_SEMI) {
@@ -542,7 +556,7 @@ struct Ast * parser_parse_function(struct Parser * parser) {
     return ast;
 }
 
-struct Ast * parser_parse_package(struct Parser * parser) {
+struct AST * parser_parse_package(struct Parser * parser) {
     
     parser_eat(parser, TOKEN_ID);
 
@@ -562,7 +576,7 @@ struct Ast * parser_parse_package(struct Parser * parser) {
     INFO("Added package '{s}' at '{s}'", name, path);
     parser_eat(parser, TOKEN_STRING_LITERAL);
 
-    struct Ast * other_module = find_module(parser->root, path),
+    struct AST * other_module = find_module(parser->root, path),
                * this_module = get_scope(AST_MODULE, parser->current_scope);
     
     if (other_module != NULL) {
@@ -576,7 +590,7 @@ struct Ast * parser_parse_package(struct Parser * parser) {
     return NULL;
 }
 
-struct Ast * parser_parse_identifier(struct Parser * parser) {
+struct AST * parser_parse_identifier(struct Parser * parser) {
 
     if (parser->token->value == NULL) {
         print_token("[Error] Unknown identifier\n{s}\n", parser->token);
@@ -612,10 +626,10 @@ struct Ast * parser_parse_identifier(struct Parser * parser) {
     }
 }
 
-struct Ast * parser_parse_module(struct Parser * parser, struct Ast * ast) {
-    struct Ast * node = NULL;
+struct AST * parser_parse_module(struct Parser * parser, struct AST * ast) {
+    struct AST * node = NULL;
     parser->current_scope = ast;
-    a_module * module = ast->value;
+    a_module * module = &ast->value.module;
 
     while (parser->token->type != TOKEN_EOF) {
         if (parser->token->type == TOKEN_LINE_BREAK) {
@@ -633,32 +647,32 @@ struct Ast * parser_parse_module(struct Parser * parser, struct Ast * ast) {
         switch (node->type) {
             case AST_FUNCTION:
             {
-                a_module * module = get_scope(AST_MODULE, parser->current_scope)->value;
+                a_module * module = &get_scope(AST_MODULE, parser->current_scope)->value.module;
                 add_function_to_module(get_scope(AST_MODULE, parser->current_scope), node);
                 list_push(module->functions, node);
-                hashmap_set(module->symbols, ((a_function *) node->value)->name, node);
+                hashmap_set(module->symbols, node->value.function.name, node);
                 break;
             }
             case AST_DECLARATION:
             {
                 list_push(module->variables, node);
 
-                a_declaration * decl = node->value;
-                a_expr * expr = decl->expression->value;
-                struct Ast * temp = list_at(expr->children, 0);
+                a_declaration decl = node->value.declaration;
+                a_expr expr = decl.expression->value.expression;
+                struct AST * temp = list_at(expr.children, 0);
                 if (temp->type != AST_VARIABLE) {
                     FATAL("{2i::} Global variable declarations have to have variable as the LHS parameter", parser->token->line, parser->token->pos);
                 }
 
-                hashmap_set(module->symbols, ((a_variable *) temp->value)->name, node);
+                hashmap_set(module->symbols, temp->value.variable.name, node);
             } break;
             case AST_STRUCT:
                 list_push(module->structures, node);
-                hashmap_set(module->symbols, ((a_struct *) node->value)->name, node);
+                hashmap_set(module->symbols, node->value.structure.name, node);
                 break;
             case AST_TRAIT:
                 list_push(module->traits, node);
-                hashmap_set(module->symbols, ((a_trait *) node->value)->name, node);
+                hashmap_set(module->symbols, node->value.trait.name, node);
                 break;
             case AST_IMPL:
                 list_push(module->impls, node);
@@ -673,15 +687,15 @@ struct Ast * parser_parse_module(struct Parser * parser, struct Ast * ast) {
     return ast;
 }
 
-struct Ast * parser_parse(struct Ast * root, char * path) {
+struct AST * parser_parse(struct AST * root, char * path) {
     struct Parser * parser = init_parser(path);
     parser->root = root;
     parser->current_scope = root;
 
-    struct Ast * module = init_ast(AST_MODULE, parser->current_scope);
-    ((a_module *)module->value)->path = path;
+    struct AST * module = init_ast(AST_MODULE, parser->current_scope);
+    module->value.module.path = path;
 
-    list_push(((a_root *) root->value)->modules, module);
+    list_push(root->value.root.modules, module);
     parser_parse_module(parser, module);
 
     return root;

@@ -1,0 +1,13 @@
+// T is required to implement #OP_ADDITION
+
+trait OP_Pre_Increment {
+	fn inline #OP_PRE_INCREMENT(ref: &Self) -> Self;
+}
+
+impl OP_Pre_Increment for (i8, i16, i32, i64, i128) {
+	fn inline #OP_PRE_INCREMENT(ref: &Self) -> Self {
+		let res: Self = *ref + 1
+		*ref = res
+		res
+	}
+}
