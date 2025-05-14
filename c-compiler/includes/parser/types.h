@@ -2,22 +2,28 @@
 
 #include "common/common.h"
 #include "common/hashmap.h"
+#include <sys/types.h>
 
-typedef struct Type {
-    char * name;
-    short size;
-    void * ptr;
-    enum intrinsic_type {
-        INumeric, // isize, usize, fsize
-        IArray,
-        IRef,
-        IStruct,
-        IEnum,
-        ITuple,
-        IImpl,
-        ITemplate
-    } intrinsic;
-} Type;
+#ifndef TYPES_FOREACH
+#define TYPES_FOREACH(f) \
+    f(INumeric, Numeric_T, numeric) \
+    f(IArray, Array_T, array) \
+    f(IRef, Ref_T, ref) \
+    f(IStruct, Struct_T, structure) \
+    f(IEnum, Enum_T, enumeration) \
+    f(ITuple, Tuple_T, tuple) \
+    f(IImpl, Impl_T, implementation) \
+    f(ITemplate, Template_T, template) \
+    f(IVariable, Variable_T, variable)
+#endif
+
+#define TYPE_ENUM_EL(ENUM_NAME, ...) ENUM_NAME,
+#define TYPE_UNION_EL(_, STRUCT_NAME, NAME) STRUCT_NAME NAME;
+#define TYPE_FORWARD_DECLARE(_, STRUCT_NAME, ...) typedef struct STRUCT_NAME STRUCT_NAME;
+
+#define UNKNOWN_TYPE (Type) {.intrinsic = IUnknown}
+
+typedef struct Type Type;
 
 typedef struct Numeric_T {
     unsigned short width;
@@ -47,32 +53,50 @@ typedef struct Enum_T {
 } Enum_T;
 
 typedef struct Tuple_T {
-    struct List * types;
+    struct Arena types;
 } Tuple_T;
 
 typedef struct Impl_T {
-    struct Ast * type;
+    struct AST * type;
 } Impl_T;
 
 typedef struct Template_T {
-    struct Ast * type;
+    struct AST * type;
 } Template_T;
 
-void * init_intrinsic_type(enum intrinsic_type type);
-const char * get_base_type_str(Type * type);
-Type * get_base_type(Type * type);
-char * type_to_str(Type * type);
-struct Ast * ast_to_type(struct Ast * ast);
+typedef struct Variable_T {
+    u_int32_t ID;
+    Type * type;
+} Variable_T;
 
-char is_template_type(struct Ast * ast, char * name);
-struct Ast * get_type(struct Ast * ast, char * name);
-struct List * ast_to_ast_type_list(struct Ast * ast);
+typedef struct Type {
+    char * name;
+    short size;
+    enum intrinsic_type {
+        IUnknown,
+        TYPES_FOREACH(TYPE_ENUM_EL)
+    } intrinsic;
+    union intrinsic_union {
+        TYPES_FOREACH(TYPE_UNION_EL)
+    } value;
+} Type;
 
-char check_types(Type * type1, Type * type2, struct HashMap * templates);
-char is_implicitly_equal(Type * type1, Type * type2, struct HashMap * self);
-char is_equal_type(Type * type1, Type * type2, struct HashMap * self);
+union intrinsic_union init_intrinsic_type(enum intrinsic_type type);
+const char * get_base_type_str(Type type);
+Type get_base_type(Type type);
+char * type_to_str(Type type);
+Type * ast_get_type_of(struct AST * ast);
+Type ast_to_type(struct AST * ast);
 
-Type * copy_type(Type * src);
+char is_template_type(struct AST * current_scope, char * name);
+struct AST * get_type(struct AST * ast, char * name);
+struct Arena ast_to_ast_type_arena(Type ast);
 
-struct Ast * get_self_type(struct Ast * first, struct Ast * second);
-struct Ast * replace_self_in_type(struct Ast * ast, struct Ast * self);
+char check_types(Type type1, Type type2, struct HashMap * templates);
+char is_implicitly_equal(Type type1, Type type2, struct HashMap * self);
+char is_equal_type(Type type1, Type type2, struct HashMap * self);
+
+Type copy_type(Type src);
+
+struct AST * get_self_type(struct AST * first, struct AST * second);
+Type replace_self_in_type(Type ast, Type self);

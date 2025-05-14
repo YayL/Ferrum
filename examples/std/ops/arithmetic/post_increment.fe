@@ -1,0 +1,6 @@
+// T is required to implement #OP_ADDITION
+
+fn inline #OP_POST_INCREMENT<T>(ref: &T) -> T {
+	*ref = *ref + 1
+}
+

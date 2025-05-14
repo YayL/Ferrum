@@ -1,3 +1,8 @@
+#include "codegen/AST.h"
+#include "common/list.h"
+#include "common/logger.h"
+#include "common/macro.h"
+#include "fmt.h"
 #include "parser/operators.h"
 #include "parser/parser.h"
 
@@ -18,8 +23,8 @@ struct Operator * get_operator(const char * str, struct Token * token, enum OP_m
 }
 
 void consume_add_operator(struct Operator * op, struct List * list, struct Parser * parser) {
-    struct Ast * ast = init_ast(AST_OP, parser->current_scope);
-    a_op * operator = ast->value;
+    struct AST * ast = init_ast(AST_OP, parser->current_scope);
+    a_op * operator = &ast->value.operator;
 
     if (list->size == 0) {
         FATAL("Invalid expression: Operator without valid operands");
@@ -41,8 +46,8 @@ void consume_add_operator(struct Operator * op, struct List * list, struct Parse
 }
 
 struct List * _parser_parse_expr(struct Parser * parser, struct List * output, struct Deque * operators, enum Operators EXIT_ON_KEY) {
-    struct Ast * node, * temp;
-    struct List * expressions = init_list(sizeof(struct Ast *));
+    struct AST * node, * temp;
+    struct List * expressions = init_list(sizeof(struct AST *));
     
     enum OP_mode mode = UNARY_PRE;
     struct Operator * op1, * op2;
@@ -82,15 +87,15 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                         parser_eat(parser, parser->token->type);
                         
                         struct Deque * temp_d = init_deque(sizeof(struct Operator *));
-                        struct List * temp_l = init_list(sizeof(struct Ast *));
+                        struct List * temp_l = init_list(sizeof(struct AST *));
                         push_back(temp_d, op1);
 
                         node = init_ast(AST_OP, parser->current_scope);
                         temp = init_ast(AST_EXPR, parser->current_scope);
-                        ((a_op *) node->value)->op = op1;
+                        node->value.operator.op = op1;
  
-                        ((a_expr *) temp->value)->children = _parser_parse_expr(parser, temp_l, temp_d, -1);
-                        ((a_op *) node->value)->right = temp; 
+                        temp->value.expression.children = _parser_parse_expr(parser, temp_l, temp_d, -1);
+                        node->value.operator.right = temp;
                     } else { // closing enclosed operator
                         while (strcmp(op1->str, (op2 = deque_back(operators))->str)) { // while not start version of this enclosed operator
                             if (op2->key == EXIT_ON_KEY) {
@@ -124,7 +129,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                 
                 if (op1->enclosed == ENCLOSED) {
                     if (op1->mode == BINARY) {
-                        ((a_op *) node->value)->left = list_at(output, -1);
+                        node->value.operator.left = list_at(output, -1);
                         list_pop(output);
                     }
 
@@ -133,13 +138,19 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                     break;
                 }
 
-                push_back(operators, op1);
-
-                mode = op1->mode == UNARY_POST ? BINARY : UNARY_PRE;
+                mode = op1->mode == UNARY_POST 
+                        ? BINARY 
+                        : UNARY_PRE;
                 parser_eat(parser, parser->token->type);
 
                 if (op1->key == CAST || op1->key == BIT_CAST) {
-                    list_push(output, parser_parse_type(parser));
+                    consume_add_operator(op1, output, parser);
+
+                    struct AST * cast_ast = list_at(output, -1);
+                    ALLOC(cast_ast->value.operator.type);
+                    *cast_ast->value.operator.type = parser_parse_type(parser);
+                } else {
+                    push_back(operators, op1);
                 }
             } break;
             case TOKEN_SEMI:
@@ -152,7 +163,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                 
                 if (output->size == 1) {
                     list_push(expressions, list_at(output, -1));
-                    output = init_list(sizeof(struct Ast *));
+                    output = init_list(sizeof(struct AST *));
                 }else if (output->size != 1) {
                     ERROR("Unprecedentent usage of expression separator");
                     print_token("{s}\n", parser->token);
@@ -223,10 +234,10 @@ exit:
 
 }
 
-struct Ast * parser_parse_expr_exit_on(struct Parser * parser, enum Operators op) {
-    struct Ast * ast = init_ast(AST_EXPR, parser->current_scope);
+struct AST * parser_parse_expr_exit_on(struct Parser * parser, enum Operators op) {
+    struct AST * ast = init_ast(AST_EXPR, parser->current_scope);
 
-    struct List * output = init_list(sizeof(struct Ast *));
+    struct List * output = init_list(sizeof(struct AST *));
     struct Deque * operators = init_deque(sizeof(struct Operator *));
 
     if (op != -1) {
@@ -240,7 +251,7 @@ struct Ast * parser_parse_expr_exit_on(struct Parser * parser, enum Operators op
         push_front(operators, temp_operator);
     }
 
-    ((a_expr *) ast->value)->children = _parser_parse_expr(parser, output, operators, op);
+    ast->value.expression.children = _parser_parse_expr(parser, output, operators, op);
 
     if (parser->prev->type == TOKEN_SEMI) {
         print_token("[Warning] Unnecessary semicolon\n{s}\n", parser->prev);
@@ -249,6 +260,6 @@ struct Ast * parser_parse_expr_exit_on(struct Parser * parser, enum Operators op
     return ast;
 }
 
-struct Ast * parser_parse_expr(struct Parser * parser) {
+struct AST * parser_parse_expr(struct Parser * parser) {
     return parser_parse_expr_exit_on(parser, -1);
 }

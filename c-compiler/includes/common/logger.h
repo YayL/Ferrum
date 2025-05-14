@@ -1,14 +1,27 @@
 #pragma once
 
 #include "fmt.h"
+#include <execinfo.h>
+#include <stdlib.h>
 #include <time.h>
 #include <sys/time.h>
+#include "common/defines.h"
+
+#ifdef BACKTRACE
+#include <backtrace.h>
+void bt_error_callback(void *data, const char *msg, int errnum);
+void logger_init(const char * filename);
+void print_trace();
+#endif
+
+#define MAX_BACKTRACE_LENGTH 10
 
 #define ANSI_START "\033["
 
 #define RESET ANSI_START "0m"
 #define BOLD ANSI_START "1m"
-#define RGB_COLOR(R, G, B) ANSI_START "38:2" #R ":" #G ":" #B "m"
+#define ANSI_RGB_COLOR_FMT ANSI_START "38:2:{i}:{i}:{i}m"
+#define RGB_COLOR(R, G, B) ANSI_START "38:2:" #R ":" #G ":" #B "m"
 
 #define RED RGB_COLOR(198, 56, 53) BOLD
 #define GREEN RGB_COLOR(81, 172, 56) BOLD
@@ -81,7 +94,7 @@ static inline struct tm get_time() {
 
 #define LOGGER_LOG(LEVEL, FMT, ...) { \
    struct _log_level_rgb color = get_log_level_rgb(LEVEL); \
-   println(ANSI_START "38:2:{i}:{i}:{i}m[" __FILE_NAME__ ":" TO_STR_VALUE(__LINE__) "] {s}: " FMT RESET, color.R, color.G, color.B, get_log_level_str(LEVEL), ##__VA_ARGS__); \
+   println(ANSI_START "38:2:{i}:{i}:{i}m[" __FILE_NAME__ ":" TO_STR_VALUE(__LINE__) "] [{s}] " FMT RESET, color.R, color.G, color.B, get_log_level_str(LEVEL), ##__VA_ARGS__); \
 }
 
 // Change end of this macro the wanted min log level
@@ -91,7 +104,7 @@ static inline struct tm get_time() {
 #define DEBUG(FMT, ...)
 #define WARN(FMT, ...)
 #define ERROR(FMT, ...)
-#define FATAL(FMT, ...) LOGGER_LOG(LOG_LEVEL_FATAL, FMT, ##__VA_ARGS__); exit(1)
+#define FATAL(FMT, ...) LOGGER_LOG(LOG_LEVEL_FATAL, FMT, ##__VA_ARGS__); print_trace(); exit(1)
 
 #ifndef MIN_LOG_LEVEL_FATAL
 #undef ERROR
@@ -111,4 +124,4 @@ static inline struct tm get_time() {
 #endif
 
 #define ASSERT(EXPR, FMT, ...) if (!(EXPR)) { FATAL(FMT, ##__VA_ARGS__); }
-#define ASSERT1(EXPR) ASSERT(EXPR, "")
+#define ASSERT1(EXPR) ASSERT(EXPR, "Assertion failed: " #EXPR)

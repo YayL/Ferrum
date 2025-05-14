@@ -2,6 +2,7 @@
 
 #include "common/io.h"
 #include "common/logger.h"
+#include "fmt.h"
 #include "parser/parser.h"
 #include "codegen/checker.h"
 #include "codegen/gen.h"
@@ -24,15 +25,15 @@ unsigned long stop_timer() {
 void ferrum_compile(char * file_path) {
 
 
-    INFO("Hello, Info!");
-    DEBUG("Hello, Debug!");
-    WARN("Hello, Warn!");
-    ERROR("Hello, Error!");
-    FATAL("Hello, Fatal!");
+    // INFO("Hello, Info!");
+    // DEBUG("Hello, Debug!");
+    // WARN("Hello, Warn!");
+    // ERROR("Hello, Error!");
+    // FATAL("Hello, Fatal!");
 
-    return;
+    // return;
 
-    struct Ast * ast = init_ast(AST_ROOT, NULL);
+    struct AST * ast = init_ast(AST_ROOT, NULL);
     
     char * abs_path = get_abs_path(file_path),
          * parser_time,
@@ -47,6 +48,8 @@ void ferrum_compile(char * file_path) {
     time = stop_timer();
     total += time;
     asprintf(&parser_time, "Time for parser:\t%.3fms", (double)time / 1000);
+
+    print_ast_tree(ast);
 
     start_timer();
     checker_check(ast);

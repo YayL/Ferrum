@@ -1,5 +1,7 @@
 #pragma once
 
+#define BACKTRACE
+
 #define LEXER_DEBUG
 #define PARSER_DEBUG
 #define AST_DEBUG

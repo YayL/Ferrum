@@ -7,6 +7,8 @@ set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_C_FLAGS_DEBUG "-pg -g")
 set(CMAKE_C_FLAGS_RELEASE "-Wall")
 
+find_library(LIBBT NAMES libbacktrace)
+
 include(FetchContent)
 
 FetchContent_Declare(
@@ -25,4 +27,4 @@ target_include_directories(compiler PRIVATE
     ${fmt_SOURCE_DIR}/include
 )
 
-target_link_libraries(compiler PRIVATE fmt)
+target_link_libraries(compiler PRIVATE fmt backtrace)

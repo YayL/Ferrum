@@ -1,13 +1,28 @@
 package "std/lib"
 
-fn fib(num: i32) -> i32 {
-    if num <= 1
-        return num
-    fib(num - 2) + fib(num - 1)
+fn fib(n: i32) -> i32 {
+	if n == 0 {
+		return 0
+	} else if n <= 2 {
+		return 1
+	}
+
+	// start at fib(3)
+	let i: i32 = 3
+	let temp: i32 = 0
+	let prev: i32 = 1
+	let curr: i32 = 2
+
+	for (i = 3; i < n; i = i + 1) {
+		temp = curr
+		curr = temp + prev
+		prev = temp
+	}
+
+	return curr
 }
 
 fn main() -> i32 {
-    let a: i32 = 5
-
-    fib(a)
+	let a: i32 = 5
+	fib(a)
 }

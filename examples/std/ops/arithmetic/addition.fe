@@ -4,6 +4,12 @@ trait Addition {
     fn inline #OP_ADDITION(first: Self, second: Self) -> Self;
 }
 
+impl Addition for (i8, i16, i32, i64, i128) {
+    fn inline #OP_ADDITION(first: Self, second: Self) -> Self {
+        #llvm_op("add nsw", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))
+    }
+}
+
 impl Addition for (impl Signed_Numeric) {
     fn inline #OP_ADDITION(first: Self, second: Self) -> Self {
         #llvm_op("add nsw", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))

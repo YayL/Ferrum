@@ -3,9 +3,15 @@ package "arithmetic/addition"
 package "arithmetic/subtraction"
 package "arithmetic/multiplication"
 package "arithmetic/division"
+
+/* == Not working ==
 package "arithmetic/pre_decrement"
+package "arithmetic/pre_increment"
+package "arithmetic/post_increment"
+*/
 
 package "relational/less_equal_to"
+package "relational/less_than"
 package "relational/equal"
 
 package "assignment/assignment"

@@ -1,0 +1,15 @@
+trait OP_Less_Than {
+    fn inline #OP_LESS_THAN(left: Self, right: Self) -> bool;
+}
+
+impl OP_Less_Than for (i8, i16, i32, i64, i128) {
+    fn inline #OP_LESS_THAN(left: Self, right: Self) -> bool {
+        #llvm_op("icmp slt", #llvm_type_of(left), #llvm_load(left), #llvm_load(right))
+    }
+}
+
+impl OP_Less_Than for (u8, u16, u32, u64, u128) {
+    fn inline #OP_LESS_THAN(left: Self, right: Self) -> bool {
+        #llvm_op("icmp ult", #llvm_type_of(left), #llvm_load(left), #llvm_load(right))
+    }
+}

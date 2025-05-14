@@ -1,0 +1,13 @@
+package "std/lib"
+
+fn fib(num: i32) -> i32 {
+    if num <= 1
+        return num
+    fib(num - 2) + fib(num - 1)
+}
+
+fn main() -> i32 {
+    let a: i32 = 5
+
+    fib(a)
+}
