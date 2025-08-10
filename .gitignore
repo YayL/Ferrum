@@ -3,7 +3,8 @@
 !c-compiler/
 !c-compiler/src
 !c-compiler/src/**
-!c-compiler/include/**
+!c-compiler/includes
+!c-compiler/includes/**
 !c-compiler/CMakeLists.txt
 !c-compiler/start.sh
 

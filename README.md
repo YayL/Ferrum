@@ -1,15 +1,15 @@
 # Ferrum
 
-## How to setup:
-- git clone https://github.com/YayL/Ferrum
-- cd Ferrum/c-compiler
-- mkdir build
-- git submodule init
-- git submodule update
+## Build
+- git clone https://github.com/yayl/ferrum
+- cd ferrum/c-compiler
 - ./start.sh c
 
-After following the steps above you have a working version of Ferrum to use at ./build/compiler
+## Usage
+- ./start.sh \[module\]
 
+## Optional Requirements
+We use libbacktrace for backtraces but it can be disabled by commenting out *BACKTRACE* in common/defines.h and also removing it from CMakeLists.txt
 
 
 ## The definition of different terms used in ferrum:
