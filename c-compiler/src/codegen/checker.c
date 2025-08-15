@@ -1,134 +1,44 @@
 #include "codegen/checker.h"
 #include "codegen/AST.h"
+#include "codegen/functions.h"
 #include "common/arena.h"
-#include "common/hashmap.h"
 #include "common/logger.h"
 #include "common/macro.h"
-#include "fmt.h"
 #include "parser/operators.h"
 #include "parser/types.h"
+#include "tables/interner.h"
 
-struct AST * get_from_list(struct List * list, const char * name) {
-    if (list == NULL)
-        return 0;
-
-    char * compare;
-    struct AST * ast;
-
-    for (int i = 0; i < list->size; ++i) {
-        ast = list_at(list, i);
-        switch (ast->type) {
-            case AST_VARIABLE:
-                compare = ast->value.variable.name;
-                break;
-            default:
-                println("search_list does not handle AST type: '{s}'", ast_type_to_str(ast->type));
-                exit(1);
-        }
-
-        if (!strcmp(name, compare))
-            return ast;
-    }
-
-    return NULL;
-}
-
-struct AST * get_symbol(char * const name, struct AST const * scope) {
-    struct AST * ast;
-
-    while(scope->type != AST_ROOT) {
-        switch(scope->type) {
-            case AST_SCOPE:
-            {
-                ast = get_from_list(scope->value.scope.variables, name);
-                if (ast != NULL)
-                    return ast;
-                break;
-            }
-            case AST_MODULE:
-            {
-                ast = hashmap_get(scope->value.module.symbols, name);
-
-                if (ast != NULL)
-                    return ast;
-                break;
-            }
-            case AST_FUNCTION:
-            {
-                a_function function = scope->value.function;
-                
-
-                ast = function.arguments;
-                if (ast == NULL)
-                    return NULL;
-                
-                ast = get_from_list(ast->value.expression.children, name);
-                if (ast != NULL)
-                    return ast;
-                
-                ast = hashmap_get(function.template_types, name);
-                if (ast != NULL)
-                    return ast;
-                break;
-            }
-            case AST_IMPL:
-            {
-                break;
-            }
-            default:
-            {
-                FATAL("get_symbol unrecognized type: {s}", ast_type_to_str(scope->type));
-            }
-        }
-        scope = scope->scope;
-    }
-     
-    return hashmap_get(scope->value.root.markers, name);
-
-}
-
-struct AST * get_variable(struct AST * variable) {
-    return get_symbol(variable->value.variable.name, variable->scope);
-}
-
-char * get_name(struct AST * ast) {
+unsigned int get_interner_id(struct AST * ast) {
     switch (ast->type) {
         case AST_FUNCTION:
-            return ast->value.function.name;
+            return ast->value.function.interner_id;
         case AST_DECLARATION:
-            return ast->value.declaration.variable->value.variable.name;
+            return ast->value.declaration.variable->value.variable.interner_id;
         default:
             print_ast("get_name invalid type: {s}", ast);
             exit(1);
     }
 }
 
-void add_marker(struct AST * marker, const char * name) {
-    a_root root = get_scope(AST_ROOT, marker)->value.root;
-
-    hashmap_set(root.markers, name, marker);
-}
-
-void add_member_function(struct AST * marker, struct AST * new_member_to_add, struct AST * current_scope) {
+void add_member_function(Type marker, struct AST * new_member_to_add, struct AST * current_scope) {
     current_scope = get_scope(AST_ROOT, current_scope);
 
     a_root root = current_scope->value.root;
-    Type * type = ast_get_type_of(marker);
 
-    DEBUG("add_member_function marker: {s}", ast_to_string(marker));
+    // DEBUG("add_member_function marker: {s}", type_to_str(marker));
 
-    const char * marker_name = get_base_type_str(*type);
+    const char * marker_name = get_base_type_str(marker);
     ASSERT1(marker_name != NULL);
 
-    struct List * members = hashmap_get(root.markers, marker_name);
+    // struct List * members = hashmap_get(root.markers, marker_name);
 
-    if (members == NULL) {
-        members = init_list(sizeof(struct AST *));
-        ASSERT1(marker_name != NULL);
-        hashmap_set(root.markers, marker_name, members);
-    }
-
-    list_push(members, new_member_to_add);
+    // if (members == NULL) {
+    //     members = init_list(sizeof(struct AST *));
+    //     ASSERT1(marker_name != NULL);
+    //     hashmap_set(root.markers, marker_name, members);
+    // }
+    //
+    // list_push(members, new_member_to_add);
 }
 
 void checker_check_type(struct AST * ast, struct AST * type) {
@@ -166,8 +76,11 @@ Type checker_check_op(struct AST * ast) {
         }
 
         a_variable var = op->left->value.variable;
-        if (var.name[0] == '#') {
-            return checker_check_expr_node(op->right);
+        String func_call_name = interner_lookup_str(var.interner_id);
+        if (func_call_name._ptr[0] == '#') {
+            // return checker_check_expr_node(op->right);
+            /* TODO: Give builtin function calls the correct return type */
+            return UNKNOWN_TYPE;
         }
 
         if (!is_declared_function(var.name, ast->scope)) {
@@ -177,24 +90,7 @@ Type checker_check_op(struct AST * ast) {
 
         right = checker_check_expr_node(op->right);
  
-        struct Arena func_args = ast_to_ast_type_arena(right);
-        struct AST * op_function = get_declared_function(var.name, func_args, ast->scope);
-
-        DEBUG("Function: {s}", var.name);
-        DEBUG("Found function: {s}", ast_to_string(op_function));
-
-        checker_check_function(op_function);
-
-        if (left.intrinsic == IUnknown) {
-            ASSERT1(right.intrinsic != IUnknown);
-
-            FATAL("Unknown function: {2s}", var.name, type_to_str(right));
-        }
-
-        op->type = op_function->value.function.return_type;
-        op->definition = op_function;
-
-        return *op->type;
+        resolve_function_from_call(ast);
 
     } else if (op->op->key == TERNARY && op->right->value.operator.op->key != TERNARY_BODY) {
         FATAL("Detected an error with the ternary operator. This was most likely caused by operator precedence or nested ternary operators. To remedy this try applying parenthesis around the seperate ternary body entries");
@@ -221,23 +117,24 @@ Type checker_check_op(struct AST * ast) {
 
     Type self_type = {.intrinsic = IUnknown};
 
-    struct AST * func = get_function_for_operator(op->op, left, right, &self_type, ast->scope);
-    ASSERT(func != NULL, "get_function_for_operator returned NULL");
-    DEBUG("Found function: {s}", func->value.function.name);
-
-    checker_check_function(func);
-
-    op->definition = func;
-    ASSERT1(func->value.function.return_type != NULL);
-    if (get_base_type(*func->value.function.return_type).intrinsic == ITemplate) {
-        if (op->type == NULL) {
-            ALLOC(op->type);
-        }
-        *op->type = replace_self_in_type(*func->value.function.return_type, self_type);
-    }
- 
-    ASSERT1(op->type != NULL);
-    return *op->type;
+    resolve_function_from_operator(ast);
+    // struct AST * func = get_function_for_operator(op->op, left, right, &self_type, ast->scope);
+    // ASSERT(func != NULL, "get_function_for_operator returned NULL");
+    // DEBUG("Found function: {s}", func->value.function.name);
+    //
+    // checker_check_function(func);
+    //
+    // op->definition = func;
+    // ASSERT1(func->value.function.return_type != NULL);
+    // if (get_base_type(*func->value.function.return_type).intrinsic == ITemplate) {
+    //     if (op->type == NULL) {
+    //         ALLOC(op->type);
+    //     }
+    //     *op->type = replace_self_in_type(*func->value.function.return_type, self_type);
+    // }
+    // 
+    // ASSERT1(op->type != NULL);
+    // return *op->type;
 }
 
 void checker_check_if(struct AST * ast) {
@@ -355,7 +252,7 @@ struct AST * checker_check_impl(struct AST * ast) {
         }
     }
     
-    struct Arena arena;
+    struct arena arena;
     if (impl.type->intrinsic != ITuple) {
         arena = arena_init(sizeof(Type));
         ARENA_APPEND(&arena, impl.type);
@@ -370,11 +267,12 @@ struct AST * checker_check_impl(struct AST * ast) {
     a_module module = ast->scope->value.module;
 
     for (int i = 0; i < arena.size; ++i) {
-        temp1 = arena_get(arena, i); // current type/marker that is to be added to
+        Type * type = arena_get(arena, i); // current type/marker that is to be added to
+        ASSERT1(type != NULL);
         for (int j = 0; j < impl.members->size; ++j) {
             temp2 = list_at(impl.members, j);
             checker_check_function(temp2);
-            add_member_function(temp1, list_at(impl.members, j), ast->scope);
+            add_member_function(*type, list_at(impl.members, j), ast->scope);
         }
     }
     
@@ -447,7 +345,7 @@ void checker_check_declaration(struct AST * ast) {
                 switch (ast->scope->type) {
                     case AST_SCOPE:
                         {
-                            list_push(ast->scope->value.scope.variables, op->left);
+                            // list_push(ast->scope->value.scope.variables, op->left);
                             break;
                         }
                     case AST_MODULE:
@@ -469,7 +367,7 @@ void checker_check_declaration(struct AST * ast) {
             switch (ast->scope->type) {
                 case AST_SCOPE:
                     {
-                        list_push(ast->scope->value.scope.variables, node);
+                        // list_push(ast->scope->value.scope.variables, node);
                         break;
                     }
                 case AST_MODULE:
@@ -543,7 +441,8 @@ struct AST * checker_check_module(struct AST * ast) {
         checker_check_impl(list_at(module->impls, i));
     }
 
-    return hashmap_get(module->symbols, "main");
+    // return hashmap_get(module->symbols, "main");
+    return NULL;
 }
 
 void checker_check(struct AST * ast) {

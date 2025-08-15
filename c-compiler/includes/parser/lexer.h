@@ -5,10 +5,11 @@
 
 struct Lexer {
     char * src;
-    size_t index, size;
-    char c;
-    unsigned int line, pos;
     struct Token * tok;
+    Interner * interner;
+    size_t index, size;
+    unsigned int line, pos;
+    char c;
 };
 
 struct Lexer * init_lexer(char * src, size_t length);

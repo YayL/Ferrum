@@ -6,6 +6,7 @@
 #include "parser/parser.h"
 #include "codegen/checker.h"
 #include "codegen/gen.h"
+#include "tables/interner.h"
 
 #include <sys/time.h>
 
@@ -34,6 +35,7 @@ void ferrum_compile(char * file_path) {
     // return;
 
     struct AST * ast = init_ast(AST_ROOT, NULL);
+    interner_init();
     
     char * abs_path = get_abs_path(file_path),
          * parser_time,

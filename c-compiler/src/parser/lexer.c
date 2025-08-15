@@ -1,4 +1,5 @@
 #include "parser/lexer.h"
+
 #include "parser/operators.h"
 
 #include <ctype.h>
@@ -113,7 +114,7 @@ void lexer_parse_id(struct Lexer * lexer) {
     memcpy(id, lexer->src + start_index, length);
     id[length] = 0;
     
-    set_token(lexer->tok, id, length + 1, is_operator(id) ? TOKEN_OP : TOKEN_ID, lexer->line, _start);
+    set_token(lexer->interner, lexer->tok, id, length + 1, is_operator(id) ? TOKEN_OP : TOKEN_ID, lexer->line, _start);
 }
 
 
@@ -141,7 +142,7 @@ void lexer_parse_string_literal(struct Lexer * lexer) {
 
     lexer_update(lexer, length + 1); // add one for the extra " at the end
 
-	set_token(lexer->tok, string, length + 1, TOKEN_STRING_LITERAL, lexer->line, _start);
+	set_token(lexer->interner, lexer->tok, string, length + 1, TOKEN_STRING_LITERAL, lexer->line, _start);
 
 }
 
@@ -165,7 +166,7 @@ void lexer_parse_int(struct Lexer * lexer) {
 
     lexer_update(lexer, length - 1);
 
-	set_token(lexer->tok, number_string, length + 1, TOKEN_INT, lexer->line, _start);
+	set_token(lexer->interner, lexer->tok, number_string, length + 1, TOKEN_INT, lexer->line, _start);
 }
 
 void lexer_parse_multi_line_comment(struct Lexer * lexer) {
@@ -259,12 +260,12 @@ void lexer_parse_operator(struct Lexer * lexer) {
     offset = lexer->pos;
 
     lexer_update(lexer, length - 1);
-    set_token(lexer->tok, str, length, TOKEN_OP, lexer->line, offset);
+    set_token(lexer->interner, lexer->tok, str, length, TOKEN_OP, lexer->line, offset);
 }
 
 void lexer_advance_current(struct Lexer * lexer, enum token_t type) {
     lexer_advance(lexer);
-    set_token(lexer->tok, NULL, 0, type, lexer->line, lexer->pos);
+    set_token(lexer->interner, lexer->tok, NULL, 0, type, lexer->line, lexer->pos);
 }
 
 
@@ -274,7 +275,7 @@ void lexer_next_token(struct Lexer * lexer) {
     
     switch (lexer->c) {
         case (0):
-            set_token(lexer->tok, NULL, 0, TOKEN_EOF, lexer->line, lexer->pos);
+            set_token(lexer->interner, lexer->tok, NULL, 0, TOKEN_EOF, lexer->line, lexer->pos);
             break;
         case '\n':
             lexer->pos = 0;

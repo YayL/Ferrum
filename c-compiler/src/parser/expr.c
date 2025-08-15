@@ -80,7 +80,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
             case TOKEN_OP:
             {
                 // enclosed flag is true if enclosed operator is the closing enclosing operator
-                op1 = get_operator(parser->token->value, parser->token, mode, &flag);
+                // op1 = get_operator(parser->token->value, parser->token, mode, &flag);
 
                 if (op1->enclosed == ENCLOSED) {
                     if (!flag) { // open enclosed operator

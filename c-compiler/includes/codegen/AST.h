@@ -1,4 +1,6 @@
 #pragma once
+#include "checker/typing.h"
+#include "common/sourcespan.h"
 #include "parser/operators.h"
 #include "parser/types.h"
 
@@ -7,6 +9,8 @@
 #include "common/string.h"
 
 #include "common/macro.h"
+#include "tables/scope.h"
+#include "tables/symbol.h"
 
 #define DEREF_AST(ast) ((struct AST *) ast)->value
 #define get_type_str(type) (type != NULL ? type_to_str(*type) : "void")
@@ -46,22 +50,25 @@ enum AST_type {
 
 typedef struct a_root {
     struct List * modules;
-    struct HashMap * markers;
+    struct hashmap * markers;
 } a_root;
 
 typedef struct a_module {
     char * path;
-    struct HashMap * symbols;
+    struct symbol_table symbol_table;
+    struct scope_table scope_table;
+
+    struct hashmap * symbols;
     struct List * variables;
     struct List * functions;
-    struct HashMap * functions_map;
+    struct hashmap * functions_map;
     struct List * structures;
     struct List * traits;
     struct List * impls;
 } a_module;
 
 typedef struct a_function {
-    char * name;
+    unsigned int interner_id;
     struct AST * arguments;
     struct AST * body;
 
@@ -69,15 +76,15 @@ typedef struct a_function {
     Type * return_type;
 
     struct List * parsed_templates;
-    struct HashMap * template_types;
+    struct hashmap * template_types;
 
     char is_inline;
     char is_checked;
 } a_function;
 
 typedef struct a_scope {
-    struct List * variables;
     struct List * nodes;
+    struct symbol_table symbol_table;
 } a_scope;
 
 typedef struct a_declaration {
@@ -92,7 +99,7 @@ typedef struct a_expr {
 } a_expr;
 
 typedef struct a_struct {
-    char * name;
+    unsigned int interner_id;
     struct List * generics; // struct NAME<GEN1, GEN2>
     struct List * variables;
     struct List * functions;
@@ -105,13 +112,13 @@ typedef struct a_enum {
 } a_enum;
 
 typedef struct a_trait {
-    char * name;
-    struct List * impls;
+    unsigned int interner_id;
+    struct List * implementers;
     struct List * children;
 } a_trait;
 
 typedef struct a_impl {
-    char * name;
+    unsigned int interner_id;
     Type * type;
     struct List * members;
 } a_impl;
@@ -121,12 +128,14 @@ typedef struct a_op {
     struct AST * left;
     struct AST * right;
     Type * type;
-    struct AST * definition;
-    struct HashMap * template_types;
+    struct function_definition {
+        struct AST * function;
+        Arena substitution;
+    } definition;
 } a_op;
 
 typedef struct a_variable {
-    char * name;
+    unsigned int interner_id;
     Type * type;
     unsigned int reg;
     char is_const;
@@ -135,7 +144,7 @@ typedef struct a_variable {
 
 typedef struct a_literal {
     Type * type;
-    char * value;
+    SourceSpan value;
     enum LITERAL_TYPE {
         LITERAL_NUMBER,
         LITERAL_STRING,

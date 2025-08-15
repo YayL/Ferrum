@@ -1,70 +1,62 @@
 #include "common/hashmap.h"
-#include "codegen/AST.h"
 
+#include "common/math.h"
+#include "common/sparselist.h"
 #include "fmt.h"
+#include <stdlib.h>
 
-struct HashMap * init_hashmap(size_t pow_capacity) {
+#define KNUTH_CONST ((unsigned int) 2654435769)
 
-	struct HashMap * map = malloc(sizeof(struct HashMap));
-	
-	map->buckets = (1 << pow_capacity) - 1;
-	map->total = 0;
-
-	map->list = calloc(map->buckets + 1, sizeof(struct SparseList));
-
-	return map;
+HashMap hashmap_init(size_t pow_capacity) {
+	size_t buckets = (1 << pow_capacity); 
+	return (HashMap) {
+		.buckets = buckets,
+		.total = 0,
+		.lists = calloc(buckets, sizeof(struct SparseList)),
+	};
 }
 
-long hashmap_hashcode(struct HashMap * map, const char * key) {
+unsigned int hashmap_hashcode(struct hashmap map, unsigned int key) {	
+	return ((key * KNUTH_CONST) >> (32 - log2i(key))) & (map.buckets - 1);
+}
 
-	const int p = (2 << 7) - 1;
-	const int m = (2 << 24) - 1;
-	
-	long long hash_value = 0;
-	long long p_pow = 31;
-
-	for (int i = 0; key[i]; ++i) {
-		hash_value = (((hash_value + (key[i] - ' ' + 1)) * p_pow) & m);
-		p_pow = (p_pow * p) & m;
+unsigned int hashmap_get(struct hashmap map, unsigned int key) {
+	struct hm_pair * value = sparselist_get(map.lists[hashmap_hashcode(map, key)], key);
+    if (value == NULL) {
+        return -1;
 	}
-	
-	return hash_value & map->buckets;
-}
-
-void * hashmap_get(struct HashMap * map, const char * key) {
-	HM_Pair * value = sparselist_get(map->list + hashmap_hashcode(map, key), key);
-    if (value == NULL)
-        return NULL;
     return value->value;
 }
 
-char hashmap_has(struct HashMap * map, const char * key) {
-	return sparselist_get(map->list + hashmap_hashcode(map, key), key) != NULL;
+char hashmap_has(struct hashmap map, unsigned int key) {
+	return sparselist_get(map.lists[hashmap_hashcode(map, key)], key) != NULL;
 }
 
-void hashmap_set(struct HashMap * map, char * key, void * value) {
-    struct SparseList * list = map->list + hashmap_hashcode(map, key);
-    HM_Pair * pair = sparselist_get(list, key); 
+void hashmap_set(struct hashmap * map, unsigned int key, unsigned int value) {
+    struct SparseList * sparselist = &map->lists[hashmap_hashcode(*map, key)];
+    struct hm_pair * pair = sparselist_get(*sparselist, key);
     
     if (pair != NULL) {
         pair->value = value;
         return;
     }
 
-    sparselist_push(list, key, value);
+    sparselist_push(sparselist, key, value);
     map->total += 1;
 }
 
-void hashmap_combine(struct HashMap * dest, struct HashMap * src) {
-    ASSERT(dest->buckets == src->buckets, "hashmap_combine must have two hashmaps of equal bucket count");
+void hashmap_combine(struct hashmap * dest, struct hashmap src) {
+    ASSERT(dest->buckets == src.buckets, "hashmap_combine must have two hashmaps of equal bucket count");
     
     for (int i = 0; i < dest->buckets; ++i) {
-        sparselist_combine(dest->list + i, src->list + i);
+        sparselist_combine(dest->lists + i, src.lists + i);
     }
+
+	dest->total += src.total;
 }
 
-void * hashmap_remove(struct HashMap * map, const char * key) {
-	HM_Pair * current = sparselist_get(map->list + hashmap_hashcode(map, key), key);
+unsigned int hashmap_remove(struct hashmap * map, unsigned int key) {
+	struct hm_pair * current = sparselist_get(map->lists[hashmap_hashcode(*map, key)], key);
 	
 	if (current == NULL) {
 		println("[HashMap]: Key '{s}' was not found", key);
@@ -77,27 +69,27 @@ void * hashmap_remove(struct HashMap * map, const char * key) {
 	return current->value;
 }
 
-void hashmap_print(struct HashMap * map) {
-	HM_Pair * bucket, * current;
-	println("[Buckets: {lu}, Total: {lu}]:", map->buckets, map->total);
-	for (int i = 0; i <= map->buckets; ++i) {
-        struct SparseList list = map->list[i];
+void hashmap_print(struct hashmap map) {
+	struct hm_pair * bucket, * current;
+	println("[Buckets: {lu}, Total: {lu}]:", map.buckets, map.total);
+	for (int i = 0; i <= map.buckets; ++i) {
+        struct SparseList list = map.lists[i];
 		bucket = list.buf;
         print("{i}({i}):", i + 1, list.size);
 		for (int j = 0; j < list.size;) {
             current = bucket + j;
             if (!current->is_set)
                 continue;
-			print(" {s},", current->key);
+			print(" {u},", current->key);
             ++j;
 		}
         println("");
 	}
 }
 
-void hashmap_clear (struct HashMap * map) {
+void hashmap_clear(struct hashmap * map) {
 	for (int i = 0; i < map->buckets; ++i) {
-        struct SparseList list = map->list[i];
+        struct SparseList list = map->lists[i];
         free(list.buf);
         list.buf = NULL;
         list.size = 0;
@@ -106,11 +98,11 @@ void hashmap_clear (struct HashMap * map) {
 	}
 }
 
-void hashmap_free(struct HashMap * map) {	
+void hashmap_free(struct hashmap * map) {	
 	for (int i = 0; i < map->buckets; ++i) {
-        free(map->list[i].buf);
+        free(map->lists[i].buf);
     }
 	
-	free(map->list);
+	free(map->lists);
 	free(map);
 }

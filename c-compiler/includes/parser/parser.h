@@ -29,7 +29,7 @@ unsigned int is_statement(char *);
 
 void parser_eat(struct Parser * parser, enum token_t type);
 
-struct AST * parser_parse(struct AST * root, char * start_file);
+struct AST * parser_parse(struct AST * root, char * path);
 
 Type parser_parse_type(struct Parser * parser);
 

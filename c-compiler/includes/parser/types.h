@@ -53,7 +53,7 @@ typedef struct Enum_T {
 } Enum_T;
 
 typedef struct Tuple_T {
-    struct Arena types;
+    Arena types;
 } Tuple_T;
 
 typedef struct Impl_T {
@@ -90,11 +90,11 @@ Type ast_to_type(struct AST * ast);
 
 char is_template_type(struct AST * current_scope, char * name);
 struct AST * get_type(struct AST * ast, char * name);
-struct Arena ast_to_ast_type_arena(Type ast);
+Arena type_to_type_arena(Type ast);
 
-char check_types(Type type1, Type type2, struct HashMap * templates);
-char is_implicitly_equal(Type type1, Type type2, struct HashMap * self);
-char is_equal_type(Type type1, Type type2, struct HashMap * self);
+char check_types(Type type1, Type type2, struct hashmap * templates);
+char is_implicitly_equal(Type type1, Type type2);
+char is_equal_type(Type type1, Type type2);
 
 Type copy_type(Type src);
 

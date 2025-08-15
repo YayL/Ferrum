@@ -5,8 +5,8 @@
 void gen_builtin_llvm_op(struct AST * ast, struct AST * self_type) { 
 	a_expr expr = ast->value.expression;
 
-	const char * op = ((struct AST *) list_at(expr.children, 0))->value.literal.value;
-	const char * arr[3] = {0};
+	// const char * op = ((struct AST *) list_at(expr.children, 0))->value.literal.value;
+	// const char * arr[3] = {0};
 
 	// for (int i = 1; i < expr.children->size; ++i) {
 	// 	arr[i - 1] = gen_expr_node(list_at(expr.children, i), self_type);
@@ -62,21 +62,21 @@ const char * gen_builtin_llvm_type_of(struct AST * ast, struct AST * self_type) 
 
 const char * gen_builtin(struct AST * ast, struct AST * self_type) {
 	a_op op = ast->value.operator;
-	const char * builtin = op.left->value.variable.name;
+	// const char * builtin = op.left->value.variable.name;
 
-	if (!strcmp("#llvm_op", builtin)) 
-		gen_builtin_llvm_op(op.right, self_type);
-	else if (!strcmp("#llvm_store", builtin))
-		gen_builtin_llvm_store(op.right, self_type);
-	else if (!strcmp("#llvm_load", builtin))
-		gen_builtin_llvm_load(op.right, self_type);
-	else if (!strcmp("#llvm_register_of", builtin))
-		return gen_builtin_llvm_register_of(op.right, self_type);
-	else if (!strcmp("#llvm_type_of", builtin))
-		return gen_builtin_llvm_type_of(op.right, self_type);
-	else {
-		FATAL("Unknown builtin '{s}'", builtin);
-	}
+	// if (!strcmp("#llvm_op", builtin)) 
+	// 	gen_builtin_llvm_op(op.right, self_type);
+	// else if (!strcmp("#llvm_store", builtin))
+	// 	gen_builtin_llvm_store(op.right, self_type);
+	// else if (!strcmp("#llvm_load", builtin))
+	// 	gen_builtin_llvm_load(op.right, self_type);
+	// else if (!strcmp("#llvm_register_of", builtin))
+	// 	return gen_builtin_llvm_register_of(op.right, self_type);
+	// else if (!strcmp("#llvm_type_of", builtin))
+	// 	return gen_builtin_llvm_type_of(op.right, self_type);
+	// else {
+	// 	FATAL("Unknown builtin '{s}'", builtin);
+	// }
 
 	return NULL;
 }

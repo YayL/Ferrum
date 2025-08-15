@@ -153,18 +153,19 @@ union intrinsic_union init_intrinsic_type(enum intrinsic_type type) {
     return value;
 }
 
-char __is_template_type(struct HashMap * map, char * name) {
-    if (map == NULL)
-        return 0;
-
-    return hashmap_has(map, name);
-}
+// char __is_template_type(struct hashmap * map, char * name) {
+//     if (map == NULL)
+//         return 0;
+//
+//     return hashmap_has(map, name);
+// }
 
 char is_template_type(struct AST * current_scope, char * name) {
     struct AST * scope = get_scope(AST_FUNCTION, current_scope); 
     
-    return scope->type == AST_FUNCTION 
-            && __is_template_type(scope->value.function.template_types, name);
+    return 0;
+    // return scope->type == AST_FUNCTION;
+    //         && __is_template_type(scope->value.function.template_types, name);
 }
 
 struct AST * get_type(struct AST * ast, char * name) {
@@ -206,15 +207,17 @@ Type * ast_get_type_of(struct AST * ast) {
 Type ast_to_type(struct AST * ast) {
     Type type = {0};
 
-    // print_ast_tree(ast);
-
     switch (ast->type) {
         case AST_EXPR:
         {
             a_expr expr = ast->value.expression;
 
             if (expr.children->size == 1) {
-                return *ast_get_type_of(list_at(expr.children, 0));
+                Type * type_ref = ast_get_type_of(list_at(expr.children, 0));
+                if (type_ref == NULL) {
+                    return UNKNOWN_TYPE;
+                }
+                return *type_ref;
             }
 
             type.intrinsic = ITuple;
@@ -239,62 +242,69 @@ Type ast_to_type(struct AST * ast) {
         } break;
         default:
         {
-            FATAL("'{u}' is not an implemented type for type conversion", ast_type_to_str(ast->type));
+            FATAL("'{s}' is not an implemented type for type conversion", ast_type_to_str(ast->type));
         }
     }
 
     return type;
 }
 
-char check_types(Type type1, Type type2, struct HashMap * templates) {
-    if (type1.intrinsic == ITemplate) {
-        // resolve template to corresponding type
-        ASSERT(0, "Type 1 template is unfinished");
-    }
+char is_implementer(Type implementation, Type implementer) {
 
-    if (type2.intrinsic == ITemplate) {
-        Type * copied = malloc(sizeof(Type));
-        *copied = copy_type(type1);
-        hashmap_set(templates, type_to_str(type2), copied);
-        return 1;
-    }
-
-    if (type1.intrinsic == type2.intrinsic) {
-        return is_equal_type(type1, type2, templates);
-    }
-
-    return is_implicitly_equal(type1, type2, templates);
 }
 
-char is_implicitly_equal(Type type1, Type type2, struct HashMap * self) {
-    if (!is_equal_type(get_base_type(type1), get_base_type(type2), self))
+char is_implicitly_equal(Type type1, Type type2) {
+    if (!is_equal_type(get_base_type(type1), get_base_type(type2)))
         return 0;
  
     return 0;
 }
 
-char is_equal_type(Type type1, Type type2, struct HashMap * templates) {
+char is_compatible_type(Type type1, Type type2) {
+    if (type1.intrinsic == type2.intrinsic) {
+        return is_equal_type(type1, type2);
+    }
+
+    if (type1.intrinsic == IImpl) {
+        return is_implementer(type1, type2);
+    } else if (type1.intrinsic == IImpl) {
+        return is_implementer(type2, type1);
+    }
+
+    return 0;
+}
+
+char is_equal_type(Type type1, Type type2) {
     if (type1.intrinsic != type2.intrinsic) {
         return 0;
     }
 
     switch (type1.intrinsic) {
-        case ITemplate:
-            FATAL("Not implemented?");
-        case IRef:
-        {
-            Ref_T ref1 = type1.value.ref, ref2 = type2.value.ref;
- 
-            if (ref1.depth != ref2.depth) {
-                return 0;
-            }
-
-            return check_types(*ref1.basetype, *ref2.basetype, templates);
-        }
         case INumeric:
         {
             Numeric_T num1 = type1.value.numeric, num2 = type2.value.numeric;
             return num1.type == num2.type && num1.width == num2.width;
+        }
+        case IImpl:
+        case IEnum:
+        case IStruct:
+        {
+            return strcmp(type1.name, type2.name) == 0;
+        }
+        case IArray:
+        {
+            Array_T arr1 = type1.value.array, arr2 = type2.value.array;
+            ASSERT1(arr1.basetype != NULL);
+            ASSERT1(arr2.basetype != NULL);
+            return arr1.size == arr2.size && is_equal_type(*arr1.basetype, *arr2.basetype);
+        }
+        case IRef:
+        {
+            Ref_T ref1 = type1.value.ref, ref2 = type2.value.ref;
+ 
+            ASSERT1(ref1.basetype != NULL);
+            ASSERT1(ref2.basetype != NULL);
+            return ref1.depth == ref2.depth && is_equal_type(*ref1.basetype, *ref2.basetype);
         }
         case ITuple:
         {
@@ -305,34 +315,35 @@ char is_equal_type(Type type1, Type type2, struct HashMap * templates) {
             }
             
             for (int i = 0; i < tuple1.types.size; ++i) {
-                if (!check_types(*((Type *) arena_get(tuple1.types, i)), 
-                                 *((Type *) arena_get(tuple1.types, i)), 
-                                 templates)) {
+                Type * child1 = arena_get(tuple1.types, i), * child2 = arena_get(tuple2.types, i);
+                ASSERT1(child1 != NULL);
+                ASSERT1(child2 != NULL);
+                if (!is_equal_type(*child1, *child2)) {
                     return 0;
                 }
             }
         } break;
-        default:
-        {
-            FATAL("{u} is not an implemented intrinsic for checking type equivalance", type1.intrinsic);
-        }
+        // default:
+        // {
+        //     FATAL("{u} is not an implemented intrinsic for checking type equivalance", type1.intrinsic);
+        // }
     }
 
     return 1;
 }
 
-struct Arena ast_to_ast_type_arena(Type type) {
-    struct Arena arena = arena_init(sizeof(Type));
+struct arena type_to_type_arena(Type type) {
     switch (type.intrinsic) {
         case ITuple:
             return type.value.tuple.types;
         default:
         {
+            struct arena arena = arena_init(sizeof(Type));
             ARENA_APPEND(&arena, type);
+            return arena;
         }
     }
 
-    return arena;
 }
 
 Type get_base_type(Type type) {
