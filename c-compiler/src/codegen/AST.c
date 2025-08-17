@@ -34,7 +34,6 @@ union AST_union init_ast_value(enum AST_type type) {
         case AST_MODULE:
             {
                 value.module.symbol_table = symbol_table_init();
-                value.module.scope_table = scope_table_init();
 
                 // value.module.symbols = hashmap_init(8);
                 value.module.functions = init_list(sizeof(struct AST *));

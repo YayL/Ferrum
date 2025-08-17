@@ -1,4 +1,5 @@
 #include "common/logger.h"
+#include "common/common.h"
 
 #ifdef BACKTRACE
 struct backtrace_state * bt_state = NULL;

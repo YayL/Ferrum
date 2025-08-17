@@ -41,15 +41,6 @@ void add_member_function(Type marker, struct AST * new_member_to_add, struct AST
     // list_push(members, new_member_to_add);
 }
 
-void checker_check_type(struct AST * ast, struct AST * type) {
-    Type * left = ast_get_type_of(ast),
-         * right = ast_get_type_of(type);
-
-    if (left->intrinsic != right->intrinsic) {
-        FATAL("{2s::} Missmatched types; {s} is not the same as {s}", left->name, right->name);
-    }
-}
-
 Type checker_check_expr_node(struct AST * ast) {
     switch (ast->type) {
         case AST_OP:
@@ -83,10 +74,10 @@ Type checker_check_op(struct AST * ast) {
             return UNKNOWN_TYPE;
         }
 
-        if (!is_declared_function(var.name, ast->scope)) {
-            ERROR("Call to unknown function: '{s}'", var.name);
-            return UNKNOWN_TYPE;
-        }
+        // if (!is_declared_function(var.name, ast->scope)) {
+        //     ERROR("Call to unknown function: '{s}'", var.name);
+        //     return UNKNOWN_TYPE;
+        // }
 
         right = checker_check_expr_node(op->right);
  
@@ -192,24 +183,24 @@ Type checker_check_expression(struct AST * ast) {
 }
 
 Type checker_check_variable(struct AST * ast) {
-    struct AST * var_ast = get_variable(ast);
+    // struct AST * var_ast = get_variable(ast);
+    //
+    // if (var_ast == NULL || !var_ast->value.variable.is_declared) {
+    //     a_variable variable = ast->value.variable;
+    //     // ERROR("Variable '{s}' used before having been declared", variable.name);
+    //     return UNKNOWN_TYPE;
+    // }
 
-    if (var_ast == NULL || !var_ast->value.variable.is_declared) {
-        a_variable variable = ast->value.variable;
-        ERROR("Variable '{s}' used before having been declared", variable.name);
-        return UNKNOWN_TYPE;
-    }
-
-    ast->value = var_ast->value;
+    // ast->value = var_ast->value;
     return *ast->value.variable.type;
 }
 
 struct AST * checker_check_struct(struct AST * ast) {
     a_struct * _struct = &ast->value.structure;
 
-    if (ast != get_symbol(_struct->name, ast->scope)) {
-        FATAL("Multiple definitions for struct '{s}'", _struct->name);
-    }
+    // if (ast != get_symbol(_struct->name, ast->scope)) {
+    //     FATAL("Multiple definitions for struct '{s}'", _struct->name);
+    // }
 
     ALLOC(_struct->type);
     *_struct->type = ast_to_type(ast);
@@ -218,76 +209,76 @@ struct AST * checker_check_struct(struct AST * ast) {
 
 struct AST * checker_check_impl(struct AST * ast) {
     a_impl impl = ast->value.implementation;
-    struct AST * node = get_symbol(impl.name, ast->scope),
-               * temp1,
-               * temp2;
-
-    if (node == NULL) {
-        FATAL("Invalid trait '{s}' for impl", impl.name);
-    }
-
-    a_trait trait = node->value.trait;
-
-    if (trait.children->size != impl.members->size) {
-        FATAL("Trait '{s}' is not fully implemented for {s}", impl.name, type_to_str(*impl.type));
-    }
-    
-    size_t size = impl.members->size;
-    char * name1, * name2;
-
-    for (int i = 0; i < size; ++i) {
-        char found = 0;
-        temp1 = list_at(impl.members, i);
-        name1 = get_name(temp1);
-        for (int j = 0; j < size; ++j) {
-            temp2 = list_at(trait.children, j);
- 
-            if (temp1->type == temp2->type && !strcmp(name1, get_name(temp2))) {
-                found = 1;
-                break;
-            }
-        }
-        if (!found) {
-            FATAL("Trait '{s}' is not validly implemented for {s}. Correct member definitions", impl.name, type_to_str(*impl.type));
-        }
-    }
-    
-    struct arena arena;
-    if (impl.type->intrinsic != ITuple) {
-        arena = arena_init(sizeof(Type));
-        ARENA_APPEND(&arena, impl.type);
-    } else {
-        arena = impl.type->value.tuple.types;
-    }
-
-    if (ast->scope->type != AST_MODULE) {
-        FATAL("impl is not at module scope?");
-    }
-
-    a_module module = ast->scope->value.module;
-
-    for (int i = 0; i < arena.size; ++i) {
-        Type * type = arena_get(arena, i); // current type/marker that is to be added to
-        ASSERT1(type != NULL);
-        for (int j = 0; j < impl.members->size; ++j) {
-            temp2 = list_at(impl.members, j);
-            checker_check_function(temp2);
-            add_member_function(*type, list_at(impl.members, j), ast->scope);
-        }
-    }
-    
-    return ast;
+    // struct AST * node = get_symbol(impl.name, ast->scope),
+    //            * temp1,
+    //            * temp2;
+    //
+    // if (node == NULL) {
+    //     FATAL("Invalid trait '{s}' for impl", impl.name);
+    // }
+    //
+    // a_trait trait = node->value.trait;
+    //
+    // if (trait.children->size != impl.members->size) {
+    //     FATAL("Trait '{s}' is not fully implemented for {s}", impl.name, type_to_str(*impl.type));
+    // }
+    //
+    // size_t size = impl.members->size;
+    // char * name1, * name2;
+    //
+    // for (int i = 0; i < size; ++i) {
+    //     char found = 0;
+    //     temp1 = list_at(impl.members, i);
+    //     name1 = get_name(temp1);
+    //     for (int j = 0; j < size; ++j) {
+    //         temp2 = list_at(trait.children, j);
+    // 
+    //         if (temp1->type == temp2->type && !strcmp(name1, get_name(temp2))) {
+    //             found = 1;
+    //             break;
+    //         }
+    //     }
+    //     if (!found) {
+    //         FATAL("Trait '{s}' is not validly implemented for {s}. Correct member definitions", impl.name, type_to_str(*impl.type));
+    //     }
+    // }
+    //
+    // struct arena arena;
+    // if (impl.type->intrinsic != ITuple) {
+    //     arena = arena_init(sizeof(Type));
+    //     ARENA_APPEND(&arena, impl.type);
+    // } else {
+    //     arena = impl.type->value.tuple.types;
+    // }
+    //
+    // if (ast->scope->type != AST_MODULE) {
+    //     FATAL("impl is not at module scope?");
+    // }
+    //
+    // a_module module = ast->scope->value.module;
+    //
+    // for (int i = 0; i < arena.size; ++i) {
+    //     Type * type = arena_get(arena, i); // current type/marker that is to be added to
+    //     ASSERT1(type != NULL);
+    //     for (int j = 0; j < impl.members->size; ++j) {
+    //         temp2 = list_at(impl.members, j);
+    //         checker_check_function(temp2);
+    //         add_member_function(*type, list_at(impl.members, j), ast->scope);
+    //     }
+    // }
+    //
+    // return ast;
 
 }
 
 struct AST * checker_check_trait(struct AST * ast) {
     a_trait trait = ast->value.trait;
 
-    struct AST * node = get_symbol(trait.name, ast->scope);
-
-    if (ast != node) {
-        FATAL("Multiple definitions for trait '{s}'", trait.name);
-    }
+    // struct AST * node = get_symbol(trait.name, ast->scope);
+    //
+    // if (ast != node) {
+    //     FATAL("Multiple definitions for trait '{s}'", trait.name);
+    // }
 
     return ast;
 

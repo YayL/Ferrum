@@ -1,7 +1,6 @@
 #include "common/arena.h"
 #include "common/logger.h"
 #include "common/math.h"
-#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 

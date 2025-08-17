@@ -1,14 +1,6 @@
 #pragma once
 
-#include "common/common.h"
-#include "common/io.h"
-#include "parser/lexer.h"
 #include "parser/keywords.h"
-#include "parser/operators.h"
-#include "codegen/checker.h"
-
-#include "common/deque.h"
-
 #include "codegen/AST.h"
 
 typedef struct Parser {

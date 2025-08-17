@@ -198,8 +198,6 @@ void lexer_parse_single_line_comment(struct Lexer * lexer) {
 }
 
 void lexer_parse_operator(struct Lexer * lexer) {
-    struct Operator op;
-
     // arr is an buf keeping track of the indeces of all possible operators matching the string so far and that are longer than current matching
     int arr[sizeof(op_conversion) / sizeof(op_conversion[0])] = {0}, arr_index = 0, arr_size;
     size_t offset = 1, length = 0;
@@ -209,15 +207,16 @@ void lexer_parse_operator(struct Lexer * lexer) {
 
     // check first characther and set length to 1 if found a complete answer or add to arr if a possible match 
     for (int i = 0; i < sizeof(op_conversion) / sizeof(op_conversion[0]); ++i) {
-        if (c == op_conversion[i].str[0]) {
+        struct Operator op = op_conversion[i];
+        if (c == op.str[0]) {
             // if operator is longer than one char
-            if (op_conversion[i].str[1])
+            if (op.str[1])
                 arr[arr_index++] = i;
             else
                 length = 1;
         // is enclosed operator and the ending of enclosed matches char
-        } else if (op_conversion[i].enclosed && c == op_conversion[i].str[op_conversion[i].enclosed_offset]) {
-            if (op_conversion[i].str[op_conversion[i].enclosed_offset + 1])
+        } else if (op.enclosed && c == op.str[op.enclosed_offset]) {
+            if (op.str[op.enclosed_offset + 1])
                 arr[arr_index++] = i;
             else
                 length = 1;
@@ -230,7 +229,7 @@ void lexer_parse_operator(struct Lexer * lexer) {
         arr_index = 0;
         // same as previous for loop but keeps track of an offset for the length of the current operator matching
         for (int i = 0; i < arr_size; ++i) {
-            op = op_conversion[arr[i]];
+            struct Operator op = op_conversion[arr[i]];
             if (c == op.str[offset]) {
                 if (op.str[offset + 1])
                     arr[arr_index++] = arr[i];

@@ -10,18 +10,18 @@
 #include <string.h>
 #include <sys/types.h>
 
-FRSolver frsolver_init(const char * name, Type args, struct AST * scope) {
+FRSolver frsolver_init(unsigned int name_id, Type args, struct AST * scope) {
 	struct AST * module = get_scope(AST_MODULE, scope);
 	ASSERT1(module != NULL);
 	ASSERT1(module->type == AST_MODULE);
 
 	// struct List * candidates = hashmap_get(module->value.module.functions_map, name);
 	// ASSERT1(candidates != NULL);
-	return (FRSolver) { .name = name, args = args, /* candidates = candidates */ };
+	return (FRSolver) { .name_id = name_id, args = args, /* candidates = candidates */ };
 }
 
 FRResult frresult_init(FRSolver solver) {
-	return (FRResult) { .name = solver.name, .args = solver.args, .function = NULL };
+	return (FRResult) { .name_id = solver.name_id, .args = solver.args, .function = NULL };
 }
 
 char frsolver_check_candidate(FRSolver solver, struct AST * candidate, struct arena * substitutions) {

@@ -7,6 +7,8 @@ typedef struct string {
     size_t length;
 } String;
 
+#define STRING_FROM_LITERAL(STR) init_string_with_length(STR, (sizeof(STR) / sizeof(char)) - 1)
+
 void free_string(String);
 
 String init_string_with_length(const char * src, size_t length);

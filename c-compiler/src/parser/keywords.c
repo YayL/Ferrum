@@ -1,19 +1,47 @@
 #include "parser/keywords.h"
 
+#include "common/string.h"
 #include "tables/interner.h"
 
-struct Keyword get_keyword(unsigned int interner_id) {
-    if (interner_id <= ((sizeof(conversion) / sizeof(conversion[0])) - 1)) {
-        return conversion[0];
-    }
+#define CONVERSION_EL(ENUM, USAGE, STR) {INVALID_INTERN_ID, ENUM, USAGE},
+struct Keyword keywords[] = {
+    KEYWORDS_LIST_FULL(CONVERSION_EL)
+};
 
-    return conversion[interner_id];
+#define GET_KEYWORD(KEY) keywords[KEY]
+
+#define KEYWORD_GET_STR(ENUM_KEY, USAGE, STR) case ENUM_KEY: return STR;
+const char * keyword_get_str(enum Keywords keyword_enum) {
+    switch (keyword_enum) {
+        KEYWORDS_LIST_FULL(KEYWORD_GET_STR)
+    }
 }
 
-unsigned int get_keyword_intern_id(enum Keywords keyword_enum) {
-	if (keyword_enum == KEYWORD_NOT_FOUND) {
-		return INVALID_INTERN_ID;
-	}
+struct Keyword keyword_get(enum Keywords keyword_enum) {
+    struct Keyword keyword = GET_KEYWORD(keyword_enum);
+    ASSERT1(keyword.key == keyword_enum);
+    return keyword;
+}
 
-	return ((unsigned int) keyword_enum) - 1;
+struct Keyword keyword_get_by_intern_id(unsigned int ID) {
+    struct Keyword keyword = keyword_get(ID - keyword_get(KEYWORD_NOT_FOUND + 1).intern_id + 1);
+    ASSERT1(keyword.intern_id == ID);
+    return keyword;
+}
+
+unsigned int keyword_get_intern_id(enum Keywords keyword_enum) {
+	return keyword_get(keyword_enum).intern_id;
+}
+
+#define INTERN_KEYWORD(ENUM_KEY, USAGE, STR) \
+    GET_KEYWORD(ENUM_KEY).intern_id = interner_intern(STRING_FROM_LITERAL(STR));
+#define PRINT_INTERNED_KEYWORD(ENUM_KEY, USAGE, STR) \
+    println("{u}: '{s}'", GET_KEYWORD(ENUM_KEY).intern_id, STR);
+
+void keywords_intern() {
+    KEYWORDS_LIST(INTERN_KEYWORD)
+}
+
+void keywords_print() {
+    KEYWORDS_LIST(PRINT_INTERNED_KEYWORD);
 }

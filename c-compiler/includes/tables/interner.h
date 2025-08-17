@@ -3,7 +3,7 @@
 #include "common/arena.h"
 #include "common/string.h"
 
-#define INVALID_INTERN_ID (-1)
+#define INVALID_INTERN_ID (0)
 
 struct interner_hm_pair {
 	const char * key;

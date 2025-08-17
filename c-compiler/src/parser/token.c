@@ -68,7 +68,7 @@ const char* token_type_to_str(enum token_t type) {
 	return "UNDEFINED";
 }
 
-char * token_to_str(Interner interner, struct Token token) {
+char * token_to_str(struct Token token) {
 	const char * type_str = token_type_to_str(token.type);
 
 	const char * value;

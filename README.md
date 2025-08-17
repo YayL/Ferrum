@@ -23,10 +23,10 @@ We use libbacktrace for backtraces but it can be disabled by commenting out *BAC
 ### Marker:
     A symbol that defines a type
 ### Trait:
-    A marker that is a group of types
+    A symbol that defines a property of type
 ### Struct:
     A marker that is named structuring of markers
 ### Enum:
     A marker capable of being different types at runtime
 ### Impl:
-    An extension to a type defining that type's "member functions" and operations
+    An implementation of a trait on a type

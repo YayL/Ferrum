@@ -9,7 +9,6 @@
 #include "common/string.h"
 
 #include "common/macro.h"
-#include "tables/scope.h"
 #include "tables/symbol.h"
 
 #define DEREF_AST(ast) ((struct AST *) ast)->value
@@ -56,7 +55,6 @@ typedef struct a_root {
 typedef struct a_module {
     char * path;
     struct symbol_table symbol_table;
-    struct scope_table scope_table;
 
     struct hashmap * symbols;
     struct List * variables;

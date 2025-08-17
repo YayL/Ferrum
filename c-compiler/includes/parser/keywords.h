@@ -1,5 +1,6 @@
 #pragma once
 
+#include "tables/interner.h"
 enum Keywords_usage {
     ANY,
     GLOBAL_ONLY,
@@ -8,7 +9,8 @@ enum Keywords_usage {
 };
 
 #define KEYWORDS_LIST(f) \
-    f(KEYWORD_NOT_FOUND, NONE, "KEYWORD_NOT_FOUND") \
+    f(KEYWORD_BOOL, NONE, "bool") \
+    \
     f(KEYWORD_CONST, ANY, "const") \
     f(KEYWORD_LET, ANY, "let") \
     \
@@ -29,23 +31,28 @@ enum Keywords_usage {
     f(KEYWORD_RETURN, FUNCTION_ONLY, "return") \
     f(KEYWORD_TYPENAME, FUNCTION_ONLY, "typename")
 
+#define KEYWORDS_LIST_FULL(f) \
+    f(KEYWORD_NOT_FOUND, NONE, "KEYWORD_NOT_FOUND") \
+    KEYWORDS_LIST(f)
+
 #define KEYWORDS_ENUM_EL(ENUM, ...) ENUM,
 
 enum Keywords {
-    KEYWORDS_LIST(KEYWORDS_ENUM_EL)
+    KEYWORDS_LIST_FULL(KEYWORDS_ENUM_EL)
 };
 
-#define CONVERSION_EL(ENUM, USAGE, STR) {ENUM, USAGE, STR},
+#define CONVERSION_EL(ENUM, USAGE, STR) {INVALID_INTERN_ID, ENUM, USAGE},
 
-const static struct Keyword {
-    enum Keywords key;
-    char flag;
-    const char * str;
-} conversion [] = {
-    KEYWORDS_LIST(CONVERSION_EL)
+struct Keyword {
+    unsigned int intern_id;
+    const enum Keywords key;
+    const char flag;
 };
 
-#define GET_KEYWORD_INTERN_ID(ENUM) (ENUM == KEYWORD_NOT_FOUND ? INVALID_INTERN_ID : ((unsigned int) ENUM) - 1)
+void keywords_intern();
 
-struct Keyword get_keyword(unsigned int interner_id);
-unsigned int get_keyword_intern_id(enum Keywords keyword_enum);
+struct Keyword keyword_get(enum Keywords keyword_enum);
+struct Keyword keyword_get_by_intern_id(unsigned int ID);
+
+unsigned int keyword_get_intern_id(enum Keywords keyword_enum);
+const char * keyword_get_str(enum Keywords keyword_enum);

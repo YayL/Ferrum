@@ -1,21 +1,22 @@
+#include "parser/lexer.h"
+#include "parser/parser.h"
+
+#include "common/deque.h"
 #include "codegen/AST.h"
 #include "common/list.h"
 #include "common/logger.h"
-#include "common/macro.h"
-#include "fmt.h"
+#include "common/sourcespan.h"
 #include "parser/operators.h"
-#include "parser/parser.h"
 
-struct Operator * get_operator(const char * str, struct Token * token, enum OP_mode mode, char * enclosed_flag) {
+struct Operator * get_operator(SourceSpan span, struct Token * token, enum OP_mode mode, char * enclosed_flag) {
     struct Operator * op = malloc(sizeof(struct Operator));
-    *op = str_to_operator(str, mode, enclosed_flag);
+    *op = str_to_operator(span.start, mode, enclosed_flag);
 
     if (op->key == OP_NOT_FOUND && mode == BINARY)
-        *op = str_to_operator(str, UNARY_POST, enclosed_flag);
+        *op = str_to_operator(span.start, UNARY_POST, enclosed_flag);
 
     if (op->key == OP_NOT_FOUND) {
-        ERROR("{s} operator '{s}' not found: ", mode == BINARY ? "Binary" : "Unary", str);
-        print_token("{s}\n", token);
+        ERROR("{s} operator '{s}' not found: {s}", mode == BINARY ? "Binary" : "Unary", span, token_to_str(*token));
         exit(1);
     }
 
@@ -59,7 +60,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
             case TOKEN_ID:
             {
                 if (mode == BINARY) {
-                    print_token("[Parser] Invalid expression token: {s}\n", parser->token);
+                    println("[Parser] Invalid expression token: {s}\n", token_to_str(*parser->token));
                     exit(1);
                 }
 
@@ -80,7 +81,8 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
             case TOKEN_OP:
             {
                 // enclosed flag is true if enclosed operator is the closing enclosing operator
-                // op1 = get_operator(parser->token->value, parser->token, mode, &flag);
+                op1 = get_operator(parser->token->value.span, parser->token, mode, &flag);
+                println("{s}", operator_to_str(op1));
 
                 if (op1->enclosed == ENCLOSED) {
                     if (!flag) { // open enclosed operator
@@ -103,7 +105,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                                 goto exit;
                             }
                             if (operators->size == 1) {
-                                print_token("[Parser] Unmatched enclosed operator: {s}\n", parser->token);
+                                println("[Parser] Unmatched enclosed operator: {s}", token_to_str(*parser->token));
                                 exit(1);
                             }
                             consume_add_operator(op2, output, parser);
@@ -165,9 +167,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                     list_push(expressions, list_at(output, -1));
                     output = init_list(sizeof(struct AST *));
                 }else if (output->size != 1) {
-                    ERROR("Unprecedentent usage of expression separator");
-                    print_token("{s}\n", parser->token);
-                    exit(1);
+                    FATAL("[Parser] Unprecedentent usage of expression separator: {s}", token_to_str(*parser->token));
                 }
 
                 mode = UNARY_PRE;
@@ -203,8 +203,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
             case TOKEN_RBRACE:
                 goto exit;
             default:
-                print_token("[Parser]: Unrecognized token in expression\n{s}\n", parser->token);
-                exit(1);
+                FATAL("[Parser] Unrecognized token in expression: {s}", token_to_str(*parser->token));
         }
     }
 
@@ -216,7 +215,7 @@ exit:
     while (operators->size) {
         op1 = deque_back(operators);
         if (op1->enclosed == ENCLOSED) {
-            print_token("[Parser] Unmatched enclosed operator near: {s}\n", parser->token);
+            FATAL("[Parser] Unmatched enclosed operator near: {s}", token_to_str(*parser->token));
             exit(1);
         }
         consume_add_operator(op1, output, parser);
@@ -226,8 +225,7 @@ exit:
     if (output->size == 1) {
         list_push(expressions, list_at(output, 0));
     } else if (flag) {
-        ERROR("Invalid expression; too many discarded expressions({i})", output->size);
-        print_token("{s}\n", parser->token);
+        ERROR("Invalid expression; too many discarded expressions({i}) | {s}", output->size, token_to_str(*parser->token));
     }
 
     return expressions;
@@ -254,7 +252,7 @@ struct AST * parser_parse_expr_exit_on(struct Parser * parser, enum Operators op
     ast->value.expression.children = _parser_parse_expr(parser, output, operators, op);
 
     if (parser->prev->type == TOKEN_SEMI) {
-        print_token("[Warning] Unnecessary semicolon\n{s}\n", parser->prev);
+        WARN("Unnecessary semicolon: {s}", token_to_str(*parser->prev));
     }
 
     return ast;

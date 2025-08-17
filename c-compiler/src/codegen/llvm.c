@@ -1,5 +1,6 @@
 #include "codegen/llvm.h"
 #include "parser/types.h"
+#include "tables/interner.h"
 
 const char * llvm_type_to_llvm_type(Type type, struct AST * self_type) {
     switch (type.intrinsic) {
@@ -14,7 +15,7 @@ const char * llvm_type_to_llvm_type(Type type, struct AST * self_type) {
                 return format("f{u}", num.width);
         }
         case IStruct:
-            return format("%struct.{s}", type.name);
+            return format("%struct.{s}", interner_lookup_str(type.name_id));
         case IRef:
             return "ptr";
         case IArray:
@@ -32,7 +33,7 @@ const char * llvm_type_to_llvm_type(Type type, struct AST * self_type) {
 const char * llvm_type_to_llvm_arg_type(Type type, struct AST * self_type) {
     switch (type.intrinsic) {
         case IStruct:
-            return format("ptr byval(%struct.{s})", type.name);
+            return format("ptr byval(%struct.{s})", interner_lookup_str(type.name_id));
         default:
             return llvm_type_to_llvm_type(type, self_type);
     }

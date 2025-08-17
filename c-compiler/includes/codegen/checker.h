@@ -10,8 +10,6 @@ struct Checker {
     // struct HashMap * implementations;
 };
 
-struct AST * get_symbol(char * const name, struct AST const * scope);
-struct AST * get_variable(struct AST * variable);
 
 void add_marker(struct AST * marker, const char * name);
 struct AST * get_marker(struct AST * ast, const char * name);

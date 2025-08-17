@@ -1,16 +1,10 @@
 #include "parser/parser.h"
+
 #include "codegen/AST.h"
-#include "common/hashmap.h"
-#include "common/list.h"
-#include "common/logger.h"
-#include "common/macro.h"
-#include "common/sourcespan.h"
-#include "parser/keywords.h"
+#include "common/common.h"
+#include "common/io.h"
 #include "parser/modules.h"
-#include "parser/token.h"
-#include "parser/types.h"
-#include <stdlib.h>
-#include <string.h>
+#include "parser/lexer.h"
 
 struct Parser * init_parser(char * path) {
     struct Parser * parser = malloc(sizeof(struct Parser));
@@ -36,6 +30,7 @@ void parser_eat(struct Parser * parser, enum token_t type) {
                     parser->token->line, parser->token->pos, 
                     token_type_to_str(type), 
                     token_type_to_str(parser->token->type));
+        println("path: {s}", parser->path);
         parser->error = 1;
     }
 
@@ -56,7 +51,7 @@ struct AST * parser_parse_int(struct Parser * parser) {
     ALLOC(number->type);
     Type * type = number->type;
 
-    type->name = "i32";
+    type->name_id = interner_intern(STRING_FROM_LITERAL("i32"));
     type->value.numeric = num;
     type->intrinsic = INumeric;
 
@@ -126,7 +121,7 @@ struct AST * parser_parse_if(struct Parser * parser) {
 
         is_else = 0;
 
-        if (if_statement && parser->token->type == TOKEN_ID && parser->token->value.interner_id == GET_KEYWORD_INTERN_ID(KEYWORD_ELSE)) {
+        if (if_statement && parser->token->type == TOKEN_ID && parser->token->value.interner_id == keyword_get_intern_id(KEYWORD_ELSE)) {
             parser_eat(parser, TOKEN_ID);
             is_else = 1;
         }
@@ -141,7 +136,7 @@ struct AST * parser_parse_if(struct Parser * parser) {
             if_statement = &ast->value.if_statement;
         }
 
-        if (parser->token->type == TOKEN_ID && parser->token->value.interner_id == GET_KEYWORD_INTERN_ID(KEYWORD_IF)) {
+        if (parser->token->type == TOKEN_ID && parser->token->value.interner_id == keyword_get_intern_id(KEYWORD_IF)) {
             parser_eat(parser, TOKEN_ID);
             if_statement->expression = parser_parse_expr(parser);
             if_statement->body = parser_parse_scope(parser);
@@ -385,7 +380,7 @@ struct AST * parser_parse_statement(struct Parser * parser) {
         return parser_parse_expr(parser);
     }
 
-    struct Keyword keyword = get_keyword(parser->token->value.interner_id);
+    struct Keyword keyword = keyword_get(parser->token->value.interner_id);
     ASSERT(keyword.key == KEYWORD_NOT_FOUND, "Unable to find keyword '{u}'?", parser->token->value.interner_id);
 
     switch (keyword.key) {
@@ -393,8 +388,7 @@ struct AST * parser_parse_statement(struct Parser * parser) {
         case KEYWORD_LET:
             return parser_parse_declaration(parser, keyword.key);
         case KEYWORD_ELSE:
-            print_token("[Parser] Error else without if: {s}\n", parser->token);
-            exit(1);
+            FATAL("[Parser] Error else without if: {s}", token_to_str(*parser->token));
         case KEYWORD_IF:
             return parser_parse_if(parser);
         case KEYWORD_FOR:
@@ -409,8 +403,7 @@ struct AST * parser_parse_statement(struct Parser * parser) {
             return parser_parse_return(parser);
         default:
             if (keyword.flag == GLOBAL_ONLY && keyword.flag != ANY) {
-                print_token("[Parser]: {s} is not allowed in the function scope\n", parser->prev);
-                exit(1);
+                FATAL("[Parser] {s} is not allowed in the function scope\n", token_to_str(*parser->prev));
             }
     }
     println("[Parser] Unknown error control flow somehow got to the end of parser_parse_statement?");
@@ -456,16 +449,13 @@ struct AST * parser_parse_scope(struct Parser * parser) {
 }
 
 struct AST * parser_parse_function(struct Parser * parser) {
-    
     struct AST * ast = init_ast(AST_FUNCTION, parser->current_scope), 
                * argument,
                * param_types;
     a_function * function = &ast->value.function;
     parser->current_scope = ast;
-    
-    parser_eat(parser, TOKEN_ID);
-    
-    if (parser->token->type && parser->token->value.interner_id == GET_KEYWORD_INTERN_ID(KEYWORD_INLINE)) {
+
+    if (parser->token->type == TOKEN_ID && parser->token->value.interner_id == keyword_get_intern_id(KEYWORD_INLINE)) {
         function->is_inline = 1;
         parser_eat(parser, TOKEN_ID);
     }
@@ -543,7 +533,6 @@ struct AST * parser_parse_function(struct Parser * parser) {
 }
 
 struct AST * parser_parse_package(struct Parser * parser) {
-    
     parser_eat(parser, TOKEN_ID);
 
     char * path = parser->path;
@@ -553,13 +542,15 @@ struct AST * parser_parse_package(struct Parser * parser) {
             last = i;
     }
     
+    SourceSpan package_name = parser->token->value.span;
+    const char * package_name_cstr = source_span_to_cstr(parser->token->value.span);
+
     path[last] = 0;
-    path = format("{4s}", path, "/", parser->token->value, ".fe");
+    path = format("{4s}", path, "/", package_name_cstr, ".fe");
     parser->path[last] = '/';
 
-    SourceSpan package_name = parser->token->value.span;
 
-    INFO("Added package '{s}' at '{s}'", source_span_to_cstr(package_name), path);
+    INFO("Added package '{s}' at '{s}'", package_name_cstr, path);
     parser_eat(parser, TOKEN_STRING_LITERAL);
 
     struct AST * other_module = find_module(parser->root, path),
@@ -578,17 +569,16 @@ struct AST * parser_parse_package(struct Parser * parser) {
 
 struct AST * parser_parse_identifier(struct Parser * parser) {
     ASSERT1(parser->token->type == TOKEN_ID);
-    struct Keyword identifier = get_keyword(parser->token->value.interner_id);
+    struct Keyword identifier = keyword_get_by_intern_id(parser->token->value.interner_id);
+
 
     if (identifier.flag != GLOBAL_ONLY && identifier.flag != ANY) {
-        print_token("[Parser]: {s} is not allowed in the module scope\n", parser->token);
-        exit(1);
+        FATAL("[Parser] {s} is not allowed in the module scope", token_to_str(*parser->token));
     }
- 
+
     switch (identifier.key) {
         case KEYWORD_NOT_FOUND:
-            print_token("[Parser]: {s} is not a valid identifier\n", parser->token);
-            exit(1);
+            FATAL("[Parser]: {s} is not a valid identifier", token_to_str(*parser->token));
         case KEYWORD_FN:
             return parser_parse_function(parser);
         case KEYWORD_CONST:
@@ -603,7 +593,7 @@ struct AST * parser_parse_identifier(struct Parser * parser) {
         case KEYWORD_IMPL:
             return parser_parse_impl(parser);
         default:
-            FATAL("Unknown identifier: '{s}'", identifier.str);
+            FATAL("Unknown identifier: '{s}'", keyword_get_str(identifier.key));
     }
 }
 
@@ -619,7 +609,6 @@ struct AST * parser_parse_module(struct Parser * parser, struct AST * ast) {
         }
 
         node = parser_parse_identifier(parser);
-
         parser->current_scope = ast;
 
         if (node == NULL)

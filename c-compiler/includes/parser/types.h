@@ -70,7 +70,7 @@ typedef struct Variable_T {
 } Variable_T;
 
 typedef struct Type {
-    char * name;
+    unsigned int name_id;
     short size;
     enum intrinsic_type {
         IUnknown,
@@ -88,8 +88,8 @@ char * type_to_str(Type type);
 Type * ast_get_type_of(struct AST * ast);
 Type ast_to_type(struct AST * ast);
 
-char is_template_type(struct AST * current_scope, char * name);
-struct AST * get_type(struct AST * ast, char * name);
+char is_template_type(struct AST * current_scope, unsigned int name_id);
+struct AST * get_type(struct AST * ast, unsigned int name_id);
 Arena type_to_type_arena(Type ast);
 
 char check_types(Type type1, Type type2, struct hashmap * templates);

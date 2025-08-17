@@ -3,13 +3,13 @@
 #include "parser/types.h"
 
 typedef struct function_resoloution_solver {
-	const char * name;
+	unsigned int name_id;
 	Type args;
 	struct List * candidates;
 } FRSolver;
 
 typedef struct function_resoloution_result {
-	const char * name;
+	unsigned int name_id;
 	Type args;
 	struct AST * function;
 	Arena substitutions;
@@ -20,7 +20,7 @@ struct substitution {
 	Type substitution_type;
 };
 
-FRSolver frsolver_init(const char * name, Type args, struct AST * scope);
+FRSolver frsolver_init(unsigned int name_id, Type args, struct AST * scope);
 FRResult frsolver_solve(FRSolver solver);
 
 struct substitution subst_lookup(FRResult fr, unsigned int ID);

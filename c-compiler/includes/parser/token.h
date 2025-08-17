@@ -56,4 +56,4 @@ void set_token(Interner * intern, struct Token * tok, char * value, unsigned int
 void copy_token(struct Token * dest, struct Token * src);
 
 const char* token_type_to_str(enum token_t type);
-void print_token(const char * template, struct Token * token);
+char * token_to_str(struct Token token);

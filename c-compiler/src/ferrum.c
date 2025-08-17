@@ -34,8 +34,8 @@ void ferrum_compile(char * file_path) {
 
     // return;
 
-    struct AST * ast = init_ast(AST_ROOT, NULL);
     interner_init();
+    struct AST * ast = init_ast(AST_ROOT, NULL);
     
     char * abs_path = get_abs_path(file_path),
          * parser_time,
@@ -52,6 +52,9 @@ void ferrum_compile(char * file_path) {
     asprintf(&parser_time, "Time for parser:\t%.3fms", (double)time / 1000);
 
     print_ast_tree(ast);
+
+    println("Finished parsing");
+    exit(0);
 
     start_timer();
     checker_check(ast);

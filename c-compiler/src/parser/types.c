@@ -1,56 +1,54 @@
-#include "codegen/AST.h"
-#include "common/arena.h"
+#include "parser/types.h"
+
 #include "common/common.h"
-#include "common/hashmap.h"
-#include "common/list.h"
-#include "common/logger.h"
-#include "common/macro.h"
+#include "codegen/AST.h"
+#include "parser/keywords.h"
 #include "parser/parser.h"
 #include "parser/token.h"
-#include "parser/types.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "tables/interner.h"
 
 Type parser_parse_type(struct Parser * parser) {
     Type type = UNKNOWN_TYPE;
 
     switch (parser->token->type) {
     case TOKEN_ID:
-        if (!strcmp(parser->token->value, "impl")) {
+        if (parser->token->value.interner_id == keyword_get_intern_id(KEYWORD_IMPL)) {
             parser_eat(parser, TOKEN_ID);
 
             type.intrinsic = IImpl;
-            type.name = parser->token->value;
+            type.name_id = parser->token->value.interner_id;
             parser_eat(parser, TOKEN_ID);
-        } else if (!strcmp(parser->token->value, "struct")) {
+        } else if (parser->token->value.interner_id == keyword_get_intern_id(KEYWORD_STRUCT)) {
             parser_eat(parser, TOKEN_ID);
 
             type.intrinsic = IStruct;
-            type.name = parser->token->value;
+            type.name_id = parser->token->value.interner_id;
             parser_eat(parser, TOKEN_ID);
-        } else if (!strcmp(parser->token->value, "enum")) {
+        } else if (parser->token->value.interner_id == keyword_get_intern_id(KEYWORD_ENUM)) {
             parser_eat(parser, TOKEN_ID);
 
             type.intrinsic = IEnum;
-            type.name = parser->token->value;
+            type.name_id = parser->token->value.interner_id;
             parser_eat(parser, TOKEN_ID);
-        } else if (!strcmp(parser->token->value, "bool")) {
+        } else if (parser->token->value.interner_id == keyword_get_intern_id(KEYWORD_BOOL)) {
             parser_eat(parser, TOKEN_ID);
             type.intrinsic = INumeric;
             type.value = init_intrinsic_type(INumeric);
             type.value.numeric.type = NUMERIC_UNSIGNED;
             type.value.numeric.width = 1;
-        } else if (is_template_type(parser->current_scope, parser->token->value)) {
+        } else if (is_template_type(parser->current_scope, parser->token->value.interner_id)) {
             type.intrinsic = ITemplate;
             type.value = init_intrinsic_type(ITemplate);
-            type.name = parser->token->value;
+            type.name_id = parser->token->value.interner_id;
             parser_eat(parser, TOKEN_ID);
         } else {
             type.intrinsic = INumeric;
             type.value = init_intrinsic_type(INumeric);
 
-            switch (parser->token->value[0]) {
+            const char * type_str = interner_lookup_str(parser->token->value.interner_id)._ptr;
+            println("type: {s}", type_str);
+
+            switch (type_str[0]) {
             case 'i':
                 type.value.numeric.type = NUMERIC_SIGNED; break;
             case 'u':
@@ -61,7 +59,7 @@ Type parser_parse_type(struct Parser * parser) {
                 goto NUMERIC_PARSE_ERROR;
             }
 
-            type.value.numeric.width = atoi(parser->token->value + 1);
+            type.value.numeric.width = atoi(type_str + 1);
 
             if (type.value.numeric.width == 0) {
 NUMERIC_PARSE_ERROR:
@@ -92,7 +90,7 @@ NUMERIC_PARSE_ERROR:
 
         switch (parser->token->type) {
         case TOKEN_INT:
-            type.value.array.size = atoi(parser->token->value);
+            type.value.array.size = atoi(parser->token->value.span.start);
             parser_eat(parser, TOKEN_INT);
             break;
         case TOKEN_UNDERSCORE:
@@ -160,7 +158,7 @@ union intrinsic_union init_intrinsic_type(enum intrinsic_type type) {
 //     return hashmap_has(map, name);
 // }
 
-char is_template_type(struct AST * current_scope, char * name) {
+char is_template_type(struct AST * current_scope, unsigned int name_id) {
     struct AST * scope = get_scope(AST_FUNCTION, current_scope); 
     
     return 0;
@@ -168,7 +166,7 @@ char is_template_type(struct AST * current_scope, char * name) {
     //         && __is_template_type(scope->value.function.template_types, name);
 }
 
-struct AST * get_type(struct AST * ast, char * name) {
+struct AST * get_type(struct AST * ast, unsigned int name_id) {
     struct AST * scope = get_scope(AST_MODULE, ast->scope), * temp;
     a_module * module = &scope->value.module;
     a_struct * _struct;
@@ -177,7 +175,7 @@ struct AST * get_type(struct AST * ast, char * name) {
         temp = list_at(module->structures, i);
         ASSERT1(temp->type == AST_SCOPE);
         _struct = &temp->value.structure;
-        if (!strcmp(_struct->name, name)) {
+        if (_struct->interner_id == name_id) {
             return temp;
         }
     }
@@ -237,7 +235,7 @@ Type ast_to_type(struct AST * ast) {
         {
             a_struct _struct = ast->value.structure;
 
-            type.name = _struct.name;
+            type.name_id = _struct.interner_id;
             type.intrinsic = IStruct;
         } break;
         default:
@@ -289,7 +287,7 @@ char is_equal_type(Type type1, Type type2) {
         case IEnum:
         case IStruct:
         {
-            return strcmp(type1.name, type2.name) == 0;
+            return type1.name_id == type2.name_id;
         }
         case IArray:
         {
@@ -394,11 +392,11 @@ char * type_to_str(Type type) {
         case IUnknown:
             return "Unknown";
         case ITemplate:
-            return type.name;
+            return interner_lookup_str(type.name_id)._ptr;
         case IStruct:
         case IEnum:
         {
-            return type.name;
+            return interner_lookup_str(type.name_id)._ptr;
         }
         case INumeric:
         {
@@ -455,9 +453,9 @@ char * type_to_str(Type type) {
             return format("{s})", buf);
         }
         case IImpl:
-            return format("impl {s}", type.name);
+            return format("impl {s}", interner_lookup_str(type.name_id)._ptr);
         case IVariable:
-            return format("?{i}", type.value.variable.ID);
+            return format("?{u}", type.value.variable.ID);
     }
 
     return "(NULL)";

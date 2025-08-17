@@ -2,12 +2,9 @@
 
 #include "checker/typing.h"
 #include "codegen/AST.h"
-#include "codegen/checker.h"
 #include "common/arena.h"
 #include "common/list.h"
 #include "common/logger.h"
-#include "common/macro.h"
-#include "fmt.h"
 #include "parser/operators.h"
 #include "parser/types.h"
 #include <stdlib.h>
@@ -17,10 +14,8 @@ void resolve_function_from_call(struct AST * ast) {
     struct AST * left = op->left, * right = op->right;
     ASSERT1(left->type == AST_VARIABLE);
 
-    const char * function_name = left->value.variable.name;
     Type args_type = ast_to_type(right);
-
-    FRResult result = frsolver_solve(frsolver_init(function_name, args_type, ast->scope));
+    FRResult result = frsolver_solve(frsolver_init(left->value.variable.interner_id, args_type, ast->scope));
 
     if (result.function == NULL) {
         ERROR("Function {s}({s}) is not defined", op->op->str, type_to_str(args_type));
@@ -51,11 +46,10 @@ void resolve_function_from_operator(struct AST * ast) {
     }
     ARENA_APPEND(arena, *rhs_type);
 
-    const char * function_name = get_operator_runtime_name(op->op->key);
-    FRResult result = frsolver_solve(frsolver_init(function_name, *type, ast->scope));
+    FRResult result = frsolver_solve(frsolver_init(operator_get_intern_id(op->op->key), *type, ast->scope));
 
     if (result.function == NULL) {
-        ERROR("Operator '{s}'({s}) is not defined for {s}", op->op->str, function_name, type_to_str(*type));
+        ERROR("Operator '{s}'({s}) is not defined for {s}", op->op->str, operator_get_runtime_name(op->op->key), type_to_str(*type));
         exit(1);
     }
 
@@ -134,7 +128,7 @@ struct AST * get_function_for_operator(struct Operator * op, Type lhs, Type rhs,
         *self_type = *((Type *) arena_get(arg_types_arena, 0));
     }
 
-    const char * name = get_operator_runtime_name(op->key);
+    const char * name = operator_get_runtime_name(op->key);
     struct AST * func = get_member_function(name, rhs, lhs, scope);
 
     DEBUG("Name: {s}", name);
@@ -162,7 +156,7 @@ struct AST * get_function_for_operator(struct Operator * op, Type lhs, Type rhs,
     return func;
 }
 
-struct AST * get_declared_function(const char * name, Arena list1, struct AST * scope) {
+struct AST * get_declared_function(unsigned int name_id, Arena list1, struct AST * scope) {
     scope = get_scope(AST_MODULE, scope); 
     a_module module = scope->value.module;
 
@@ -170,8 +164,9 @@ struct AST * get_declared_function(const char * name, Arena list1, struct AST * 
         struct AST * node = list_at(module.functions, i);
         a_function function = node->value.function;
 
-        if (strcmp(function.name, name))
+        if (function.interner_id != name_id) {
             continue;
+        }
 
         Arena list2 = type_to_type_arena(*function.param_type);
 
@@ -195,13 +190,13 @@ struct AST * get_declared_function(const char * name, Arena list1, struct AST * 
     return NULL;
 }
 
-char is_declared_function(char * name, struct AST * scope) {
+char is_declared_function(unsigned int name_id, struct AST * scope) {
     scope = get_scope(AST_MODULE, scope);
 
     a_module module = scope->value.module;
     for (int i = 0; i < module.functions->size; ++i) {
         a_function function = DEREF_AST(list_at(module.functions, i)).function;
-        if (!strcmp(function.name, name))
+        if (function.interner_id == name_id)
             return 1;
     }
 
