@@ -5,11 +5,15 @@
 
 typedef struct Parser {
     struct Lexer * lexer;
-    struct Token * token;
-    struct Token * prev;
+
     struct AST * root;
     struct AST * current_scope;
+
     char * path;
+
+    struct Token * token;
+
+    struct Token prev;
     char error;
 } * Parser;
 
@@ -21,7 +25,7 @@ unsigned int is_statement(char *);
 
 void parser_eat(struct Parser * parser, enum token_t type);
 
-struct AST * parser_parse(struct AST * root, char * path);
+void parser_parse(struct AST * root, char * path);
 
 Type parser_parse_type(struct Parser * parser);
 

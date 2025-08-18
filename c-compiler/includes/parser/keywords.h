@@ -54,5 +54,6 @@ void keywords_intern();
 struct Keyword keyword_get(enum Keywords keyword_enum);
 struct Keyword keyword_get_by_intern_id(unsigned int ID);
 
+char keyword_interner_id_is_inbounds(unsigned int ID);
 unsigned int keyword_get_intern_id(enum Keywords keyword_enum);
 const char * keyword_get_str(enum Keywords keyword_enum);

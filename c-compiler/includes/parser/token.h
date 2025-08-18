@@ -1,15 +1,11 @@
 #pragma once
 
 #include "common/sourcespan.h"
-#include "common/string.h"
 #include "tables/interner.h"
 
 struct Token {
-	union token_value_union {
-		unsigned int interner_id;
-		SourceSpan span;
-	} value;
-
+	SourceSpan span;
+	unsigned int interner_id;
 	unsigned int line, pos;
 	enum token_t {
 		TOKEN_EOF,
@@ -51,7 +47,7 @@ struct Token {
 	} type;
 };
 
-struct Token * init_token();
+struct Token init_token();
 void set_token(Interner * intern, struct Token * tok, char * value, unsigned int length, enum token_t type, unsigned int line, unsigned int pos);
 void copy_token(struct Token * dest, struct Token * src);
 

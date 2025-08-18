@@ -7,6 +7,7 @@
 struct Keyword keywords[] = {
     KEYWORDS_LIST_FULL(CONVERSION_EL)
 };
+#define KEYWORDS_LIST_COUNT (sizeof(keywords) / sizeof(keywords[0]))
 
 #define GET_KEYWORD(KEY) keywords[KEY]
 
@@ -18,14 +19,22 @@ const char * keyword_get_str(enum Keywords keyword_enum) {
 }
 
 struct Keyword keyword_get(enum Keywords keyword_enum) {
+    if (KEYWORDS_LIST_COUNT < keyword_enum) {
+        return GET_KEYWORD(KEYWORD_NOT_FOUND);
+    }
+
     struct Keyword keyword = GET_KEYWORD(keyword_enum);
     ASSERT1(keyword.key == keyword_enum);
     return keyword;
 }
 
+char keyword_interner_id_is_inbounds(unsigned int ID) {
+    return GET_KEYWORD(KEYWORD_NOT_FOUND + 1).intern_id <= ID && ID <= GET_KEYWORD(KEYWORDS_LIST_COUNT - 1).intern_id;
+}
+
 struct Keyword keyword_get_by_intern_id(unsigned int ID) {
     struct Keyword keyword = keyword_get(ID - keyword_get(KEYWORD_NOT_FOUND + 1).intern_id + 1);
-    ASSERT1(keyword.intern_id == ID);
+    ASSERT1(keyword.key == KEYWORD_NOT_FOUND || keyword.intern_id == ID);
     return keyword;
 }
 

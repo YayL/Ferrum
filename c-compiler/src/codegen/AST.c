@@ -1,5 +1,4 @@
 #include "codegen/AST.h"
-#include "common/hashmap.h"
 #include "common/logger.h"
 #include "common/string.h"
 #include "fmt.h"
@@ -287,8 +286,6 @@ void _print_ast_tree(struct AST * ast, String pad, char is_last) {
 
                 break;
             }
-        default:
-            FATAL("Unimplemented AST node type passed: '{s}'", ast_type_to_str(ast->type));
     }
 }
 
@@ -308,7 +305,7 @@ char * ast_to_string(struct AST * ast) {
         case AST_MODULE:
             {
                 a_module module = ast->value.module;
-                ast_str = format("{s} " GREY "<" BLUE "Symbols" RESET ": {i}, " BLUE "Path" RESET ": {s}" GREY ">" RESET, ast_str, module.symbols->total, module.path);
+                ast_str = format("{s} " GREY "<" BLUE "Symbols" RESET ": {i}, " BLUE "Path" RESET ": {s}" GREY ">" RESET, ast_str, 0 /*module.symbols->total */, module.path);
                 break;
             }
         case AST_FUNCTION:

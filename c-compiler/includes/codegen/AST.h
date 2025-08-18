@@ -1,14 +1,10 @@
 #pragma once
-#include "checker/typing.h"
 #include "common/sourcespan.h"
 #include "parser/operators.h"
 #include "parser/types.h"
 
 #include "common/list.h"
-#include "common/hashmap.h"
-#include "common/string.h"
 
-#include "common/macro.h"
 #include "tables/symbol.h"
 
 #define DEREF_AST(ast) ((struct AST *) ast)->value

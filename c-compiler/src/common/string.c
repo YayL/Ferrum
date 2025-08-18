@@ -6,11 +6,15 @@ void free_string(String string) {
     free((void *) string._ptr);
 }
 
-String init_string_with_length(const char * src, size_t length) {
+String init_string_from_source_span(SourceSpan span) {
     return (String) {
-        ._ptr = source_span_to_cstr(source_span_init(src, length)),
-        .length = length,
+        ._ptr = source_span_to_cstr(span),
+        .length = span.length,
     };
+}
+
+String init_string_with_length(const char * src, size_t length) {
+    return init_string_from_source_span(source_span_init(src, length));
 }
 
 String init_string(const char * str) {

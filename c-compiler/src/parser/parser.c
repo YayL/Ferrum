@@ -1,10 +1,12 @@
 #include "parser/parser.h"
 
 #include "codegen/AST.h"
-#include "common/common.h"
 #include "common/io.h"
+#include "fmt.h"
+#include "parser/keywords.h"
 #include "parser/modules.h"
 #include "parser/lexer.h"
+#include "common/macro.h"
 
 struct Parser * init_parser(char * path) {
     struct Parser * parser = malloc(sizeof(struct Parser));
@@ -19,7 +21,7 @@ struct Parser * init_parser(char * path) {
     parser->prev = init_token();
 
     lexer_next_token(lexer);
-    parser->token = lexer->tok;
+    parser->token = &lexer->tok;
    
     return parser;
 }
@@ -34,10 +36,11 @@ void parser_eat(struct Parser * parser, enum token_t type) {
         parser->error = 1;
     }
 
-    if (parser->prev != NULL && parser->token != NULL)
-        copy_token(parser->prev, parser->token);
+    if (parser->prev.type != TOKEN_EOF && parser->token != NULL) {
+        parser->prev = *parser->token;
+    }
+
     lexer_next_token(parser->lexer);
-    parser->token = parser->lexer->tok;
 }
 
 struct AST * parser_parse_int(struct Parser * parser) {
@@ -55,7 +58,7 @@ struct AST * parser_parse_int(struct Parser * parser) {
     type->value.numeric = num;
     type->intrinsic = INumeric;
 
-    number->value = parser->token->value.span;
+    number->value = parser->token->span;
 
     parser_eat(parser, TOKEN_INT);
 
@@ -70,7 +73,7 @@ struct AST * parser_parse_string(struct Parser * parser) {
     Type * type = string->type;
 
     Array_T array = init_intrinsic_type(IArray).array;
-    array.size = parser->token->value.span.length;
+    array.size = parser->token->span.length;
     array.basetype = malloc(sizeof(Type));
     
     Numeric_T num = init_intrinsic_type(INumeric).numeric;
@@ -84,7 +87,7 @@ struct AST * parser_parse_string(struct Parser * parser) {
     type->intrinsic = IArray;
 
     string->literal_type = LITERAL_STRING;
-    string->value = parser->token->value.span;
+    string->value = parser->token->span;
 
     parser_eat(parser, TOKEN_STRING_LITERAL);
 
@@ -95,7 +98,7 @@ struct AST * parser_parse_id(struct Parser * parser) {
     struct AST * ast = init_ast(AST_VARIABLE, parser->current_scope);
     a_variable * variable = &ast->value.variable;
 
-    variable->interner_id = parser->token->value.interner_id;
+    variable->interner_id = parser->token->interner_id;
 
     parser_eat(parser, TOKEN_ID);
 
@@ -121,7 +124,7 @@ struct AST * parser_parse_if(struct Parser * parser) {
 
         is_else = 0;
 
-        if (if_statement && parser->token->type == TOKEN_ID && parser->token->value.interner_id == keyword_get_intern_id(KEYWORD_ELSE)) {
+        if (if_statement && parser->token->type == TOKEN_ID && parser->token->interner_id == keyword_get_intern_id(KEYWORD_ELSE)) {
             parser_eat(parser, TOKEN_ID);
             is_else = 1;
         }
@@ -136,7 +139,7 @@ struct AST * parser_parse_if(struct Parser * parser) {
             if_statement = &ast->value.if_statement;
         }
 
-        if (parser->token->type == TOKEN_ID && parser->token->value.interner_id == keyword_get_intern_id(KEYWORD_IF)) {
+        if (parser->token->type == TOKEN_ID && parser->token->interner_id == keyword_get_intern_id(KEYWORD_IF)) {
             parser_eat(parser, TOKEN_ID);
             if_statement->expression = parser_parse_expr(parser);
             if_statement->body = parser_parse_scope(parser);
@@ -214,7 +217,7 @@ struct AST * parser_parse_struct(struct Parser * parser) {
     a_struct * _struct = &ast->value.structure;
     
     parser_eat(parser, TOKEN_ID);
-    _struct->interner_id = parser->token->value.interner_id;
+    _struct->interner_id = parser->token->interner_id;
     parser_eat(parser, TOKEN_ID);
 
     if (parser->token->type == TOKEN_LT) {
@@ -275,7 +278,7 @@ struct AST * parser_parse_trait(struct Parser * parser) {
 
     a_trait * trait = &ast->value.trait;
     parser_eat(parser, TOKEN_ID);
-    trait->interner_id = parser->token->value.interner_id;
+    trait->interner_id = parser->token->interner_id;
     // add_marker(ast, trait->name);
     parser_eat(parser, TOKEN_ID);
 
@@ -308,7 +311,7 @@ struct AST * parser_parse_impl(struct Parser * parser) {
     parser->current_scope = ast;
 
     parser_eat(parser, TOKEN_ID); // impl
-    impl->interner_id = parser->token->value.interner_id;
+    impl->interner_id = parser->token->interner_id;
     parser_eat(parser, TOKEN_ID); // [name]
 
     parser_eat(parser, TOKEN_ID); // for
@@ -376,12 +379,12 @@ struct AST * parser_parse_declaration(struct Parser * parser, enum Keywords keyw
 }
 
 struct AST * parser_parse_statement(struct Parser * parser) {
-    if (parser->token->type != TOKEN_ID) {
+    if (parser->token->type != TOKEN_ID || !keyword_interner_id_is_inbounds(parser->token->interner_id)) {
         return parser_parse_expr(parser);
     }
 
-    struct Keyword keyword = keyword_get(parser->token->value.interner_id);
-    ASSERT(keyword.key == KEYWORD_NOT_FOUND, "Unable to find keyword '{u}'?", parser->token->value.interner_id);
+    struct Keyword keyword = keyword_get_by_intern_id(parser->token->interner_id);
+    ASSERT(keyword.key != KEYWORD_NOT_FOUND, "Unable to find keyword '{s}'?", interner_lookup_str(parser->token->interner_id)._ptr);
 
     switch (keyword.key) {
         case KEYWORD_CONST:
@@ -403,11 +406,11 @@ struct AST * parser_parse_statement(struct Parser * parser) {
             return parser_parse_return(parser);
         default:
             if (keyword.flag == GLOBAL_ONLY && keyword.flag != ANY) {
-                FATAL("[Parser] {s} is not allowed in the function scope\n", token_to_str(*parser->prev));
+                FATAL("[Parser] {s} is not allowed in the function scope\n", token_to_str(parser->prev));
             }
     }
-    println("[Parser] Unknown error control flow somehow got to the end of parser_parse_statement?");
-    exit(1);
+
+    FATAL("[Parser] Unknown error control flow somehow got to the end of parser_parse_statement?");
 }
 
 struct AST * parser_parse_scope(struct Parser * parser) {
@@ -455,13 +458,15 @@ struct AST * parser_parse_function(struct Parser * parser) {
     a_function * function = &ast->value.function;
     parser->current_scope = ast;
 
-    if (parser->token->type == TOKEN_ID && parser->token->value.interner_id == keyword_get_intern_id(KEYWORD_INLINE)) {
+    parser_eat(parser, TOKEN_ID); // fn
+
+    if (parser->token->type == TOKEN_ID && parser->token->interner_id == keyword_get_intern_id(KEYWORD_INLINE)) {
         function->is_inline = 1;
         parser_eat(parser, TOKEN_ID);
     }
 
     if (parser->token->type == TOKEN_ID) {
-        function->interner_id = parser->token->value.interner_id;
+        function->interner_id = parser->token->interner_id;
         parser_eat(parser, TOKEN_ID);
     }
     
@@ -542,15 +547,13 @@ struct AST * parser_parse_package(struct Parser * parser) {
             last = i;
     }
     
-    SourceSpan package_name = parser->token->value.span;
-    const char * package_name_cstr = source_span_to_cstr(parser->token->value.span);
+    SourceSpan package_name = parser->token->span;
+    const char * package_name_cstr = source_span_to_cstr(parser->token->span);
 
     path[last] = 0;
     path = format("{4s}", path, "/", package_name_cstr, ".fe");
     parser->path[last] = '/';
 
-
-    INFO("Added package '{s}' at '{s}'", package_name_cstr, path);
     parser_eat(parser, TOKEN_STRING_LITERAL);
 
     struct AST * other_module = find_module(parser->root, path),
@@ -559,7 +562,9 @@ struct AST * parser_parse_package(struct Parser * parser) {
     if (other_module != NULL) {
         include_module(this_module, other_module);
     } else {
+        INFO("Parsing package '{s}' at '{s}'", package_name_cstr, path);
         parser_parse(parser->root, path);
+        INFO("Parsed package '{s}' at '{s}'", package_name_cstr, path);
         other_module = find_module(parser->root, path);
         include_module(this_module, find_module(parser->root, path));
     }
@@ -569,8 +574,7 @@ struct AST * parser_parse_package(struct Parser * parser) {
 
 struct AST * parser_parse_identifier(struct Parser * parser) {
     ASSERT1(parser->token->type == TOKEN_ID);
-    struct Keyword identifier = keyword_get_by_intern_id(parser->token->value.interner_id);
-
+    struct Keyword identifier = keyword_get_by_intern_id(parser->token->interner_id);
 
     if (identifier.flag != GLOBAL_ONLY && identifier.flag != ANY) {
         FATAL("[Parser] {s} is not allowed in the module scope", token_to_str(*parser->token));
@@ -657,7 +661,7 @@ struct AST * parser_parse_module(struct Parser * parser, struct AST * ast) {
     return ast;
 }
 
-struct AST * parser_parse(struct AST * root, char * path) {
+void parser_parse(struct AST * root, char * path) {
     struct Parser * parser = init_parser(path);
     parser->root = root;
     parser->current_scope = root;
@@ -667,6 +671,4 @@ struct AST * parser_parse(struct AST * root, char * path) {
 
     list_push(root->value.root.modules, module);
     parser_parse_module(parser, module);
-
-    return root;
 }

@@ -1,72 +1,66 @@
 #include "parser/types.h"
 
-#include "common/common.h"
 #include "codegen/AST.h"
+#include "common/logger.h"
+#include "common/sourcespan.h"
 #include "parser/keywords.h"
 #include "parser/parser.h"
 #include "parser/token.h"
 #include "tables/interner.h"
+#include "common/macro.h"
+#include <stdlib.h>
+
+Type _parser_parse_numeric_type(struct Parser * parser) {
+    Type type = {.intrinsic = INumeric, .value = init_intrinsic_type(INumeric) };
+    switch (parser->token->span.start[0]) {
+        case 'i': type.value.numeric.type = NUMERIC_SIGNED; break;
+        case 'u': type.value.numeric.type = NUMERIC_UNSIGNED; break;
+        case 'f': type.value.numeric.type = NUMERIC_FLOAT; break;
+        default: return UNKNOWN_TYPE;
+    }
+
+    char * end_ptr;
+    int width = strtol(&parser->token->span.start[1], &end_ptr, 10);
+
+    if (!(0 < width && width <= UINT16_MAX)) {
+        return UNKNOWN_TYPE;
+    }
+
+    parser_eat(parser, TOKEN_ID);
+    type.value.numeric.width = (unsigned short) width;
+    return type;
+}
 
 Type parser_parse_type(struct Parser * parser) {
     Type type = UNKNOWN_TYPE;
 
     switch (parser->token->type) {
     case TOKEN_ID:
-        if (parser->token->value.interner_id == keyword_get_intern_id(KEYWORD_IMPL)) {
+        if (parser->token->interner_id == keyword_get_intern_id(KEYWORD_IMPL)) {
             parser_eat(parser, TOKEN_ID);
-
             type.intrinsic = IImpl;
-            type.name_id = parser->token->value.interner_id;
+            type.name_id = parser->token->interner_id;
             parser_eat(parser, TOKEN_ID);
-        } else if (parser->token->value.interner_id == keyword_get_intern_id(KEYWORD_STRUCT)) {
-            parser_eat(parser, TOKEN_ID);
-
-            type.intrinsic = IStruct;
-            type.name_id = parser->token->value.interner_id;
-            parser_eat(parser, TOKEN_ID);
-        } else if (parser->token->value.interner_id == keyword_get_intern_id(KEYWORD_ENUM)) {
-            parser_eat(parser, TOKEN_ID);
-
-            type.intrinsic = IEnum;
-            type.name_id = parser->token->value.interner_id;
-            parser_eat(parser, TOKEN_ID);
-        } else if (parser->token->value.interner_id == keyword_get_intern_id(KEYWORD_BOOL)) {
+        } else if (parser->token->interner_id == keyword_get_intern_id(KEYWORD_BOOL)) {
             parser_eat(parser, TOKEN_ID);
             type.intrinsic = INumeric;
             type.value = init_intrinsic_type(INumeric);
             type.value.numeric.type = NUMERIC_UNSIGNED;
             type.value.numeric.width = 1;
-        } else if (is_template_type(parser->current_scope, parser->token->value.interner_id)) {
-            type.intrinsic = ITemplate;
-            type.value = init_intrinsic_type(ITemplate);
-            type.name_id = parser->token->value.interner_id;
-            parser_eat(parser, TOKEN_ID);
         } else {
-            type.intrinsic = INumeric;
-            type.value = init_intrinsic_type(INumeric);
+            type = _parser_parse_numeric_type(parser);
 
-            const char * type_str = interner_lookup_str(parser->token->value.interner_id)._ptr;
-            println("type: {s}", type_str);
-
-            switch (type_str[0]) {
-            case 'i':
-                type.value.numeric.type = NUMERIC_SIGNED; break;
-            case 'u':
-                type.value.numeric.type = NUMERIC_UNSIGNED; break;
-            case 'f':
-                type.value.numeric.type = NUMERIC_FLOAT; break;
-            default:
-                goto NUMERIC_PARSE_ERROR;
+            if (type.intrinsic != IUnknown) {
+                break;
             }
 
-            type.value.numeric.width = atoi(type_str + 1);
-
-            if (type.value.numeric.width == 0) {
-NUMERIC_PARSE_ERROR:
-                FATAL("Invalid type: {s}", parser->token->value);
-            }
-
+            type.intrinsic = IType;
+            type.name_id = parser->token->interner_id;
             parser_eat(parser, TOKEN_ID);
+
+            if (parser->token->type == TOKEN_LT) {
+                FATAL("Template type parsing is not implemented yet");
+            }
         }
 
         break;
@@ -90,7 +84,7 @@ NUMERIC_PARSE_ERROR:
 
         switch (parser->token->type) {
         case TOKEN_INT:
-            type.value.array.size = atoi(parser->token->value.span.start);
+            type.value.array.size = atoi(parser->token->span.start);
             parser_eat(parser, TOKEN_INT);
             break;
         case TOKEN_UNDERSCORE:
@@ -134,18 +128,11 @@ union intrinsic_union init_intrinsic_type(enum intrinsic_type type) {
         case INumeric: break;
         case IRef: break;
         case IArray: break;
-        case IStruct:
-        {
-            value.structure.fields = init_list(sizeof(struct AST *));
-        } break;
-        case IEnum: break;
         case ITuple:
         {
             value.tuple.types = arena_init(sizeof(Type));
         } break;
         case IImpl: break;
-        case ITemplate: break;
-        case IVariable: break;
     }
 
     return value;
@@ -224,19 +211,11 @@ Type ast_to_type(struct AST * ast) {
             for (int i = 0; i < expr.children->size; ++i) {
                 struct AST * child = list_at(expr.children, i);
                 ASSERT1(child != NULL);
-                DEBUG("Child: {s}", ast_to_string(child));
 
                 Type * child_type = ast_get_type_of(child);
                 ASSERT1(child_type != NULL);
                 ARENA_APPEND(&type.value.tuple.types, *child_type);
             }
-        } break;
-        case AST_STRUCT:
-        {
-            a_struct _struct = ast->value.structure;
-
-            type.name_id = _struct.interner_id;
-            type.intrinsic = IStruct;
         } break;
         default:
         {
@@ -278,17 +257,14 @@ char is_equal_type(Type type1, Type type2) {
     }
 
     switch (type1.intrinsic) {
+        case IType:
+            return type1.name_id == type2.name_id;
         case INumeric:
         {
             Numeric_T num1 = type1.value.numeric, num2 = type2.value.numeric;
             return num1.type == num2.type && num1.width == num2.width;
         }
         case IImpl:
-        case IEnum:
-        case IStruct:
-        {
-            return type1.name_id == type2.name_id;
-        }
         case IArray:
         {
             Array_T arr1 = type1.value.array, arr2 = type2.value.array;
@@ -346,11 +322,9 @@ struct arena type_to_type_arena(Type type) {
 
 Type get_base_type(Type type) {
     switch (type.intrinsic) {
-        case IStruct:
+        case IType:
         case INumeric:
-        case ITemplate:
         case IImpl:
-        case IEnum:
         case ITuple:
             return type;
         case IArray:
@@ -364,11 +338,10 @@ Type get_base_type(Type type) {
 
 const char * get_base_type_str(Type type) {
     switch (type.intrinsic) {
-        case IStruct:
+        case IUnknown:
+        case IType:
         case INumeric:
-        case ITemplate:
         case IImpl:
-        case IEnum:
             return type_to_str(type);
         case IArray:
             return get_base_type_str(*type.value.array.basetype);
@@ -391,13 +364,8 @@ char * type_to_str(Type type) {
     switch (type.intrinsic) {
         case IUnknown:
             return "Unknown";
-        case ITemplate:
+        case IType:
             return interner_lookup_str(type.name_id)._ptr;
-        case IStruct:
-        case IEnum:
-        {
-            return interner_lookup_str(type.name_id)._ptr;
-        }
         case INumeric:
         {
             Numeric_T num = type.value.numeric;
@@ -454,8 +422,6 @@ char * type_to_str(Type type) {
         }
         case IImpl:
             return format("impl {s}", interner_lookup_str(type.name_id)._ptr);
-        case IVariable:
-            return format("?{u}", type.value.variable.ID);
     }
 
     return "(NULL)";
@@ -486,10 +452,6 @@ Type replace_self_in_type(Type to_replace, Type replacement) {
 
     while (!finished) {
         switch (to_replace.intrinsic) {
-            case ITemplate:
-                curr = copy_type(replacement);
-                finished = 1;
-                break;
             case IArray:
                 curr = copy_type(to_replace);
                 to_replace = *to_replace.value.array.basetype;

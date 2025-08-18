@@ -1,12 +1,14 @@
-#include "parser/lexer.h"
+#include "fmt.h"
 #include "parser/parser.h"
 
+#include "parser/lexer.h"
 #include "common/deque.h"
 #include "codegen/AST.h"
+#include "parser/operators.h"
 #include "common/list.h"
 #include "common/logger.h"
 #include "common/sourcespan.h"
-#include "parser/operators.h"
+#include "common/macro.h"
 
 struct Operator * get_operator(SourceSpan span, struct Token * token, enum OP_mode mode, char * enclosed_flag) {
     struct Operator * op = malloc(sizeof(struct Operator));
@@ -16,7 +18,7 @@ struct Operator * get_operator(SourceSpan span, struct Token * token, enum OP_mo
         *op = str_to_operator(span.start, UNARY_POST, enclosed_flag);
 
     if (op->key == OP_NOT_FOUND) {
-        ERROR("{s} operator '{s}' not found: {s}", mode == BINARY ? "Binary" : "Unary", span, token_to_str(*token));
+        ERROR("{s} operator '{s}' not found: {s}", mode == BINARY ? "Binary" : "Unary", span.start, token_to_str(*token));
         exit(1);
     }
 
@@ -81,8 +83,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
             case TOKEN_OP:
             {
                 // enclosed flag is true if enclosed operator is the closing enclosing operator
-                op1 = get_operator(parser->token->value.span, parser->token, mode, &flag);
-                println("{s}", operator_to_str(op1));
+                op1 = get_operator(parser->token->span, parser->token, mode, &flag);
 
                 if (op1->enclosed == ENCLOSED) {
                     if (!flag) { // open enclosed operator
@@ -196,8 +197,9 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                 lexer_parse_operator(parser->lexer);
                 break;
             case TOKEN_LINE_BREAK:
-                if (parser->prev->type == TOKEN_BACKSLASH)
+                if (parser->prev.type == TOKEN_BACKSLASH) {
                     break;
+                }
             case TOKEN_EOF:
             case TOKEN_LBRACE:
             case TOKEN_RBRACE:
@@ -251,8 +253,8 @@ struct AST * parser_parse_expr_exit_on(struct Parser * parser, enum Operators op
 
     ast->value.expression.children = _parser_parse_expr(parser, output, operators, op);
 
-    if (parser->prev->type == TOKEN_SEMI) {
-        WARN("Unnecessary semicolon: {s}", token_to_str(*parser->prev));
+    if (parser->prev.type == TOKEN_SEMI) {
+        WARN("Unnecessary semicolon: {s}", token_to_str(parser->prev));
     }
 
     return ast;

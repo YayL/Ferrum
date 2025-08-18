@@ -7,14 +7,11 @@
 #ifndef TYPES_FOREACH
 #define TYPES_FOREACH(f) \
     f(INumeric, Numeric_T, numeric) \
-    f(IArray, Array_T, array) \
-    f(IRef, Ref_T, ref) \
-    f(IStruct, Struct_T, structure) \
-    f(IEnum, Enum_T, enumeration) \
+    f(IType, Type_T, type) \
     f(ITuple, Tuple_T, tuple) \
     f(IImpl, Impl_T, implementation) \
-    f(ITemplate, Template_T, template) \
-    f(IVariable, Variable_T, variable)
+    f(IArray, Array_T, array) \
+    f(IRef, Ref_T, ref)
 #endif
 
 #define TYPE_ENUM_EL(ENUM_NAME, ...) ENUM_NAME,
@@ -34,6 +31,8 @@ typedef struct Numeric_T {
     } type;
 } Numeric_T;
 
+typedef struct Type_T {} Type_T;
+
 typedef struct Ref_T {
     Type * basetype;
     char depth;
@@ -44,14 +43,6 @@ typedef struct Array_T {
     unsigned int size;
 } Array_T;
 
-typedef struct Struct_T {
-    struct List * fields;
-} Struct_T;
-
-typedef struct Enum_T {
-    struct List * fields;
-} Enum_T;
-
 typedef struct Tuple_T {
     Arena types;
 } Tuple_T;
@@ -60,18 +51,8 @@ typedef struct Impl_T {
     struct AST * type;
 } Impl_T;
 
-typedef struct Template_T {
-    struct AST * type;
-} Template_T;
-
-typedef struct Variable_T {
-    u_int32_t ID;
-    Type * type;
-} Variable_T;
-
 typedef struct Type {
     unsigned int name_id;
-    short size;
     enum intrinsic_type {
         IUnknown,
         TYPES_FOREACH(TYPE_ENUM_EL)
@@ -79,6 +60,7 @@ typedef struct Type {
     union intrinsic_union {
         TYPES_FOREACH(TYPE_UNION_EL)
     } value;
+    short size;
 } Type;
 
 union intrinsic_union init_intrinsic_type(enum intrinsic_type type);

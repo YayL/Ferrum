@@ -159,6 +159,8 @@ typedef unsigned long long khint64_t;
 #endif
 #endif /* klib_unused */
 
+#define KEY_ALREADY_PRESENT 0
+
 typedef khint32_t khint_t;
 typedef khint_t khiter_t;
 
@@ -200,7 +202,7 @@ static const double __ac_HASH_UPPER = 0.77;
 	} kh_##name##_t;
 
 #define __KHASH_PROTOTYPES(name, khkey_t, khval_t)	 					\
-	extern kh_##name##_t *kh_init_##name(void);							\
+	extern kh_##name##_t kh_init_##name(void);							\
 	extern void kh_destroy_##name(kh_##name##_t *h);					\
 	extern void kh_clear_##name(kh_##name##_t *h);						\
 	extern khint_t kh_get_##name(const kh_##name##_t *h, khkey_t key); 	\
@@ -209,8 +211,8 @@ static const double __ac_HASH_UPPER = 0.77;
 	extern void kh_del_##name(kh_##name##_t *h, khint_t x);
 
 #define __KHASH_IMPL(name, SCOPE, khkey_t, khval_t, kh_is_map, __hash_func, __hash_equal) \
-	SCOPE kh_##name##_t *kh_init_##name(void) {							\
-		return (kh_##name##_t*)kcalloc(1, sizeof(kh_##name##_t));		\
+	SCOPE kh_##name##_t kh_init_##name(void) {							\
+		return (kh_##name##_t) {0};										\
 	}																	\
 	SCOPE void kh_destroy_##name(kh_##name##_t *h)						\
 	{																	\
@@ -407,7 +409,7 @@ static kh_inline khint_t __ac_X31_hash_string(const char *s)
 /*! @function
   @abstract     Const char* comparison function
  */
-#define kh_str_hash_equal(a, b) (strcmp(a, b) == 0)
+#define kh_str_hash_equal(a, b) (*a == *b && strcmp(a + 1, b + 1) == 0)
 
 static kh_inline khint_t __ac_Wang_hash(khint_t key)
 {

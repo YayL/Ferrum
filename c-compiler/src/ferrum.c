@@ -1,11 +1,10 @@
 #include "ferrum.h"
 
 #include "common/io.h"
-#include "common/logger.h"
 #include "fmt.h"
 #include "parser/parser.h"
 #include "codegen/checker.h"
-#include "codegen/gen.h"
+// #include "codegen/gen.h"
 #include "tables/interner.h"
 
 #include <sys/time.h>
@@ -42,7 +41,6 @@ void ferrum_compile(char * file_path) {
          * checker_time,
          * gen_time,
          * optimization_time;
-
     long time, total = 0;
 
     start_timer();

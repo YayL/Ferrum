@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/common.h"
+#include "common/sourcespan.h"
 
 typedef struct string {
     char * _ptr;
@@ -11,6 +12,7 @@ typedef struct string {
 
 void free_string(String);
 
+String init_string_from_source_span(SourceSpan span);
 String init_string_with_length(const char * src, size_t length);
 String init_string(const char * src);
 

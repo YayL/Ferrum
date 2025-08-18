@@ -2,31 +2,16 @@
 
 #include "common/arena.h"
 #include "common/string.h"
+#include "common/hashmap.h"
+
+#define VALUE_TYPE unsigned int
+KHASH_MAP_INIT_STR(interner_hm, VALUE_TYPE)
 
 #define INVALID_INTERN_ID (0)
 
-struct interner_hm_pair {
-	const char * key;
-	unsigned int value;
-	char is_set;
-};
-
-struct interner_sparselist {
-	struct interner_hm_pair * buf;
-	unsigned int size;
-	unsigned int capacity;
-    char is_sparse; // if not contiguous memory, meaning there are empty entries
-};
-
-struct interner_hashmap {
-	struct interner_sparselist * lists;
-	size_t bucket_count;
-	size_t total;
-};
-
 typedef struct interner {
 	struct arena entries;
-	struct interner_hashmap map;
+	khash_t(interner_hm) map;
 } Interner;
 
 struct interner_entry {

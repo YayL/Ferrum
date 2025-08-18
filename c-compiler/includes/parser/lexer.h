@@ -1,12 +1,11 @@
 #pragma once
 
 #include "parser/token.h"
-#include "common/common.h"
 
 struct Lexer {
     char * src;
-    struct Token * tok;
     Interner * interner;
+    struct Token tok;
     size_t index, size;
     unsigned int line, pos;
     char c;

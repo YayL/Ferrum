@@ -5,26 +5,22 @@
 #include "fmt.h"
 #include "tables/interner.h"
 
-struct Token * init_token() {
-	struct Token * token = calloc(1, sizeof(struct Token));
-	return token;
+struct Token init_token() {
+	return (struct Token) { 0 };
 }
 
 void set_token(Interner * intern, struct Token * tok, char * value, unsigned int length, enum token_t type, unsigned int line, unsigned int pos) {
-	switch (type) {
-	case TOKEN_ID:
-		tok->value.interner_id = interner_intern(init_string_with_length(value, length)); break;
-	default:
-		tok->value.span = source_span_init(value, length); break;	
+	tok->span = source_span_init(value, length);
+
+	if (type == TOKEN_ID) {
+		tok->interner_id = interner_intern(init_string_from_source_span(tok->span));
+	} else {
+		tok->interner_id = INVALID_INTERN_ID;
 	}
 
 	tok->type = type;
 	tok->line = line;
 	tok->pos = pos;
-}
-
-void copy_token(struct Token * dest, struct Token * src) {
-	memcpy(dest, src, sizeof(*dest));
 }
 
 const char* token_type_to_str(enum token_t type) {
@@ -70,14 +66,7 @@ const char* token_type_to_str(enum token_t type) {
 
 char * token_to_str(struct Token token) {
 	const char * type_str = token_type_to_str(token.type);
-
-	const char * value;
-	switch (token.type) {
-		case TOKEN_ID:
-			value = interner_lookup_str(token.value.interner_id)._ptr; break;
-		default:
-			value = source_span_to_cstr(token.value.span); break;
-	}
+	const char * value = source_span_to_cstr(token.span);
 
 	return format("{2u::} <type='{s}', code='{u}', value='{s}'>", token.line, token.pos, type_str, token.type, value);
 }
