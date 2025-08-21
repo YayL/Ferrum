@@ -1,4 +1,5 @@
 #include "codegen/checker.h"
+#include "checker/context.h"
 #include "codegen/AST.h"
 #include "codegen/functions.h"
 #include "common/arena.h"
@@ -11,9 +12,9 @@
 unsigned int get_interner_id(struct AST * ast) {
     switch (ast->type) {
         case AST_FUNCTION:
-            return ast->value.function.interner_id;
+            return ast->value.function.name_id;
         case AST_DECLARATION:
-            return ast->value.declaration.variable->value.variable.interner_id;
+            return ast->value.declaration.variable->value.variable.name_id;
         default:
             print_ast("get_name invalid type: {s}", ast);
             exit(1);
@@ -67,7 +68,7 @@ Type checker_check_op(struct AST * ast) {
         }
 
         a_variable var = op->left->value.variable;
-        String func_call_name = interner_lookup_str(var.interner_id);
+        String func_call_name = interner_lookup_str(var.name_id);
         if (func_call_name._ptr[0] == '#') {
             // return checker_check_expr_node(op->right);
             /* TODO: Give builtin function calls the correct return type */
@@ -170,8 +171,8 @@ Type checker_check_expression(struct AST * ast) {
     struct AST * node;
     a_expr * expr = &ast->value.expression;
 
-    for (int i = 0; i < expr->children->size; ++i) {
-        node = list_at(expr->children, i);
+    for (int i = 0; i < expr->children.size; ++i) {
+        node = arena_get_ref(expr->children, i);
         ASSERT1(node != NULL);
         checker_check_expr_node(node);
     }
@@ -202,8 +203,6 @@ struct AST * checker_check_struct(struct AST * ast) {
     //     FATAL("Multiple definitions for struct '{s}'", _struct->name);
     // }
 
-    ALLOC(_struct->type);
-    *_struct->type = ast_to_type(ast);
     return ast;
 }
 
@@ -288,8 +287,8 @@ void checker_check_scope(struct AST * ast) {
     a_scope scope = ast->value.scope;
     struct AST * node;
 
-    for (int i = 0; i < scope.nodes->size; ++i) {
-        node = list_at(scope.nodes, i);
+    for (int i = 0; i < scope.nodes.size; ++i) {
+        node = arena_get_ref(scope.nodes, i);
         switch (node->type) {
             case AST_EXPR:
                 checker_check_expression(node);
@@ -322,8 +321,8 @@ void checker_check_declaration(struct AST * ast) {
     a_declaration declaration = ast->value.declaration;
     a_expr expr = declaration.expression->value.expression;
 
-    for (int i = 0; i < expr.children->size; ++i) {
-        node = list_at(expr.children, i);
+    for (int i = 0; i < expr.children.size; ++i) {
+        node = arena_get_ref(expr.children, i);
         if (node->type == AST_OP) {
             a_op * op = &node->value.operator;
             if (op->op->key == ASSIGNMENT) {
@@ -341,7 +340,7 @@ void checker_check_declaration(struct AST * ast) {
                         }
                     case AST_MODULE:
                         {
-                            list_push(ast->scope->value.module.variables, op->left);
+                            ARENA_APPEND(&ast->scope->value.module.definitions, op->left);
                             break;
                         }
                     default:
@@ -363,7 +362,7 @@ void checker_check_declaration(struct AST * ast) {
                     }
                 case AST_MODULE:
                     {
-                        list_push(ast->scope->value.module.variables, node);
+                        ARENA_APPEND(&ast->scope->value.module.definitions, node);
                         break;
                     }
                 default:
@@ -397,8 +396,8 @@ void checker_check_function(struct AST * ast) {
 
     a_expr arguments = function.arguments->value.expression;
 
-    for (int i = 0; i < arguments.children->size; ++i) {
-        node = list_at(arguments.children, i);
+    for (int i = 0; i < arguments.children.size; ++i) {
+        node = arena_get_ref(arguments.children, i);
         ASSERT(node->type == AST_VARIABLE, "Function arguments currently only support variable definition");
         node->value.variable.is_declared = 1;
         checker_check_variable(node);
@@ -408,51 +407,45 @@ void checker_check_function(struct AST * ast) {
     /* function->template_types = NULL; */
 }
 
-struct AST * checker_check_module(struct AST * ast) {
+void checker_check_definitions(struct AST * ast) {
+    ASSERT1(ast != NULL);
+
+    switch (ast->type) {
+        case AST_FUNCTION:
+            checker_check_function(ast); break;
+        case AST_DECLARATION:
+            checker_check_declaration(ast); break;
+        case AST_STRUCT:
+            checker_check_struct(ast); break;
+        default:
+            FATAL("Invalid AST type: {s}", ast_type_to_str(ast->type));
+    }
+}
+
+void checker_check_module(struct AST * ast) {
     a_module * module = &ast->value.module;
-    int size;
+    context_enter_module(ast);
 
-    size = module->variables->size;
-    for (int i = 0; i < size; ++i) {
-        checker_check_variable(list_at(module->variables, i));
+    for (int i = 0; i < module->traits.size; ++i) {
+        checker_check_trait(arena_get_ref(module->traits, i));
     }
 
-    size = module->structures->size;
-    for (int i = 0; i < size; ++i) {
-        checker_check_struct(list_at(module->structures, i));
+    for (int i = 0; i < module->definitions.size; ++i) {
+        checker_check_definitions(arena_get_ref(module->definitions, i));
     }
 
-    size = module->traits->size;
-    for (int i = 0; i < size; ++i) {
-        checker_check_trait(list_at(module->traits, i));
-    }
-
-    size = module->impls->size;
-    for (int i = 0; i < size; ++i) {
-        checker_check_impl(list_at(module->impls, i));
-    }
-
-    // return hashmap_get(module->symbols, "main");
-    return NULL;
+    context_exit_module(ast);
 }
 
 void checker_check(struct AST * ast) {
+    ASSERT1(ast->type == AST_ROOT);
     a_root root = ast->value.root;
     struct AST * main = NULL, * temp;
 
-    for (int i = root.modules->size; i--;) {
-        temp = checker_check_module(list_at(root.modules, i));
-        if (temp != NULL) {
-            if (main != NULL) {
-                FATAL("Uhoh multiple definitions of main");
-            }
-            main = temp;
-        }
-    }
+    // checker_check_module()
+    //
+    // for (int i = 0; i < root.modules->size; i++) {
+    //     checker_check_module(list_at(root.modules, i));
+    // }
 
-    if (main == NULL) {
-        FATAL("There is no main function");
-    }
-
-    checker_check_function(main);
 }

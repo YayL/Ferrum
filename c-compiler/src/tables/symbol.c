@@ -31,7 +31,7 @@ unsigned int symbol_table_name_to_id(const struct symbol_table * symbol_table, u
 }
 
 struct symbol_table_entry symbol_table_get_by_id(const struct symbol_table * symbol_table, unsigned int symbol_id) {
-	return *(struct symbol_table_entry *) arena_get(symbol_table->entries, symbol_id);
+	return *(struct symbol_table_entry *) arena_get_ref(symbol_table->entries, symbol_id);
 }
 
 struct symbol_table_entry symbol_table_get_by_name(const struct symbol_table * symbol_table, unsigned int name_id) {

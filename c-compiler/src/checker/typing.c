@@ -38,8 +38,8 @@ char frsolver_check_candidate(FRSolver solver, struct AST * candidate, struct ar
 	arena_clear(substitutions);
 
 	for (size_t i = 0; i < call_args_type.size; ++i) {
-		Type call_arg_type = *(Type *) arena_get(call_args_type, i);
-		Type func_arg_type = *(Type *) arena_get(func_args_type, i);
+		Type call_arg_type = *(Type *) arena_get_ref(call_args_type, i);
+		Type func_arg_type = *(Type *) arena_get_ref(func_args_type, i);
 		ASSERT1(func_arg_type.intrinsic != IUnknown);
 
 		// if (func_arg_type.intrinsic != IVariable && is_equal_type(, Type type2, struct HashMap *self)) {

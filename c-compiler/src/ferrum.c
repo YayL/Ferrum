@@ -23,16 +23,6 @@ unsigned long stop_timer() {
 }
 
 void ferrum_compile(char * file_path) {
-
-
-    // INFO("Hello, Info!");
-    // DEBUG("Hello, Debug!");
-    // WARN("Hello, Warn!");
-    // ERROR("Hello, Error!");
-    // FATAL("Hello, Fatal!");
-
-    // return;
-
     interner_init();
     struct AST * ast = init_ast(AST_ROOT, NULL);
     

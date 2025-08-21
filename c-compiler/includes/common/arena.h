@@ -4,20 +4,20 @@
 
 typedef struct arena {
 	void * arena;
-	size_t capacity;
-	size_t size;
-	size_t item_size;
+	uint32_t capacity;
+	uint32_t size;
+	uint32_t item_size;
 } Arena;
 
 #define ARENA_APPEND(arena_ref, item) *((typeof(item) *) arena_next(arena_ref)) = (item)
-#define ARENA_FILL_FROM_LIST(arena_ref, list_ref) memcpy()
+#define ARENA_GET(arena, index, type) (*(type *) arena_get_ref(arena, index))
 
-Arena arena_init(size_t item_size);
+Arena arena_init(uint32_t item_size);
 
-void arena_grow(Arena * arena, size_t new_capacity);
+void arena_grow(Arena * arena, uint32_t new_capacity);
 void arena_clear(Arena * arena);
 
-void * arena_get(Arena arena, size_t index);
+void * arena_get_ref(Arena arena, uint32_t index);
 void * arena_next(Arena * arena);
 
 void arena_extend(Arena * dest, const Arena src);

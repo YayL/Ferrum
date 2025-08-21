@@ -48,9 +48,9 @@ void consume_add_operator(struct Operator * op, struct List * list, struct Parse
     list_push(list, ast);
 }
 
-struct List * _parser_parse_expr(struct Parser * parser, struct List * output, struct Deque * operators, enum Operators EXIT_ON_KEY) {
+Arena _parser_parse_expr(struct Parser * parser, struct List * output, struct Deque * operators, enum Operators EXIT_ON_KEY) {
     struct AST * node, * temp;
-    struct List * expressions = init_list(sizeof(struct AST *));
+    Arena expressions = arena_init(sizeof(struct AST *));
     
     enum OP_mode mode = UNARY_PRE;
     struct Operator * op1, * op2;
@@ -165,7 +165,7 @@ struct List * _parser_parse_expr(struct Parser * parser, struct List * output, s
                 }
                 
                 if (output->size == 1) {
-                    list_push(expressions, list_at(output, -1));
+                    ARENA_APPEND(&expressions, (struct AST *) list_at(output, 0));
                     output = init_list(sizeof(struct AST *));
                 }else if (output->size != 1) {
                     FATAL("[Parser] Unprecedentent usage of expression separator: {s}", token_to_str(*parser->token));
@@ -225,7 +225,7 @@ exit:
     }
 
     if (output->size == 1) {
-        list_push(expressions, list_at(output, 0));
+        ARENA_APPEND(&expressions, (struct AST *) list_at(output, 0));
     } else if (flag) {
         ERROR("Invalid expression; too many discarded expressions({i}) | {s}", output->size, token_to_str(*parser->token));
     }

@@ -15,7 +15,7 @@ void resolve_function_from_call(struct AST * ast) {
     ASSERT1(left->type == AST_VARIABLE);
 
     Type args_type = ast_to_type(right);
-    FRResult result = frsolver_solve(frsolver_init(left->value.variable.interner_id, args_type, ast->scope));
+    FRResult result = frsolver_solve(frsolver_init(left->value.variable.name_id, args_type, ast->scope));
 
     if (result.function == NULL) {
         ERROR("Function {s}({s}) is not defined", op->op->str, type_to_str(args_type));
@@ -125,7 +125,7 @@ struct AST * get_function_for_operator(struct Operator * op, Type lhs, Type rhs,
 
     ASSERT1(self_type != NULL);
     if (self_type->intrinsic == IUnknown) {
-        *self_type = *((Type *) arena_get(arg_types_arena, 0));
+        *self_type = *((Type *) arena_get_ref(arg_types_arena, 0));
     }
 
     const char * name = operator_get_runtime_name(op->key);
@@ -154,51 +154,4 @@ struct AST * get_function_for_operator(struct Operator * op, Type lhs, Type rhs,
     }
 
     return func;
-}
-
-struct AST * get_declared_function(unsigned int name_id, Arena list1, struct AST * scope) {
-    scope = get_scope(AST_MODULE, scope); 
-    a_module module = scope->value.module;
-
-    for (int i = 0; i < module.functions->size; ++i) {
-        struct AST * node = list_at(module.functions, i);
-        a_function function = node->value.function;
-
-        if (function.interner_id != name_id) {
-            continue;
-        }
-
-        Arena list2 = type_to_type_arena(*function.param_type);
-
-        if (list1.size != list2.size)
-            continue;
-
-        char found = 1;
-        for (int j = 0; j < list1.size; ++j) {
-            Type * item1 = arena_get(list1, j),
-                 * item2 = arena_get(list2, j);
-            if (!is_equal_type(*item1, *item2)) {
-                print_ast("{s}\n", node);
-                found = 0;
-                break;
-            }
-        }
-        if (found)
-            return node;
-    }
-
-    return NULL;
-}
-
-char is_declared_function(unsigned int name_id, struct AST * scope) {
-    scope = get_scope(AST_MODULE, scope);
-
-    a_module module = scope->value.module;
-    for (int i = 0; i < module.functions->size; ++i) {
-        a_function function = DEREF_AST(list_at(module.functions, i)).function;
-        if (function.interner_id == name_id)
-            return 1;
-    }
-
-    return 0;
 }

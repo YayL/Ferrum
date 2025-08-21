@@ -56,7 +56,7 @@ unsigned int interner_lookup_id(const char * key) {
 }
 
 String interner_lookup_str(unsigned int ID) {
-	struct interner_entry * entry = arena_get(interner.entries, INTERNER_ID_TO_ARENA_INDEX(ID));
+	struct interner_entry * entry = arena_get_ref(interner.entries, INTERNER_ID_TO_ARENA_INDEX(ID));
 	ASSERT1(entry->ID == ID);
 	return entry->str;
 }

@@ -19,7 +19,7 @@ void gen_builtin_llvm_store(struct AST * ast, struct AST * self_type) {
 	struct AST * node;
 	a_expr expr = ast->value.expression;
 
-	if (expr.children->size != 3) {
+	if (expr.children.size != 3) {
 		FATAL("Invalid builtin 'llvm_store': must only take a type, LHS and RHS value");
 	}
 
@@ -35,17 +35,17 @@ void gen_builtin_llvm_store(struct AST * ast, struct AST * self_type) {
 const char * gen_builtin_llvm_register_of(struct AST * ast, struct AST * self_type) {
 	a_expr expr = ast->value.expression;
 
-	return format("%{u}", llvm_get_register_of(list_at(expr.children, 0)));
+	return format("%{u}", llvm_get_register_of(arena_get_ref(expr.children, 0)));
 }
 
 void gen_builtin_llvm_load(struct AST * ast, struct AST * self_type) {
 	a_expr expr = ast->value.expression;
 
-	if (expr.children->size != 1) {
+	if (expr.children.size != 1) {
 		FATAL("Invalid builtin 'llvm_load': requires a variable as argument");
 	}
 
-	struct AST * node = list_at(expr.children, 0);
+	struct AST * node = arena_get_ref(expr.children, 0);
 
 	// gen_write(format("%{u} = load {s}, ptr %{u}; #llvm_load\n",  gen_new_register(), 
 	// 				 llvm_type_to_llvm_type(*node->value.variable.type, self_type),
@@ -55,7 +55,7 @@ void gen_builtin_llvm_load(struct AST * ast, struct AST * self_type) {
 const char * gen_builtin_llvm_type_of(struct AST * ast, struct AST * self_type) {
 	a_expr expr = ast->value.expression;
 
-	Type * type = ast_get_type_of(list_at(expr.children, 0));
+	Type * type = ast_get_type_of(arena_get_ref(expr.children, 0));
 
 	return llvm_type_to_llvm_type(*type, self_type);
 }

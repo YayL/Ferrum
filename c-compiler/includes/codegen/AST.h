@@ -50,35 +50,29 @@ typedef struct a_root {
 
 typedef struct a_module {
     char * path;
-    struct symbol_table symbol_table;
 
-    struct hashmap * symbols;
-    struct List * variables;
-    struct List * functions;
-    struct hashmap * functions_map;
-    struct List * structures;
-    struct List * traits;
-    struct List * impls;
+    Arena definitions;
+    Arena traits;
 } a_module;
 
 typedef struct a_function {
-    unsigned int interner_id;
     struct AST * arguments;
     struct AST * body;
 
     Type * param_type;
     Type * return_type;
 
-    struct List * parsed_templates;
-    struct hashmap * template_types;
+    Arena templates;
+
+    unsigned int name_id;
 
     char is_inline;
     char is_checked;
 } a_function;
 
 typedef struct a_scope {
-    struct List * nodes;
-    struct symbol_table symbol_table;
+    Arena nodes;
+    Arena declarations;
 } a_scope;
 
 typedef struct a_declaration {
@@ -88,33 +82,31 @@ typedef struct a_declaration {
 } a_declaration;
 
 typedef struct a_expr {
-    struct List * children;
+    Arena children;
     Type * type;
 } a_expr;
 
 typedef struct a_struct {
-    unsigned int interner_id;
-    struct List * generics; // struct NAME<GEN1, GEN2>
-    struct List * variables;
-    struct List * functions;
-    Type * type;
+    unsigned int name_id;
+    Arena templates;
+    Arena definitions;
 } a_struct;
 
 typedef struct a_enum {
-    char * name;
+    unsigned int name_id;
     struct List * variants;
 } a_enum;
 
 typedef struct a_trait {
-    unsigned int interner_id;
-    struct List * implementers;
-    struct List * children;
+    unsigned int name_id;
+    Arena children;
+    Arena implementers;
 } a_trait;
 
 typedef struct a_impl {
-    unsigned int interner_id;
-    Type * type;
-    struct List * members;
+    unsigned int name_id;
+    Arena members;
+    Type type;
 } a_impl;
 
 typedef struct a_op {
@@ -129,8 +121,8 @@ typedef struct a_op {
 } a_op;
 
 typedef struct a_variable {
-    unsigned int interner_id;
     Type * type;
+    unsigned int name_id;
     unsigned int reg;
     char is_const;
     char is_declared;

@@ -26,6 +26,6 @@ void checker_check_scope(struct AST * ast);
 
 void checker_check_declaration(struct AST * ast);
 void checker_check_function(struct AST * ast);
-struct AST * checker_check_module(struct AST * ast);
+void checker_check_module(struct AST * ast);
 
 void checker_check(struct AST * ast);

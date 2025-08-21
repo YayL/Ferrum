@@ -3,6 +3,7 @@
 #include "codegen/AST.h"
 #include "common/logger.h"
 #include "common/sourcespan.h"
+#include "fmt.h"
 #include "parser/keywords.h"
 #include "parser/parser.h"
 #include "parser/token.h"
@@ -19,10 +20,11 @@ Type _parser_parse_numeric_type(struct Parser * parser) {
         default: return UNKNOWN_TYPE;
     }
 
+    SourceSpan span = parser->token->span;
     char * end_ptr;
-    int width = strtol(&parser->token->span.start[1], &end_ptr, 10);
+    int width = strtol(&span.start[1], &end_ptr, 10);
 
-    if (!(0 < width && width <= UINT16_MAX)) {
+    if (!(0 < width && width <= UINT16_MAX) || end_ptr != &span.start[span.length - 1]) {
         return UNKNOWN_TYPE;
     }
 
@@ -125,14 +127,8 @@ union intrinsic_union init_intrinsic_type(enum intrinsic_type type) {
     union intrinsic_union value = {0};
 
     switch (type) {
-        case INumeric: break;
-        case IRef: break;
-        case IArray: break;
-        case ITuple:
-        {
-            value.tuple.types = arena_init(sizeof(Type));
-        } break;
-        case IImpl: break;
+        case ITuple: value.tuple.types = arena_init(sizeof(Type)); break;
+        default: break;
     }
 
     return value;
@@ -151,23 +147,6 @@ char is_template_type(struct AST * current_scope, unsigned int name_id) {
     return 0;
     // return scope->type == AST_FUNCTION;
     //         && __is_template_type(scope->value.function.template_types, name);
-}
-
-struct AST * get_type(struct AST * ast, unsigned int name_id) {
-    struct AST * scope = get_scope(AST_MODULE, ast->scope), * temp;
-    a_module * module = &scope->value.module;
-    a_struct * _struct;
-
-    for (int i = 0; i < module->structures->size; ++i) {
-        temp = list_at(module->structures, i);
-        ASSERT1(temp->type == AST_SCOPE);
-        _struct = &temp->value.structure;
-        if (_struct->interner_id == name_id) {
-            return temp;
-        }
-    }
-
-    return NULL;
 }
 
 Type * ast_get_type_of(struct AST * ast) {
@@ -197,8 +176,8 @@ Type ast_to_type(struct AST * ast) {
         {
             a_expr expr = ast->value.expression;
 
-            if (expr.children->size == 1) {
-                Type * type_ref = ast_get_type_of(list_at(expr.children, 0));
+            if (expr.children.size == 1) {
+                Type * type_ref = ast_get_type_of(ARENA_GET(expr.children, 0, struct AST *));
                 if (type_ref == NULL) {
                     return UNKNOWN_TYPE;
                 }
@@ -208,8 +187,8 @@ Type ast_to_type(struct AST * ast) {
             type.intrinsic = ITuple;
             type.value = init_intrinsic_type(ITuple);
 
-            for (int i = 0; i < expr.children->size; ++i) {
-                struct AST * child = list_at(expr.children, i);
+            for (int i = 0; i < expr.children.size; ++i) {
+                struct AST * child = ARENA_GET(expr.children, i, struct AST *);
                 ASSERT1(child != NULL);
 
                 Type * child_type = ast_get_type_of(child);
@@ -252,6 +231,8 @@ char is_compatible_type(Type type1, Type type2) {
 }
 
 char is_equal_type(Type type1, Type type2) {
+    ASSERT1(type1.intrinsic != IUnknown);
+    ASSERT1(type2.intrinsic != IUnknown);
     if (type1.intrinsic != type2.intrinsic) {
         return 0;
     }
@@ -289,18 +270,14 @@ char is_equal_type(Type type1, Type type2) {
             }
             
             for (int i = 0; i < tuple1.types.size; ++i) {
-                Type * child1 = arena_get(tuple1.types, i), * child2 = arena_get(tuple2.types, i);
-                ASSERT1(child1 != NULL);
-                ASSERT1(child2 != NULL);
-                if (!is_equal_type(*child1, *child2)) {
+                Type child1 = ARENA_GET(tuple1.types, i, Type), child2 = ARENA_GET(tuple2.types, i, Type);
+                if (!is_equal_type(child1, child2)) {
                     return 0;
                 }
             }
         } break;
-        // default:
-        // {
-        //     FATAL("{u} is not an implemented intrinsic for checking type equivalance", type1.intrinsic);
-        // }
+        default:
+            FATAL("{u} is not an implemented intrinsic for checking type equivalance", type1.intrinsic);
     }
 
     return 1;
@@ -351,7 +328,7 @@ const char * get_base_type_str(Type type) {
         {
             Tuple_T tuple = type.value.tuple;
             if (tuple.types.size == 1) {
-                return get_base_type_str(*(Type *) arena_get(tuple.types, 0));
+                return get_base_type_str(ARENA_GET(tuple.types, 0, Type));
             }
             return NULL;
         }
@@ -410,12 +387,12 @@ char * type_to_str(Type type) {
                 return "()";
             }
 
-            Type * temp = arena_get(tuple.types, 0);
-            char * buf = format("({s}", type_to_str(*temp));
+            Type temp = ARENA_GET(tuple.types, 0, Type);
+            char * buf = format("({s}", type_to_str(temp));
 
             for (int i = 1; i < tuple.types.size; ++i) {
-                temp = arena_get(tuple.types, i);
-                buf = format("{2s:, }", buf, type_to_str(*temp));
+                temp = ARENA_GET(tuple.types, i, Type);
+                buf = format("{2s:, }", buf, type_to_str(temp));
             }
 
             return format("{s})", buf);

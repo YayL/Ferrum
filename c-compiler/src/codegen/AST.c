@@ -1,4 +1,5 @@
 #include "codegen/AST.h"
+#include "common/arena.h"
 #include "common/logger.h"
 #include "common/string.h"
 #include "fmt.h"
@@ -10,7 +11,7 @@
 #define PADDING_DIRECT_CHILD  ""
 #define PADDING_LIST_CHILDREN "│"
 #define AST_TREE_PADDING(comp) (comp ? PADDING_LIST_CHILDREN : PADDING_DIRECT_CHILD)
-#define AST_TREE_PRINT_CHILDREN(list, pstring) {for (int i = 0; i < list->size; ++i){ _print_ast_tree(list_at(list, i), pstring, i == (list->size - 1));}}
+#define AST_TREE_PRINT_CHILDREN(arena, pstring) {for (int i = 0; i < arena.size; ++i){ _print_ast_tree(ARENA_GET(arena, i, struct AST *), pstring, i == (arena.size - 1));}}
 #define AST_TREE_PRINT_CHILDREN_REVERSE(list, pstring) {for (ssize_t i = list->size - 1; 0 <= i; --i){ _print_ast_tree(list_at(list, i), pstring, i == 0);}}
 
 struct AST * init_ast(enum AST_type type, struct AST * scope) {
@@ -32,32 +33,24 @@ union AST_union init_ast_value(enum AST_type type) {
             } break;
         case AST_MODULE:
             {
-                value.module.symbol_table = symbol_table_init();
-
-                // value.module.symbols = hashmap_init(8);
-                value.module.functions = init_list(sizeof(struct AST *));
-                // value.module.functions_map = hashmap_init(6);
-                value.module.variables = init_list(sizeof(struct AST *));
-                value.module.structures = init_list(sizeof(struct AST *));
-                value.module.traits = init_list(sizeof(struct AST *));
-                value.module.impls = init_list(sizeof(struct AST *));
+                value.module.definitions = arena_init(sizeof(struct AST *));
+                value.module.traits = arena_init(sizeof(struct AST *));
             } break;
         case AST_SCOPE:
             {
-                value.scope.nodes = init_list(sizeof(struct AST *));
-                value.scope.symbol_table = symbol_table_init();
+                value.scope.nodes = arena_init(sizeof(struct AST *));
+                value.scope.declarations = arena_init(sizeof(struct AST *));
             } break;
         case AST_STRUCT:
             {
-                value.structure.interner_id = INVALID_INTERN_ID;
-                value.structure.generics = init_list(sizeof(String *));
-                value.structure.functions = init_list(sizeof(struct AST *));
-                value.structure.variables = init_list(sizeof(struct AST *));
+                value.structure.name_id = INVALID_INTERN_ID;
+                value.structure.templates = arena_init(sizeof(struct AST *));
+                value.structure.definitions = arena_init(sizeof(struct AST *));
             } break;
         case AST_TRAIT:
             {
-                value.trait.children = init_list(sizeof(struct AST *));
-                value.trait.implementers = init_list(sizeof(struct AST *));
+                value.trait.children = arena_init(sizeof(struct AST *));
+                value.trait.implementers = arena_init(sizeof(struct AST *));
             } break;
         case AST_FUNCTION:
         case AST_DECLARATION:
@@ -151,15 +144,11 @@ void _print_ast_tree(struct AST * ast, String pad, char is_last) {
                 a_module module = ast->value.module;
 
                 String next_pad = string_copy(pad);
-                AST_TREE_PRINT_CHILDREN(module.variables, next_pad);
+                AST_TREE_PRINT_CHILDREN(module.traits, next_pad);
                 free_string(next_pad);
 
                 next_pad = string_copy(pad);
-                AST_TREE_PRINT_CHILDREN(module.impls, next_pad);
-                free_string(next_pad);
-
-                next_pad = string_copy(pad);
-                AST_TREE_PRINT_CHILDREN(module.functions, next_pad);
+                AST_TREE_PRINT_CHILDREN(module.definitions, next_pad);
                 free_string(next_pad);
 
                 break;
@@ -305,26 +294,26 @@ char * ast_to_string(struct AST * ast) {
         case AST_MODULE:
             {
                 a_module module = ast->value.module;
-                ast_str = format("{s} " GREY "<" BLUE "Symbols" RESET ": {i}, " BLUE "Path" RESET ": {s}" GREY ">" RESET, ast_str, 0 /*module.symbols->total */, module.path);
+                ast_str = format("{s} " GREY "<" BLUE "Definitions" RESET ": {i}, " BLUE "Path" RESET ": {s}" GREY ">" RESET, ast_str, module.definitions.size, module.path);
                 break;
             }
         case AST_FUNCTION:
             {
                 a_function func = ast->value.function;
-                const char * func_name = interner_lookup_str(func.interner_id)._ptr;
+                const char * func_name = interner_lookup_str(func.name_id)._ptr;
                 ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {2s: -> }" GREY ">" RESET, ast_str, func_name, get_type_str(func.param_type), get_type_str(func.return_type));
                 break;
             }
         case AST_SCOPE:
             {
                 a_scope scope = ast->value.scope;
-                ast_str = format("{s} " GREY "<" BLUE "Variables" RESET ": {i}, " BLUE "Nodes" RESET ": {i}" GREY ">" RESET, ast_str, scope.symbol_table.entries.size, scope.nodes->size);
+                ast_str = format("{s} " GREY "<" BLUE "Declarations" RESET ": {i}, " BLUE "Nodes" RESET ": {i}" GREY ">" RESET, ast_str, scope.declarations.size, scope.nodes.size);
             } break;
         case AST_IMPL:
             {
                 a_impl impl = ast->value.implementation;
-                const char * impl_name = interner_lookup_str(impl.interner_id)._ptr;
-                ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Types" RESET ": {s}" GREY ">" RESET, ast_str, impl_name, get_type_str(impl.type));
+                const char * impl_name = interner_lookup_str(impl.name_id)._ptr;
+                ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}" GREY ">" RESET, ast_str, impl_name);
             } break;
         case AST_OP:
             {
@@ -335,7 +324,7 @@ char * ast_to_string(struct AST * ast) {
         case AST_VARIABLE:
             {
                 a_variable var = ast->value.variable;
-                const char * var_name = interner_lookup_str(var.interner_id)._ptr;
+                const char * var_name = interner_lookup_str(var.name_id)._ptr;
                 ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, var_name, get_type_str(var.type));
                 break;
             }

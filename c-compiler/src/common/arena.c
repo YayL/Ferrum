@@ -8,7 +8,7 @@
 #define ARENA_INITIAL_CAPACITY 1
 #define ARENA_GROWTH_RATE 2
 
-Arena arena_init(size_t item_size) {
+Arena arena_init(uint32_t item_size) {
 	ASSERT(item_size != 0, "Arena does not allow item_size=0");
 	return (Arena) {
 		.arena = NULL,
@@ -18,7 +18,7 @@ Arena arena_init(size_t item_size) {
 	};
 }
 
-void arena_grow(Arena * arena, size_t new_capacity) {
+void arena_grow(Arena * arena, uint32_t new_capacity) {
 	if (new_capacity <= arena->capacity) {
 		FATAL("Call to arena_grow does not grow arena");
 	} else if (arena->arena == NULL) {
@@ -35,13 +35,14 @@ void arena_clear(Arena * arena) {
 	arena->size = 0;
 }
 
-void * arena_get(Arena arena, size_t index) {
+void * arena_get_ref(Arena arena, uint32_t index) {
 	if (arena.size <= index) {
 		FATAL("Invalid arena({i}) index({i})", arena.size, index);
 	}
 
 	return ARENA_GET_INDEX(arena, index);
 }
+
 
 void * arena_next(Arena * arena) {
 	if (arena->arena == NULL) {
@@ -62,14 +63,14 @@ void arena_extend(Arena * dest, const Arena src) {
 		return;
 	}
 
-	size_t needed_size = dest->size + src.size;
+	uint32_t needed_size = dest->size + src.size;
 	if (needed_size == 0) {
 		return;
 	}
 
 	if (dest->capacity < needed_size) {
 		ASSERT(ARENA_GROWTH_RATE == 2, "Arena growth rate was adjusted, please fix this code");
-		size_t adjusted_capacity = 1 << log2i(needed_size - 1); // subtact one to "ceil" result
+		uint32_t adjusted_capacity = 1 << log2i(needed_size - 1); // subtact one to "ceil" result
 		arena_grow(dest, needed_size);
 	}
 
