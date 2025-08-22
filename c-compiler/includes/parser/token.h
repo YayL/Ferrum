@@ -48,7 +48,7 @@ struct Token {
 };
 
 struct Token init_token();
-void set_token(Interner * intern, struct Token * tok, char * value, unsigned int length, enum token_t type, unsigned int line, unsigned int pos);
+void set_token(struct Token * tok, char * value, unsigned int length, enum token_t type, unsigned int line, unsigned int pos);
 void copy_token(struct Token * dest, struct Token * src);
 
 const char* token_type_to_str(enum token_t type);

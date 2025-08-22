@@ -17,7 +17,7 @@ We use libbacktrace for backtraces but it can be disabled by commenting out *BAC
 ### Module: 
     The AST representation of a file of ferrum code 
 ### Symbol: 
-    ID that is used to refer to a definition in the module scope
+    ID that is used to refer to a definition in a module scope
 ### Type:
     A symbol that refers to an ordering of data
 ### Marker:

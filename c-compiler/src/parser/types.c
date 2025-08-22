@@ -1,13 +1,13 @@
 #include "parser/types.h"
 
+#include "checker/symbols.h"
 #include "codegen/AST.h"
+#include "common/arena.h"
 #include "common/logger.h"
 #include "common/sourcespan.h"
-#include "fmt.h"
 #include "parser/keywords.h"
 #include "parser/parser.h"
 #include "parser/token.h"
-#include "tables/interner.h"
 #include "common/macro.h"
 #include <stdlib.h>
 
@@ -41,8 +41,7 @@ Type parser_parse_type(struct Parser * parser) {
         if (parser->token->interner_id == keyword_get_intern_id(KEYWORD_IMPL)) {
             parser_eat(parser, TOKEN_ID);
             type.intrinsic = IImpl;
-            type.name_id = parser->token->interner_id;
-            parser_eat(parser, TOKEN_ID);
+            type.symbol = parser_parse_symbol(parser);
         } else if (parser->token->interner_id == keyword_get_intern_id(KEYWORD_BOOL)) {
             parser_eat(parser, TOKEN_ID);
             type.intrinsic = INumeric;
@@ -57,8 +56,7 @@ Type parser_parse_type(struct Parser * parser) {
             }
 
             type.intrinsic = IType;
-            type.name_id = parser->token->interner_id;
-            parser_eat(parser, TOKEN_ID);
+            type.symbol = parser_parse_symbol(parser);
 
             if (parser->token->type == TOKEN_LT) {
                 FATAL("Template type parsing is not implemented yet");
@@ -107,12 +105,8 @@ Type parser_parse_type(struct Parser * parser) {
         type.value = init_intrinsic_type(ITuple);
 
         do {
-            if (parser->token->type == TOKEN_COMMA) {
-                parser_eat(parser, TOKEN_COMMA);
-            }
-
             ARENA_APPEND(&type.value.tuple.types, parser_parse_type(parser));
-        } while (parser->token->type == TOKEN_COMMA);
+        } while (parser->token->type == TOKEN_COMMA && (parser_eat(parser, TOKEN_COMMA), 1));
         parser_eat(parser, TOKEN_RPAREN);
 
         break;
@@ -149,19 +143,25 @@ char is_template_type(struct AST * current_scope, unsigned int name_id) {
     //         && __is_template_type(scope->value.function.template_types, name);
 }
 
-Type * ast_get_type_of(struct AST * ast) {
+Type ast_get_type_of(struct AST * ast) {
     switch (ast->type) {
         case AST_OP:
             {
-                return ast->value.operator.type;
+                ASSERT1(ast->value.operator.type != NULL);
+                return *ast->value.operator.type;
             }
         case AST_LITERAL:
             {
-                return ast->value.literal.type;
+                ASSERT1(ast->value.literal.type != NULL);
+                return *ast->value.literal.type;
             }
         case AST_VARIABLE:
             {
                 return ast->value.variable.type;
+            }
+        case AST_SYMBOL:
+            {
+                return ast_get_type_of(ast->value.symbol.node);
             }
         default:
             FATAL("Unable to get a type from ast type '{s}'", ast_type_to_str(ast->type));
@@ -174,14 +174,11 @@ Type ast_to_type(struct AST * ast) {
     switch (ast->type) {
         case AST_EXPR:
         {
-            a_expr expr = ast->value.expression;
+            a_expression expr = ast->value.expression;
 
             if (expr.children.size == 1) {
-                Type * type_ref = ast_get_type_of(ARENA_GET(expr.children, 0, struct AST *));
-                if (type_ref == NULL) {
-                    return UNKNOWN_TYPE;
-                }
-                return *type_ref;
+                Type type_ref = ast_get_type_of(ARENA_GET(expr.children, 0, struct AST *));
+                return type_ref;
             }
 
             type.intrinsic = ITuple;
@@ -191,9 +188,8 @@ Type ast_to_type(struct AST * ast) {
                 struct AST * child = ARENA_GET(expr.children, i, struct AST *);
                 ASSERT1(child != NULL);
 
-                Type * child_type = ast_get_type_of(child);
-                ASSERT1(child_type != NULL);
-                ARENA_APPEND(&type.value.tuple.types, *child_type);
+                Type child_type = ast_get_type_of(child);
+                ARENA_APPEND(&type.value.tuple.types, child_type);
             }
         } break;
         default:
@@ -239,7 +235,7 @@ char is_equal_type(Type type1, Type type2) {
 
     switch (type1.intrinsic) {
         case IType:
-            return type1.name_id == type2.name_id;
+            return type1.symbol->value.symbol.node == type2.symbol->value.symbol.node;
         case INumeric:
         {
             Numeric_T num1 = type1.value.numeric, num2 = type2.value.numeric;
@@ -342,7 +338,9 @@ char * type_to_str(Type type) {
         case IUnknown:
             return "Unknown";
         case IType:
-            return interner_lookup_str(type.name_id)._ptr;
+        {
+            return symbol_expand_path(type.symbol);
+        }
         case INumeric:
         {
             Numeric_T num = type.value.numeric;
@@ -398,7 +396,7 @@ char * type_to_str(Type type) {
             return format("{s})", buf);
         }
         case IImpl:
-            return format("impl {s}", interner_lookup_str(type.name_id)._ptr);
+            return format("impl {s}", symbol_expand_path(type.symbol));
     }
 
     return "(NULL)";

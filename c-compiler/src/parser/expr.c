@@ -1,3 +1,4 @@
+#include "checker/symbols.h"
 #include "fmt.h"
 #include "parser/parser.h"
 
@@ -18,7 +19,8 @@ struct Operator * get_operator(SourceSpan span, struct Token * token, enum OP_mo
         *op = str_to_operator(span.start, UNARY_POST, enclosed_flag);
 
     if (op->key == OP_NOT_FOUND) {
-        ERROR("{s} operator '{s}' not found: {s}", mode == BINARY ? "Binary" : "Unary", span.start, token_to_str(*token));
+        FATAL("{s} operator '{s}' not found: {s}", mode == BINARY ? "Binary" : "Unary", span.start, token_to_str(*token));
+        print_trace();
         exit(1);
     }
 
@@ -27,7 +29,7 @@ struct Operator * get_operator(SourceSpan span, struct Token * token, enum OP_mo
 
 void consume_add_operator(struct Operator * op, struct List * list, struct Parser * parser) {
     struct AST * ast = init_ast(AST_OP, parser->current_scope);
-    a_op * operator = &ast->value.operator;
+    a_operator * operator = &ast->value.operator;
 
     if (list->size == 0) {
         FATAL("Invalid expression: Operator without valid operands");
@@ -66,7 +68,15 @@ Arena _parser_parse_expr(struct Parser * parser, struct List * output, struct De
                     exit(1);
                 }
 
-                list_push(output, parser_parse_id(parser));
+                struct AST * id = parser_parse_id(parser);
+                // println("{s} | Output({i})", symbol_expand_path(id), output->size);
+                if (id->value.symbol.node != NULL && output->size != 0) {
+                    ERROR("Invalid use of symbol type hinting");
+                    exit(1);
+                }
+
+
+                list_push(output, id);
                 mode = BINARY;
             } break;
             case TOKEN_INT:
@@ -102,7 +112,7 @@ Arena _parser_parse_expr(struct Parser * parser, struct List * output, struct De
                     } else { // closing enclosed operator
                         while (strcmp(op1->str, (op2 = deque_back(operators))->str)) { // while not start version of this enclosed operator
                             if (op2->key == EXIT_ON_KEY) {
-                                ASSERT(sizeof(op1->key) != (sizeof(op_conversion) / sizeof(op_conversion[0])), "Possibly invalid EXIT_ON_KEY:");
+                                ASSERT(sizeof(op1->key) != operator_get_count(), "Possibly invalid EXIT_ON_KEY:");
                                 goto exit;
                             }
                             if (operators->size == 1) {
@@ -146,7 +156,7 @@ Arena _parser_parse_expr(struct Parser * parser, struct List * output, struct De
                         : UNARY_PRE;
                 parser_eat(parser, parser->token->type);
 
-                if (op1->key == CAST || op1->key == BIT_CAST) {
+                if (op1->key == CAST) {
                     consume_add_operator(op1, output, parser);
 
                     struct AST * cast_ast = list_at(output, -1);
@@ -242,12 +252,7 @@ struct AST * parser_parse_expr_exit_on(struct Parser * parser, enum Operators op
 
     if (op != -1) {
         struct Operator * temp_operator = malloc(sizeof(struct Operator));
-        for (int i = 0; i < (sizeof(op_conversion) / sizeof(struct Operator)); ++i) {
-            if (op == op_conversion[i].key) {
-                *temp_operator = op_conversion[i];
-                break;
-            }
-        }
+        *temp_operator = operator_get(op);
         push_front(operators, temp_operator);
     }
 

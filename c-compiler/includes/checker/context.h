@@ -1,12 +1,16 @@
 #pragma once
 
 #include "codegen/AST.h"
-#include "tables/symbol.h"
+#include "tables/symbol_table.h"
 
 typedef struct context {
-	struct symbol_table declarations;
-	struct symbol_table types;
+	struct symbol_table declarations;	// variables, function
+	struct symbol_table types;			// structs, enum
+	struct symbol_table traits;			// traits
+	struct symbol_table imports;		// module aliases
 } Context;
+
+void context_init();
 
 /* Add module declared variables, functions and imports */
 void context_enter_module(struct AST * module_ast);

@@ -1,9 +1,8 @@
 #include "ferrum.h"
 
 #include "common/io.h"
-#include "fmt.h"
 #include "parser/parser.h"
-#include "codegen/checker.h"
+#include "checker/checker.h"
 // #include "codegen/gen.h"
 #include "tables/interner.h"
 
@@ -39,10 +38,9 @@ void ferrum_compile(char * file_path) {
     total += time;
     asprintf(&parser_time, "Time for parser:\t%.3fms", (double)time / 1000);
 
-    print_ast_tree(ast);
 
-    println("Finished parsing");
-    exit(0);
+    // print_ast_tree(ast);
+    // exit(0);
 
     start_timer();
     checker_check(ast);

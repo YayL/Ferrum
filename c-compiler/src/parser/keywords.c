@@ -44,13 +44,12 @@ unsigned int keyword_get_intern_id(enum Keywords keyword_enum) {
 
 #define INTERN_KEYWORD(ENUM_KEY, USAGE, STR) \
     GET_KEYWORD(ENUM_KEY).intern_id = interner_intern(STRING_FROM_LITERAL(STR));
-#define PRINT_INTERNED_KEYWORD(ENUM_KEY, USAGE, STR) \
-    println("{u}: '{s}'", GET_KEYWORD(ENUM_KEY).intern_id, STR);
-
 void keywords_intern() {
     KEYWORDS_LIST(INTERN_KEYWORD)
 }
 
+#define PRINT_INTERNED_KEYWORD(ENUM_KEY, USAGE, STR) \
+    println("{u}: '{s}'", GET_KEYWORD(ENUM_KEY).intern_id, STR);
 void keywords_print() {
     KEYWORDS_LIST(PRINT_INTERNED_KEYWORD);
 }

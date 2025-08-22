@@ -117,6 +117,8 @@ int main() {
 #ifndef __AC_KHASH_H
 #define __AC_KHASH_H
 
+#include "common/defines.h"
+
 /*!
   @header
 
@@ -359,6 +361,9 @@ static const double __ac_HASH_UPPER = 0.77;
 #define KHASH_DECLARE(name, khkey_t, khval_t)		 					\
 	__KHASH_TYPE(name, khkey_t, khval_t) 								\
 	__KHASH_PROTOTYPES(name, khkey_t, khval_t)
+
+#define KHASH_IS_SET 0
+#define KHASH_IS_MAP 1
 
 #define KHASH_INIT2(name, SCOPE, khkey_t, khval_t, kh_is_map, __hash_func, __hash_equal) \
 	__KHASH_TYPE(name, khkey_t, khval_t) 								\

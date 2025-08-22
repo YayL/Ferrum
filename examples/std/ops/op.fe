@@ -1,8 +1,8 @@
 
-package "arithmetic/addition"
-package "arithmetic/subtraction"
-package "arithmetic/multiplication"
-package "arithmetic/division"
+import "arithmetic/addition" as addition
+import "arithmetic/subtraction" as subtraction
+import "arithmetic/multiplication" as multiplication
+import "arithmetic/division" as division
 
 /* == Not working ==
 package "arithmetic/pre_decrement"
@@ -10,14 +10,14 @@ package "arithmetic/pre_increment"
 package "arithmetic/post_increment"
 */
 
-package "relational/less_equal_to"
-package "relational/less_than"
-package "relational/equal"
+import "relational/less_equal_to" as less_equal_to
+import "relational/less_than" as less_than
+import "relational/equal" as equal
 
-package "assignment/assignment"
+import "assignment/assignment" as assignment
 
-package "address/address_of"
-package "address/dereference"
-package "address/subscript"
+import "address/address_of" as address_of
+import "address/dereference" as dereference
+import "address/subscript" as subscript
 
-package "cast/bit_cast"
+import "cast/cast" as cast

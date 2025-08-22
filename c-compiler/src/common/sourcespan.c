@@ -9,6 +9,10 @@ SourceSpan source_span_init(const char * start, unsigned int length) {
 	};
 }
 
+SourceSpan source_span_init_from_string(String string) {
+	return source_span_init(string._ptr, string.length);
+}
+
 char * source_span_to_cstr(SourceSpan span) {
 	char * cstr = malloc(sizeof(char) * (span.length + 1));
 

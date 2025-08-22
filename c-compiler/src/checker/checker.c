@@ -1,20 +1,24 @@
-#include "codegen/checker.h"
+#include "checker/checker.h"
 #include "checker/context.h"
+#include "checker/symbols.h"
 #include "codegen/AST.h"
+#include "codegen/builtin.h"
 #include "codegen/functions.h"
 #include "common/arena.h"
+#include "common/hashmap.h"
 #include "common/logger.h"
 #include "common/macro.h"
+#include "fmt.h"
 #include "parser/operators.h"
 #include "parser/types.h"
 #include "tables/interner.h"
 
-unsigned int get_interner_id(struct AST * ast) {
+ID get_interner_id(struct AST * ast) {
     switch (ast->type) {
         case AST_FUNCTION:
             return ast->value.function.name_id;
         case AST_DECLARATION:
-            return ast->value.declaration.variable->value.variable.name_id;
+            return ast->value.declaration.name_id;
         default:
             print_ast("get_name invalid type: {s}", ast);
             exit(1);
@@ -42,37 +46,61 @@ void add_member_function(Type marker, struct AST * new_member_to_add, struct AST
     // list_push(members, new_member_to_add);
 }
 
-Type checker_check_expr_node(struct AST * ast) {
+void checker_check_expr_node(struct AST * ast) {
     switch (ast->type) {
         case AST_OP:
-            return checker_check_op(ast);
+            checker_check_op(ast); break;
         case AST_VARIABLE:
-            return checker_check_variable(ast);
+            checker_check_variable(ast); break;
         case AST_EXPR:
-            return checker_check_expression(ast);
+            checker_check_expression(ast); break;
         case AST_LITERAL:
-            return *ast->value.literal.type;
+            checker_check_literal(ast); break;
+        case AST_SYMBOL:
+            checker_check_symbol(ast); break;
         default:
             FATAL("Unimplemented expr node type: {s}", ast_type_to_str(ast->type));
     }
+}   
+
+void checker_check_literal(struct AST * ast) {
+    ASSERT1(ast->type == AST_LITERAL);
+    // ASSERT(0, "Unimplemented");
 }
 
-Type checker_check_op(struct AST * ast) {
+void checker_check_symbol(struct AST * ast) {
+    ASSERT1(ast->type == AST_SYMBOL);
+    a_symbol symbol = ast->value.symbol;
+
+    // if (symbol.node == NULL) {
+    //     println("Must lookup symbol: {s}", symbol_expand_path(ast));
+    //
+    //     for (size_t i = 0; i < 
+    //
+    //     exit(0);
+    // }
+}
+
+void checker_check_op(struct AST * ast) {
     Type left = UNKNOWN_TYPE, right = UNKNOWN_TYPE;
-    a_op * op = &ast->value.operator;
+    a_operator * op = &ast->value.operator;
 
     if (op->op->key == CALL) {
-        if (op->left->type != AST_VARIABLE) {
+        if (op->left->type != AST_SYMBOL) {
             ERROR("Arbitrary address calls are not supported yet");
-            return UNKNOWN_TYPE;
+            return;
         }
 
-        a_variable var = op->left->value.variable;
-        String func_call_name = interner_lookup_str(var.name_id);
-        if (func_call_name._ptr[0] == '#') {
-            // return checker_check_expr_node(op->right);
-            /* TODO: Give builtin function calls the correct return type */
-            return UNKNOWN_TYPE;
+        a_symbol symbol = op->left->value.symbol;
+        unsigned int first_name_id = ARENA_GET(symbol.name_ids, 0, unsigned int);
+        if (builtin_interner_id_is_inbounds(first_name_id)) {
+            if (symbol.name_ids.size != 1) {
+                ERROR("Invalid to use '::' operator when trying to call builtin function");
+                exit(1);
+            }
+
+            op->type = &VOID_TYPE;
+            return;
         }
 
         // if (!is_declared_function(var.name, ast->scope)) {
@@ -80,18 +108,21 @@ Type checker_check_op(struct AST * ast) {
         //     return UNKNOWN_TYPE;
         // }
 
-        right = checker_check_expr_node(op->right);
+        checker_check_expr_node(op->right);
  
         resolve_function_from_call(ast);
+
+        println("Resolved function call");
 
     } else if (op->op->key == TERNARY && op->right->value.operator.op->key != TERNARY_BODY) {
         FATAL("Detected an error with the ternary operator. This was most likely caused by operator precedence or nested ternary operators. To remedy this try applying parenthesis around the seperate ternary body entries");
     } else if (op->op->key == PARENTHESES) {
         ALLOC(op->type);
-        return *op->type = checker_check_expr_node(op->right);
+        checker_check_expr_node(op->right);
+        return;
     } else if (op->op->key == ASSIGNMENT) {
         struct AST * get_address_ast = init_ast(AST_OP, ast->scope);
-        a_op * get_address = &get_address_ast->value.operator;
+        a_operator * get_address = &get_address_ast->value.operator;
         get_address->right = op->left;
 
         get_address->op = malloc(sizeof(struct Operator));
@@ -99,13 +130,13 @@ Type checker_check_op(struct AST * ast) {
         
         op->left = get_address_ast;
 
-        left = checker_check_expr_node(op->left);
+        checker_check_expr_node(op->left);
         /* exit(0); */
     } else if (op->left) {
-        left = checker_check_expr_node(op->left);
+        checker_check_expr_node(op->left);
     }
 
-    right = checker_check_expr_node(op->right);
+    checker_check_expr_node(op->right);
 
     Type self_type = {.intrinsic = IUnknown};
 
@@ -162,28 +193,26 @@ void checker_check_for(struct AST * ast) {
 }
 
 void checker_check_return(struct AST * ast) {
-    a_return return_statement = ast->value.return_statement;
+    a_return_statement return_statement = ast->value.return_statement;
 
     checker_check_expression(return_statement.expression);
 }
 
-Type checker_check_expression(struct AST * ast) {
-    struct AST * node;
-    a_expr * expr = &ast->value.expression;
+void checker_check_expression(struct AST * ast) {
+    a_expression * expr = &ast->value.expression;
 
+    ASSERT1(expr->children.size != 0);
     for (int i = 0; i < expr->children.size; ++i) {
-        node = arena_get_ref(expr->children, i);
+        struct AST * node = ARENA_GET(expr->children, i, struct AST *);
         ASSERT1(node != NULL);
         checker_check_expr_node(node);
     }
 
-    if (expr->type == NULL) {
-        ALLOC(expr->type);
-    }
-    return *expr->type = ast_to_type(ast);
+    ALLOC(expr->type);
+    *expr->type = ast_to_type(ast);
 }
 
-Type checker_check_variable(struct AST * ast) {
+void checker_check_variable(struct AST * ast) {
     // struct AST * var_ast = get_variable(ast);
     //
     // if (var_ast == NULL || !var_ast->value.variable.is_declared) {
@@ -193,11 +222,10 @@ Type checker_check_variable(struct AST * ast) {
     // }
 
     // ast->value = var_ast->value;
-    return *ast->value.variable.type;
 }
 
 struct AST * checker_check_struct(struct AST * ast) {
-    a_struct * _struct = &ast->value.structure;
+    a_structure * _struct = &ast->value.structure;
 
     // if (ast != get_symbol(_struct->name, ast->scope)) {
     //     FATAL("Multiple definitions for struct '{s}'", _struct->name);
@@ -207,7 +235,7 @@ struct AST * checker_check_struct(struct AST * ast) {
 }
 
 struct AST * checker_check_impl(struct AST * ast) {
-    a_impl impl = ast->value.implementation;
+    a_implementation impl = ast->value.implementation;
     // struct AST * node = get_symbol(impl.name, ast->scope),
     //            * temp1,
     //            * temp2;
@@ -284,11 +312,11 @@ struct AST * checker_check_trait(struct AST * ast) {
 }
 
 void checker_check_scope(struct AST * ast) {
+    context_enter_scope(ast);
     a_scope scope = ast->value.scope;
-    struct AST * node;
 
     for (int i = 0; i < scope.nodes.size; ++i) {
-        node = arena_get_ref(scope.nodes, i);
+        struct AST * node = ARENA_GET(scope.nodes, i, struct AST *);
         switch (node->type) {
             case AST_EXPR:
                 checker_check_expression(node);
@@ -314,17 +342,17 @@ void checker_check_scope(struct AST * ast) {
         }
     }
 
+    context_exit_scope(ast);
 }
 
 void checker_check_declaration(struct AST * ast) {
-    struct AST * node;
     a_declaration declaration = ast->value.declaration;
-    a_expr expr = declaration.expression->value.expression;
+    a_expression expr = declaration.expression->value.expression;
 
     for (int i = 0; i < expr.children.size; ++i) {
-        node = arena_get_ref(expr.children, i);
+        struct AST * node = ARENA_GET(expr.children, i, struct AST *);
         if (node->type == AST_OP) {
-            a_op * op = &node->value.operator;
+            a_operator * op = &node->value.operator;
             if (op->op->key == ASSIGNMENT) {
                 if (op->left->type != AST_VARIABLE) {
                     FATAL("On declaration the LHS must always be a variable");
@@ -340,7 +368,7 @@ void checker_check_declaration(struct AST * ast) {
                         }
                     case AST_MODULE:
                         {
-                            ARENA_APPEND(&ast->scope->value.module.definitions, op->left);
+                            ARENA_APPEND(&ast->scope->value.module.members, op->left);
                             break;
                         }
                     default:
@@ -362,7 +390,7 @@ void checker_check_declaration(struct AST * ast) {
                     }
                 case AST_MODULE:
                     {
-                        ARENA_APPEND(&ast->scope->value.module.definitions, node);
+                        ARENA_APPEND(&ast->scope->value.module.members, node);
                         break;
                     }
                 default:
@@ -376,35 +404,26 @@ void checker_check_declaration(struct AST * ast) {
     }
 }
 
-/* TODO:
- * Add type templating
- * A type template is defined with a requirement or without one. 
- * A template requirement specifies whether a type should have a generated version of this function
- * The compiler will not generate a new AST for a new type. Instead it will copy the function AST node only and then add a template list which specifies the template types. 
- * With the template list it will then check the function body to check if this function is able to be generated with these template parameters.
- * When it is the generators time it will look up the template type it encounters and replace it with the type specified in the template list at the function scope
- */
-
 void checker_check_function(struct AST * ast) {
-    struct AST * node;
-    a_function function = ast->value.function;
- 
-    /* if (template_types != NULL && template_types->total == 0) */
-    /*     function->template_types = template_types; */
-    /* else */
-    /*     function->template_types = NULL; */
+    context_enter_function(ast);
 
-    a_expr arguments = function.arguments->value.expression;
+    a_function function = ast->value.function;
+    a_expression arguments = function.arguments->value.expression;
 
     for (int i = 0; i < arguments.children.size; ++i) {
-        node = arena_get_ref(arguments.children, i);
-        ASSERT(node->type == AST_VARIABLE, "Function arguments currently only support variable definition");
+        struct AST * node = ARENA_GET(arguments.children, i, struct AST *);
+        ASSERT(node->type == AST_SYMBOL, "Function arguments currently only support declarations");
         node->value.variable.is_declared = 1;
         checker_check_variable(node);
     }
 
     checker_check_scope(function.body);
-    /* function->template_types = NULL; */
+
+    context_exit_function(ast);
+}
+
+void checker_check_import(struct AST * ast) {
+
 }
 
 void checker_check_definitions(struct AST * ast) {
@@ -417,21 +436,26 @@ void checker_check_definitions(struct AST * ast) {
             checker_check_declaration(ast); break;
         case AST_STRUCT:
             checker_check_struct(ast); break;
+        case AST_TRAIT:
+            checker_check_trait(ast); break;
+        case AST_IMPL:
+            checker_check_impl(ast); break;
+        case AST_IMPORT:
+            checker_check_import(ast); break;
         default:
             FATAL("Invalid AST type: {s}", ast_type_to_str(ast->type));
     }
 }
 
 void checker_check_module(struct AST * ast) {
+    ASSERT1(ast != NULL);
+    ASSERT1(ast->type == AST_MODULE);
+
     a_module * module = &ast->value.module;
     context_enter_module(ast);
 
-    for (int i = 0; i < module->traits.size; ++i) {
-        checker_check_trait(arena_get_ref(module->traits, i));
-    }
-
-    for (int i = 0; i < module->definitions.size; ++i) {
-        checker_check_definitions(arena_get_ref(module->definitions, i));
+    for (int i = 0; i < module->members.size; ++i) {
+        checker_check_definitions(ARENA_GET(module->members, i, struct AST *));
     }
 
     context_exit_module(ast);
@@ -440,12 +464,13 @@ void checker_check_module(struct AST * ast) {
 void checker_check(struct AST * ast) {
     ASSERT1(ast->type == AST_ROOT);
     a_root root = ast->value.root;
-    struct AST * main = NULL, * temp;
 
-    // checker_check_module()
-    //
-    // for (int i = 0; i < root.modules->size; i++) {
-    //     checker_check_module(list_at(root.modules, i));
-    // }
+    context_init();
 
+    struct AST * module;
+    kh_foreach_value(&root.modules, module, {
+        checker_check_module(module);
+    });
+
+    // perform main function lookup on root.entry_point module
 }

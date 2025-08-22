@@ -4,6 +4,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include "common/defines.h"
+#include "fmt.h" // needed for printing when using macros
 
 #ifdef BACKTRACE
 #include <backtrace.h>

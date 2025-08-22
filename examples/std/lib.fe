@@ -1,2 +1,2 @@
-package "ops/op"
-package "math"
+import "ops/op" as op
+import "math" as math

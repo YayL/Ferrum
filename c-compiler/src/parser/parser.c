@@ -2,30 +2,50 @@
 
 #include "codegen/AST.h"
 #include "common/arena.h"
+#include "common/hashmap.h"
 #include "common/io.h"
 #include "common/logger.h"
+#include "common/string.h"
 #include "fmt.h"
 #include "parser/keywords.h"
 #include "parser/modules.h"
 #include "parser/lexer.h"
 #include "common/macro.h"
+#include "parser/token.h"
+#include <stdlib.h>
 
 struct Parser * init_parser(char * path) {
     struct Parser * parser = malloc(sizeof(struct Parser));
 
     size_t length;
     char * src = read_file(path, &length);
-    struct Lexer * lexer = init_lexer(src, length);
+    struct Lexer * lexer = lexer_init(src, length);
 
     parser->path = path;
     parser->lexer = lexer;
     parser->error = 0;
     parser->prev = init_token();
 
+    parser->modules_to_parse = arena_init(sizeof(char *));
+
     lexer_next_token(lexer);
     parser->token = &lexer->tok;
    
     return parser;
+}
+
+void parser_change_path(struct Parser * parser, char * path) {
+    lexer_free(parser->lexer);
+
+    size_t length;
+    char * src = read_file(path, &length);
+    parser->lexer = lexer_init(src, length);
+
+    parser->path = path;
+    parser->prev = init_token();
+
+    lexer_next_token(parser->lexer);
+    parser->token = &parser->lexer->tok;
 }
 
 void parser_eat(struct Parser * parser, enum token_t type) {
@@ -34,7 +54,7 @@ void parser_eat(struct Parser * parser, enum token_t type) {
                     parser->token->line, parser->token->pos, 
                     token_type_to_str(type), 
                     token_type_to_str(parser->token->type));
-        println("path: {s}", parser->path);
+        print_trace();
         parser->error = 1;
     }
 
@@ -43,6 +63,43 @@ void parser_eat(struct Parser * parser, enum token_t type) {
     }
 
     lexer_next_token(parser->lexer);
+}
+
+void parser_eat_keyword(struct Parser * parser, enum Keywords keyword) {
+    unsigned int keyword_id = keyword_get_intern_id(keyword);
+
+    if (parser->token->type == TOKEN_ID && parser->token->interner_id != keyword_id){
+        println("[Error] {2i::} Expected keyword type '{s}' got token '{s}'", 
+                    parser->token->line, parser->token->pos, 
+                    interner_lookup_str(keyword_id)._ptr, 
+                    interner_lookup_str(parser->token->interner_id)._ptr);
+        parser->error = 1;
+    }
+
+    parser_eat(parser, TOKEN_ID);
+}
+
+Arena parser_parse_template_list(struct Parser * parser) {
+    Arena arena = arena_init(sizeof(struct AST *));
+
+    if (parser->token->type == TOKEN_LT) {
+        parser_eat(parser, TOKEN_LT);
+
+        while (parser->token->type == TOKEN_ID) {
+            struct AST * ast = parser_parse_id(parser);
+            ARENA_APPEND(&arena, ast);
+
+            if (parser->token->type == TOKEN_GT) {
+                break;
+            }
+
+            parser_eat(parser, TOKEN_COMMA);
+        }
+
+        parser_eat(parser, TOKEN_GT);
+    }
+
+    return arena;
 }
 
 struct AST * parser_parse_int(struct Parser * parser) {
@@ -56,7 +113,6 @@ struct AST * parser_parse_int(struct Parser * parser) {
     ALLOC(number->type);
     Type * type = number->type;
 
-    type->name_id = interner_intern(STRING_FROM_LITERAL("i32"));
     type->value.numeric = num;
     type->intrinsic = INumeric;
 
@@ -97,17 +153,49 @@ struct AST * parser_parse_string(struct Parser * parser) {
 }
 
 struct AST * parser_parse_id(struct Parser * parser) {
-    struct AST * ast = init_ast(AST_VARIABLE, parser->current_scope);
-    a_variable * variable = &ast->value.variable;
-
-    variable->name_id = parser->token->interner_id;
-
+    struct AST * ast = init_ast(AST_SYMBOL, parser->current_scope);
+    a_symbol * symbol = &ast->value.symbol;
+    unsigned int name_id = parser->token->interner_id;
+    ARENA_APPEND(&symbol->name_ids, name_id);
     parser_eat(parser, TOKEN_ID);
 
-    if (parser->token->type == TOKEN_COLON) {
-        parser_eat(parser, TOKEN_COLON); 
-        ALLOC(variable->type);
-        *variable->type = parser_parse_type(parser);
+     if (parser->token->type == TOKEN_COLON && (parser_eat(parser, TOKEN_COLON), parser->token->type != TOKEN_COLON)) {
+        struct AST * var_ast = init_ast(AST_VARIABLE, parser->current_scope);
+        a_variable * variable = &var_ast->value.variable;
+        variable->name_id = name_id;
+        variable->type = parser_parse_type(parser);
+
+        ast->value.symbol.node = var_ast;
+    } else if (parser->token->type ==  TOKEN_COLON) {
+        parser_eat(parser, TOKEN_COLON);
+        ARENA_APPEND(&symbol->name_ids, parser->token->interner_id);
+        parser_eat(parser, TOKEN_ID);
+
+        while (parser->token->type == TOKEN_COLON) {
+            parser_eat(parser, TOKEN_COLON);
+            parser_eat(parser, TOKEN_COLON);
+
+            ARENA_APPEND(&symbol->name_ids, parser->token->interner_id);
+            parser_eat(parser, TOKEN_ID);
+        }
+    }
+
+    return ast;
+}
+
+struct AST * parser_parse_symbol(struct Parser * parser) {
+    struct AST * ast = init_ast(AST_SYMBOL, parser->current_scope);
+    a_symbol * symbol = &ast->value.symbol;
+
+    ARENA_APPEND(&symbol->name_ids, parser->token->interner_id);
+    parser_eat(parser, TOKEN_ID);
+
+    while (parser->token->type == TOKEN_COLON) {
+        parser_eat(parser, TOKEN_COLON);
+        parser_eat(parser, TOKEN_COLON);
+
+        ARENA_APPEND(&symbol->name_ids, parser->token->interner_id);
+        parser_eat(parser, TOKEN_ID);
     }
 
     return ast;
@@ -203,7 +291,7 @@ struct AST * parser_parse_match(struct Parser * parser) {
 
 struct AST * parser_parse_return(struct Parser * parser) {
     struct AST * ast = init_ast(AST_RETURN, parser->current_scope);
-    a_return * return_statement = &ast->value.return_statement;
+    a_return_statement * return_statement = &ast->value.return_statement;
 
     parser_eat(parser, TOKEN_ID);    
     return_statement->expression = parser_parse_expr(parser);
@@ -216,28 +304,15 @@ void parser_parse_template_types(struct Parser * parser, struct hashmap * map) {
 
 struct AST * parser_parse_struct(struct Parser * parser) {
     struct AST * ast = init_ast(AST_STRUCT, parser->current_scope), * temp;
-    a_struct * _struct = &ast->value.structure;
+    a_structure * _struct = &ast->value.structure;
     
-    parser_eat(parser, TOKEN_ID);
+    parser_eat(parser, TOKEN_ID); // struct
     _struct->name_id = parser->token->interner_id;
-    parser_eat(parser, TOKEN_ID);
+    parser_eat(parser, TOKEN_ID); // [name]
 
-    if (parser->token->type == TOKEN_LT) {
-        parser_eat(parser, TOKEN_LT);
-
-        while (1) {
-            // list_push(_struct->generics, init_string_with_length(parser->token->value, parser->token->length));
-            parser_eat(parser, TOKEN_ID);
-            if (parser->token->type == TOKEN_GT)
-                break;
-            parser_eat(parser, TOKEN_COMMA);
-        }
-
-        parser_eat(parser, TOKEN_GT);
-    }
+    _struct->templates = parser_parse_template_list(parser);
 
     parser_eat(parser, TOKEN_LBRACE);
-    parser_eat(parser, TOKEN_LINE_BREAK);
 
     do {
         temp = parser_parse_identifier(parser);
@@ -245,7 +320,7 @@ struct AST * parser_parse_struct(struct Parser * parser) {
             switch (temp->type) {
                 case AST_DECLARATION:
                     {
-                        a_expr expr = temp->value.declaration.expression->value.expression;
+                        a_expression expr = temp->value.declaration.expression->value.expression;
                         arena_extend(&_struct->definitions, expr.children);
                     } break;
                 case AST_FUNCTION:
@@ -277,10 +352,9 @@ struct AST * parser_parse_trait(struct Parser * parser) {
     parser->current_scope = ast;
 
     a_trait * trait = &ast->value.trait;
-    parser_eat(parser, TOKEN_ID);
+    parser_eat(parser, TOKEN_ID); // trait
     trait->name_id = parser->token->interner_id;
-    // add_marker(ast, trait->name);
-    parser_eat(parser, TOKEN_ID);
+    parser_eat(parser, TOKEN_ID); // [name]
 
     parser_eat(parser, TOKEN_LBRACE);
     
@@ -305,42 +379,34 @@ struct AST * parser_parse_trait(struct Parser * parser) {
 }
 
 struct AST * parser_parse_impl(struct Parser * parser) {
-    struct AST * ast = init_ast(AST_IMPL, parser->current_scope),
-               * node,
-               * type;
-    a_impl * impl = &ast->value.implementation;
+    struct AST * ast = init_ast(AST_IMPL, parser->current_scope);
+    a_implementation * impl = &ast->value.implementation;
     parser->current_scope = ast;
 
     parser_eat(parser, TOKEN_ID); // impl
     impl->name_id = parser->token->interner_id;
     parser_eat(parser, TOKEN_ID); // [name]
-
     parser_eat(parser, TOKEN_ID); // for
 
     impl->type = parser_parse_type(parser);
-    // DEBUG("\"{s}\" {s", impl->name, type_to_str(impl->type));
 
     parser_eat(parser, TOKEN_LBRACE);
 
-    impl->members = arena_init(sizeof(struct AST *));
     while (1) {
-        while (parser->token->type == TOKEN_LINE_BREAK)
+        while (parser->token->type == TOKEN_LINE_BREAK) {
             parser_eat(parser, TOKEN_LINE_BREAK);
-
-        if (parser->token->type == TOKEN_RBRACE)
-            break;
-
-        node = parser_parse_identifier(parser);
-        switch (node->type) {
-            case AST_FUNCTION:
-            {
-                // a_module * module = get_scope(AST_MODULE, parser->current_scope)->value;
-                add_function_to_module(get_scope(AST_MODULE, parser->current_scope), node);
-                DEBUG("Added function: {s}", ast_to_string(node));
-            }
-            default:
-                ARENA_APPEND(&impl->members, node);
         }
+
+        if (parser->token->type == TOKEN_RBRACE) {
+            break;
+        }
+
+        struct AST ** next = arena_next(&impl->members);
+        // println("{p}", next);
+        *next = parser_parse_identifier(parser);
+        struct AST * node = ARENA_GET(impl->members, impl->members.size - 1, struct AST *);
+        // println("inserted: {s}", ast_to_string(node));
+        // ARENA_APPEND(&impl->members, parser_parse_identifier(parser));
     }
 
     parser_eat(parser, TOKEN_RBRACE);
@@ -360,19 +426,27 @@ struct AST * parser_parse_declaration(struct Parser * parser, enum Keywords keyw
     parser_eat(parser, TOKEN_ID);
 
     declaration->expression = parser_parse_expr(parser);
-    a_expr * expr = &declaration->expression->value.expression;
+    a_expression * expr = &declaration->expression->value.expression;
 
     node = ARENA_GET(expr->children, 0, struct AST *);
     if (node->type == AST_OP) {
-        a_op op = node->value.operator;
+        a_operator op = node->value.operator;
         node = op.left;
     }
 
-    if (node->type != AST_VARIABLE) {
-        FATAL("{2i::} LHS of declaration must be a variable", parser->token->line, parser->token->pos);
+    if (node->type != AST_SYMBOL) {
+        FATAL("{2i::} LHS of declaration must be a symbol", parser->token->line, parser->token->pos);
     }
 
-    declaration->variable = node;
+    a_symbol * symbol = &node->value.symbol;
+    symbol->node = ast;
+
+    ASSERT1(symbol->name_ids.size != 0);
+    if (symbol->name_ids.size > 1) {
+        ERROR("Variable declaration does not allow names with '::'");
+    }
+
+    declaration->name_id = ARENA_GET(symbol->name_ids, 0, unsigned int);
 
     return ast;
 }
@@ -452,49 +526,25 @@ struct AST * parser_parse_scope(struct Parser * parser) {
 }
 
 struct AST * parser_parse_function(struct Parser * parser) {
-    struct AST * ast = init_ast(AST_FUNCTION, parser->current_scope), 
-               * argument,
-               * param_types;
+    struct AST * ast = init_ast(AST_FUNCTION, parser->current_scope);
     a_function * function = &ast->value.function;
     parser->current_scope = ast;
 
     parser_eat(parser, TOKEN_ID); // fn
 
+    // inline
     if (parser->token->type == TOKEN_ID && parser->token->interner_id == keyword_get_intern_id(KEYWORD_INLINE)) {
         function->is_inline = 1;
         parser_eat(parser, TOKEN_ID);
     }
 
+    // [name]
     if (parser->token->type == TOKEN_ID) {
         function->name_id = parser->token->interner_id;
         parser_eat(parser, TOKEN_ID);
     }
     
-    if (ast->scope->type == AST_IMPL || ast->scope->type == AST_TRAIT) {
-        /* UNCOMMENT */
-        // FATAL("uhhh not implemented");
-    }
-
-    if (parser->token->type == TOKEN_LT) {
-        parser_eat(parser, TOKEN_LT);
-        
-        struct AST * ast;
-        char * name;
-
-        while (parser->token->type == TOKEN_ID) {
-            ast = parser_parse_id(parser);
-            ASSERT1(ast->type == AST_VARIABLE);
-            // list_push(function->parsed_templates, name);
-            // hashmap_set(function->template_types, name, ast);
-
-            if (parser->token->type == TOKEN_GT) {
-                break;
-            }
-            parser_eat(parser, TOKEN_COMMA);
-        }
-
-        parser_eat(parser, TOKEN_GT);
-    }
+    function->templates = parser_parse_template_list(parser);
 
     parser_eat(parser, TOKEN_LPAREN);
     
@@ -514,51 +564,63 @@ struct AST * parser_parse_function(struct Parser * parser) {
         *function->return_type = parser_parse_type(parser);
     }
 
-    if (parser->token->type == TOKEN_SEMI) {
+    if (parser->token->type == TOKEN_LBRACE) {
+        function->body = parser_parse_scope(parser);
+    } else {
         parser_eat(parser, TOKEN_SEMI);
         function->body = NULL;
-    } else {
-        function->body = parser_parse_scope(parser);
     }
+
+    switch (ast->scope->type) {
+        case AST_IMPL:
+            ARENA_APPEND(&ast->scope->value.implementation.members, ast); break;
+        case AST_TRAIT:
+            ARENA_APPEND(&ast->scope->value.trait.children, ast); break;
+        default: break;
+    }
+
     parser->current_scope = ast->scope;
 
-    // Add the function to the modules list of function
     return ast;
 }
 
-struct AST * parser_parse_package(struct Parser * parser) {
-    parser_eat(parser, TOKEN_ID);
+struct AST * parser_parse_import(struct Parser * parser) {
+    parser_eat_keyword(parser, KEYWORD_IMPORT); // import
 
-    char * path = parser->path;
-    int last = 0;
-    for (int i = 0; path[i] != 0; ++i) {
-        if (path[i] == '/')
-            last = i;
-    }
-    
-    SourceSpan package_name = parser->token->span;
-    const char * package_name_cstr = source_span_to_cstr(parser->token->span);
 
-    path[last] = 0;
-    path = format("{4s}", path, "/", package_name_cstr, ".fe");
-    parser->path[last] = '/';
+    String current_path = string_init(parser->path);
+    int last = current_path.length - 1; // offset of last '/' in path
+    while (--last, last > 0 && current_path._ptr[last] != '/');
+    ASSERT1(last != -1);
+    current_path._ptr[last + 1] = '\0';
+
+    SourceSpan module_path = parser->token->span;
+    const char * module_path_cstr = source_span_to_cstr(parser->token->span);
+
+    char * formatted_path = format("{4s}", current_path._ptr, "/", module_path_cstr, ".fe");
+    char * abs_path = get_abs_path(formatted_path);
+    free_string(current_path);
+    free(formatted_path);
 
     parser_eat(parser, TOKEN_STRING_LITERAL);
 
-    struct AST * other_module = find_module(parser->root, path),
-               * this_module = get_scope(AST_MODULE, parser->current_scope);
-    
-    if (other_module != NULL) {
-        include_module(this_module, other_module);
-    } else {
-        INFO("Parsing package '{s}' at '{s}'", package_name_cstr, path);
-        parser_parse(parser->root, path);
-        INFO("Parsed package '{s}' at '{s}'", package_name_cstr, path);
-        other_module = find_module(parser->root, path);
-        include_module(this_module, find_module(parser->root, path));
-    }
-    
-    return NULL;
+    parser_eat_keyword(parser, KEYWORD_AS);
+
+    struct AST * this_module = get_scope(AST_MODULE, parser->current_scope);
+    ASSERT(this_module != NULL, "Unable to find current module");
+    ASSERT1(this_module == parser->current_scope);
+
+    struct AST * imported_module = add_module(parser, abs_path);
+    ASSERT1(imported_module != NULL);
+
+    struct AST * import = init_ast(AST_IMPORT, parser->current_scope);
+    import->value.import.name_id = parser->token->interner_id;
+    import->value.import.module = imported_module;
+
+    parser_eat(parser, TOKEN_ID);
+
+
+    return import;
 }
 
 struct AST * parser_parse_identifier(struct Parser * parser) {
@@ -577,8 +639,8 @@ struct AST * parser_parse_identifier(struct Parser * parser) {
         case KEYWORD_CONST:
         case KEYWORD_LET:
             return parser_parse_declaration(parser, identifier.key);
-        case KEYWORD_PACKAGE:
-            return parser_parse_package(parser);
+        case KEYWORD_IMPORT:
+            return parser_parse_import(parser);
         case KEYWORD_STRUCT:
             return parser_parse_struct(parser);
         case KEYWORD_TRAIT:
@@ -604,47 +666,19 @@ struct AST * parser_parse_module(struct Parser * parser, struct AST * ast) {
         node = parser_parse_identifier(parser);
         parser->current_scope = ast;
 
-        if (node == NULL)
+        if (node == NULL) {
             continue;
+        }
 
-        switch (node->type) {
-            case AST_FUNCTION:
-            {
-                a_module * module = &get_scope(AST_MODULE, parser->current_scope)->value.module;
-                add_function_to_module(get_scope(AST_MODULE, parser->current_scope), node);
-                ARENA_APPEND(&module->definitions, node);
-                // hashmap_set(module->symbols, node->value.function.name, node);
-                break;
+        ARENA_APPEND(&module->members, node);
+
+        if (node->type == AST_DECLARATION) {
+            a_declaration decl = node->value.declaration;
+            a_expression expr = decl.expression->value.expression;
+            struct AST * temp = ARENA_GET(expr.children, 0, struct AST *);
+            if (temp->type != AST_VARIABLE) {
+                FATAL("{2i::} Global variable declarations have to have variable as the LHS parameter", parser->token->line, parser->token->pos);
             }
-            case AST_DECLARATION:
-            {
-                ARENA_APPEND(&module->definitions, node);
-
-                a_declaration decl = node->value.declaration;
-                a_expr expr = decl.expression->value.expression;
-                struct AST * temp = arena_get_ref(expr.children, 0);
-                if (temp->type != AST_VARIABLE) {
-                    FATAL("{2i::} Global variable declarations have to have variable as the LHS parameter", parser->token->line, parser->token->pos);
-                }
-
-                // hashmap_set(module->symbols, temp->value.variable.name, node);
-            } break;
-            case AST_STRUCT:
-                ARENA_APPEND(&module->definitions, node);
-                // hashmap_set(module->symbols, node->value.structure.name, node);
-                break;
-            case AST_TRAIT:
-                ARENA_APPEND(&module->traits, node);
-                // hashmap_set(module->symbols, node->value.trait.name, node);
-                break;
-            case AST_IMPL:
-                /* UNCOMMENT */
-                // FATAL("Unsure how to handle these");
-                // ARENA_APPEND(module->, node);
-                break;
-            default:
-                println("probably a package but exiting!");
-                exit(1);
         }
 
     }
@@ -652,14 +686,24 @@ struct AST * parser_parse_module(struct Parser * parser, struct AST * ast) {
     return ast;
 }
 
-void parser_parse(struct AST * root, char * path) {
+void parser_parse(struct AST * root_ast, char * path) {
     struct Parser * parser = init_parser(path);
-    parser->root = root;
-    parser->current_scope = root;
+    parser->root = root_ast;
+    parser->current_scope = root_ast;
 
-    struct AST * module = init_ast(AST_MODULE, parser->current_scope);
-    module->value.module.path = path;
+    a_root * root = &root_ast->value.root;
+    root->entry_point = path;
 
-    list_push(root->value.root.modules, module);
-    parser_parse_module(parser, module);
+    add_module(parser, path);
+
+    while (parser->modules_to_parse.size > 0) {
+        path = ARENA_POP(&parser->modules_to_parse, char *);
+        struct AST * module = find_module(root_ast, path);
+        ASSERT1(module != NULL);
+
+        INFO("Parsing module '{s}'", path);
+        parser_change_path(parser, path);
+        parser_parse_module(parser, module);
+    }
+
 }

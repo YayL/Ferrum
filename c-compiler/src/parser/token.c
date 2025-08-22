@@ -9,11 +9,11 @@ struct Token init_token() {
 	return (struct Token) { 0 };
 }
 
-void set_token(Interner * intern, struct Token * tok, char * value, unsigned int length, enum token_t type, unsigned int line, unsigned int pos) {
+void set_token(struct Token * tok, char * value, unsigned int length, enum token_t type, unsigned int line, unsigned int pos) {
 	tok->span = source_span_init(value, length);
 
 	if (type == TOKEN_ID) {
-		tok->interner_id = interner_intern(init_string_from_source_span(tok->span));
+		tok->interner_id = interner_intern(string_init_from_source_span(tok->span));
 	} else {
 		tok->interner_id = INVALID_INTERN_ID;
 	}

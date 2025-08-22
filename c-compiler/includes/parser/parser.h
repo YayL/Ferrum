@@ -2,6 +2,9 @@
 
 #include "parser/keywords.h"
 #include "codegen/AST.h"
+#include "common/hashmap.h"
+
+KHASH_MAP_INIT_STR(parser_hm, struct AST *);
 
 typedef struct Parser {
     struct Lexer * lexer;
@@ -13,6 +16,7 @@ typedef struct Parser {
 
     struct Token * token;
 
+    Arena modules_to_parse;
     struct Token prev;
     char error;
 } * Parser;
@@ -38,8 +42,9 @@ struct AST * parser_parse_return(struct Parser * parser);
 struct AST * parser_parse_declaration(struct Parser * parser, enum Keywords keyword);
 
 struct AST * parser_parse_function(struct Parser * parser);
-struct AST * parser_parse_package(struct Parser * parser);
+struct AST * parser_parse_import(struct Parser * parser);
 struct AST * parser_parse_id(struct Parser * parser);
+struct AST * parser_parse_symbol(struct Parser * parser);
 struct AST * parser_parse_operator(struct Parser * parser);
 
 struct AST * parser_parse_int(struct Parser * parser);

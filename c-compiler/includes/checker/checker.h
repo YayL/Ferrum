@@ -17,10 +17,12 @@ struct AST * get_marker(struct AST * ast, const char * name);
 void checker_check_if(struct AST * ast);
 void checker_check_while(struct AST * ast);
 
-Type checker_check_expr_node(struct AST * ast);
-Type checker_check_op(struct AST * ast);
-Type checker_check_expression(struct AST * ast);
-Type checker_check_variable(struct AST * ast);
+void checker_check_expr_node(struct AST * ast);
+void checker_check_op(struct AST * ast);
+void checker_check_expression(struct AST * ast);
+void checker_check_variable(struct AST * ast);
+void checker_check_literal(struct AST * ast);
+void checker_check_symbol(struct AST * ast);
 
 void checker_check_scope(struct AST * ast);
 

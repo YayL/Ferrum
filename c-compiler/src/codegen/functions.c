@@ -10,7 +10,7 @@
 #include <stdlib.h>
 
 void resolve_function_from_call(struct AST * ast) {
-    a_op * op = &ast->value.operator;
+    a_operator * op = &ast->value.operator;
     struct AST * left = op->left, * right = op->right;
     ASSERT1(left->type == AST_VARIABLE);
 
@@ -27,24 +27,20 @@ void resolve_function_from_call(struct AST * ast) {
 }
 
 void resolve_function_from_operator(struct AST * ast) {
-    a_op * op = &ast->value.operator;
+    ASSERT1(ast->type == AST_OP);
+    a_operator * op = &ast->value.operator;
     struct AST * left = op->left, * right = op->right;
 
     Type * type = op->type = calloc(1, sizeof(Type));
     type->value = init_intrinsic_type(ITuple);
     type->intrinsic = ITuple;
 
-    Type * lhs_type = ast_get_type_of(left), * rhs_type = ast_get_type_of(right);
-    if (op->op->mode == BINARY) {
-        ASSERT1(lhs_type != NULL);
-    }
-    ASSERT1(rhs_type != NULL);
+    Arena * tuple_arena = &type->value.tuple.types;
 
-    Arena * arena = &type->value.tuple.types;
     if (op->op->mode == BINARY) {
-        ARENA_APPEND(arena, *lhs_type);
+        ARENA_APPEND(tuple_arena, ast_get_type_of(left));
     }
-    ARENA_APPEND(arena, *rhs_type);
+    ARENA_APPEND(tuple_arena, ast_get_type_of(right));
 
     FRResult result = frsolver_solve(frsolver_init(operator_get_intern_id(op->op->key), *type, ast->scope));
 

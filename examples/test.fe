@@ -1,4 +1,4 @@
-package "std/lib"
+import "std/lib" as std
 
 fn main(argc: i32) -> i32 {
     let a: i32 = (2 + 2) * argc
@@ -13,4 +13,3 @@ fn main(argc: i32) -> i32 {
 
     b
 }
-

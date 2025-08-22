@@ -15,12 +15,13 @@ enum Keywords_usage {
     f(KEYWORD_LET, ANY, "let") \
     \
     f(KEYWORD_FN, GLOBAL_ONLY, "fn") \
-    f(KEYWORD_PACKAGE, GLOBAL_ONLY, "package") \
+    f(KEYWORD_IMPORT, GLOBAL_ONLY, "import") \
     f(KEYWORD_STRUCT, GLOBAL_ONLY, "struct") \
     f(KEYWORD_ENUM, GLOBAL_ONLY, "enum") \
     f(KEYWORD_TRAIT, GLOBAL_ONLY, "trait") \
     f(KEYWORD_IMPL, GLOBAL_ONLY, "impl") \
     f(KEYWORD_INLINE, GLOBAL_ONLY, "inline") \
+    f(KEYWORD_AS, GLOBAL_ONLY, "as") \
     \
     f(KEYWORD_ELSE, FUNCTION_ONLY, "else") \
     f(KEYWORD_IF, FUNCTION_ONLY, "if") \

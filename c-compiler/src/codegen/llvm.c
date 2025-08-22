@@ -40,7 +40,7 @@ const char * llvm_type_to_llvm_arg_type(Type type, struct AST * self_type) {
 }
 
 const char * llvm_any_ast_to_llvm_type(struct AST * ast, struct AST * self_type) {
-    return llvm_type_to_llvm_type(*ast_get_type_of(ast), self_type);
+    return llvm_type_to_llvm_type(ast_get_type_of(ast), self_type);
 }
 
 unsigned int llvm_get_register_of(struct AST * ast) {

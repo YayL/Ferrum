@@ -1,7 +1,6 @@
 #pragma once
 
-#include "common/common.h"
-#include "common/hashmap.h"
+#include "common/arena.h"
 #include <sys/types.h>
 
 #ifndef TYPES_FOREACH
@@ -19,6 +18,7 @@
 #define TYPE_FORWARD_DECLARE(_, STRUCT_NAME, ...) typedef struct STRUCT_NAME STRUCT_NAME;
 
 #define UNKNOWN_TYPE (Type) {.intrinsic = IUnknown}
+#define IS_UNKNOWN(x) (x.intrinsic == IUknown)
 
 typedef struct Type Type;
 
@@ -52,9 +52,10 @@ typedef struct Impl_T {
 } Impl_T;
 
 typedef struct Type {
-    unsigned int name_id;
+    struct AST * symbol;
     enum intrinsic_type {
         IUnknown,
+        IVoid,
         TYPES_FOREACH(TYPE_ENUM_EL)
     } intrinsic;
     union intrinsic_union {
@@ -63,18 +64,20 @@ typedef struct Type {
     short size;
 } Type;
 
+const static Type VOID_TYPE = {.intrinsic = IVoid};
+#define IS_VOID(x) (x.intrinsic == IVoid)
+
 union intrinsic_union init_intrinsic_type(enum intrinsic_type type);
 const char * get_base_type_str(Type type);
 Type get_base_type(Type type);
 char * type_to_str(Type type);
-Type * ast_get_type_of(struct AST * ast);
+Type ast_get_type_of(struct AST * ast);
 Type ast_to_type(struct AST * ast);
 
 char is_template_type(struct AST * current_scope, unsigned int name_id);
 struct AST * get_type(struct AST * ast, unsigned int name_id);
 Arena type_to_type_arena(Type ast);
 
-char check_types(Type type1, Type type2, struct hashmap * templates);
 char is_implicitly_equal(Type type1, Type type2);
 char is_equal_type(Type type1, Type type2);
 

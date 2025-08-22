@@ -1,38 +1,41 @@
+#pragma once
+
 #include "parser/modules.h"
 #include "codegen/AST.h"
 #include "common/hashmap.h"
-#include "common/list.h"
+#include "common/logger.h"
 
-void add_function_to_module(struct AST * module, struct AST * function) {
-    a_module dest = module->value.module;
-    a_function func = function->value.function;
+struct AST * add_module(struct Parser * parser, char * path) {
+	khash_t(modules_hm) * hashmap = &parser->root->value.root.modules;
 
-    // struct List * functions = hashmap_get(dest.functions_map, func.name);
-    // if (functions == NULL) {
-    //     functions = init_list(sizeof(struct AST *));
-    //     hashmap_set(dest.functions_map, func.name, functions);
-    // }
-    
-    // list_push(functions, function);
+	int retcode;
+	khint_t k = kh_put(modules_hm, hashmap, path, &retcode);
+	ASSERT1(k != kh_end(hashmap));
+
+	if (retcode == KEY_ALREADY_PRESENT) {
+		return kh_value(hashmap, k);
+	}
+
+	struct AST * module = init_ast(AST_MODULE, parser->root);
+	module->value.module.file_path = path;
+
+	kh_value(hashmap, k) = module;
+	ARENA_APPEND(&parser->modules_to_parse, path);
+
+	return module;
 }
 
-void include_module(struct AST * dest_ast, struct AST * src_ast) {
-    a_module dest = dest_ast->value.module, src = src_ast->value.module;
-    // hashmap_combine(dest.functions_map, src.functions_map);
+struct AST * find_module(struct AST * root, const char * module_path) {
+	khash_t(modules_hm) * hashmap = &root->value.root.modules;
+	khint_t k = kh_get(modules_hm, hashmap, module_path);
+
+	if (k == kh_end(hashmap)) {
+		return NULL;
+	}
+
+	return kh_value(hashmap, k);
 }
 
-struct AST * find_module(struct AST * root_ast, const char * module_name) {
-    struct AST * temp;
-    a_root root = root_ast->value.root;
-    a_module * module;
-
-    for (int i = 0; i < root.modules->size; ++i) {
-        module = &(temp = root.modules->items[i])->value.module;
-
-        if (!strcmp(module_name, module->path)) {
-            return temp;
-        }
-    }
-
-    return NULL;
+struct AST * module_lookup_symbol(struct AST * symbol_ast) {
+	struct AST * module_ast = get_scope(AST_MODULE, symbol_ast->scope);
 }

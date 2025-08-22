@@ -1,6 +1,7 @@
 #include "common/arena.h"
 #include "common/logger.h"
 #include "common/math.h"
+#include "fmt.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -24,10 +25,18 @@ void arena_grow(Arena * arena, uint32_t new_capacity) {
 	} else if (arena->arena == NULL) {
 		arena->capacity = ARENA_INITIAL_CAPACITY;
 		arena->arena = malloc(arena->item_size * arena->capacity);
+		ASSERT1(arena->arena != NULL);
 	} else {
+		ASSERT1(arena->arena != NULL);
 		arena->capacity = new_capacity;
 		arena->arena = realloc(arena->arena, arena->item_size * arena->capacity);
+		ASSERT1(arena->arena != NULL);
 	}
+}
+
+void arena_shrink(Arena * arena, uint32_t shrink_amount) {
+	ASSERT1((int) arena->size - shrink_amount >= 0);
+	arena->size -= shrink_amount;
 }
 
 void arena_clear(Arena * arena) {
@@ -46,11 +55,15 @@ void * arena_get_ref(Arena arena, uint32_t index) {
 
 void * arena_next(Arena * arena) {
 	if (arena->arena == NULL) {
+		ASSERT1(arena->size == 0); // Arena should have size 0 if not allocated
 		arena->capacity = ARENA_INITIAL_CAPACITY;
 		arena->arena = malloc(arena->item_size * arena->capacity);
+		ASSERT1(arena->arena != NULL);
 	} else if (arena->capacity <= arena->size) {
+		ASSERT1(arena->arena != NULL);
 		arena->capacity *= ARENA_GROWTH_RATE;
 		arena->arena = realloc(arena->arena, arena->item_size * arena->capacity);
+		ASSERT1(arena->arena != NULL);
 	}
 
 	return arena->arena + arena->item_size * arena->size++;

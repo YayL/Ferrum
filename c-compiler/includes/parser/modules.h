@@ -1,8 +1,8 @@
 #pragma once
 
 #include "codegen/AST.h"
+#include "parser/parser.h"
 
-void add_function_to_module(struct AST * module, struct AST * function);
-void include_module(struct AST * dest, struct AST * src);
-struct AST * find_module(struct AST * root, const char * module_name);
-
+struct AST * add_module(struct Parser * parser, char * path);
+struct AST * find_module(struct AST * root, const char * module_path);
+void add_import_to_module(struct AST * module, struct AST * imported_module, unsigned int name_id);

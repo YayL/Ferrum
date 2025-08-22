@@ -1,11 +1,12 @@
 #include "codegen/AST.h"
+#include "checker/symbols.h"
 #include "common/arena.h"
+#include "common/hashmap.h"
 #include "common/logger.h"
 #include "common/string.h"
 #include "fmt.h"
 #include "parser/types.h"
 #include "tables/interner.h"
-#include "tables/symbol.h"
 #include <stdlib.h>
 
 #define PADDING_DIRECT_CHILD  ""
@@ -27,38 +28,37 @@ union AST_union init_ast_value(enum AST_type type) {
     union AST_union value = {0};
     switch (type) {
         case AST_ROOT:
-            {
-                value.root.modules = init_list(sizeof(a_module *));
-                // value.root.markers = hashmap_init(8);
-            } break;
+            value.root.modules = kh_init(modules_hm);
+            break;
         case AST_MODULE:
-            {
-                value.module.definitions = arena_init(sizeof(struct AST *));
-                value.module.traits = arena_init(sizeof(struct AST *));
-            } break;
+            value.module.members = arena_init(sizeof(struct AST *));
+            break;
         case AST_SCOPE:
-            {
-                value.scope.nodes = arena_init(sizeof(struct AST *));
-                value.scope.declarations = arena_init(sizeof(struct AST *));
-            } break;
+            value.scope.nodes = arena_init(sizeof(struct AST *));
+            value.scope.declarations = arena_init(sizeof(struct AST *));
+            break;
         case AST_STRUCT:
-            {
-                value.structure.name_id = INVALID_INTERN_ID;
-                value.structure.templates = arena_init(sizeof(struct AST *));
-                value.structure.definitions = arena_init(sizeof(struct AST *));
-            } break;
+            value.structure.name_id = INVALID_ID;
+            value.structure.definitions = arena_init(sizeof(struct AST *));
+            break;
         case AST_TRAIT:
-            {
-                value.trait.children = arena_init(sizeof(struct AST *));
-                value.trait.implementers = arena_init(sizeof(struct AST *));
-            } break;
+            value.trait.children = arena_init(sizeof(struct AST *));
+            break;
+        case AST_IMPL:
+            value.implementation.members = arena_init(sizeof(struct AST *));
+            break;
+        case AST_VARIABLE:
+            value.variable.type = UNKNOWN_TYPE;
+            break;
+        case AST_SYMBOL:
+            value.symbol.name_ids = arena_init(sizeof(unsigned int));
+            break;
+        case AST_IMPORT:
         case AST_FUNCTION:
         case AST_DECLARATION:
         case AST_EXPR:
         case AST_OP:
-        case AST_VARIABLE:
         case AST_LITERAL:
-        case AST_IMPL:
         case AST_RETURN:
         case AST_FOR:
         case AST_WHILE:
@@ -66,7 +66,7 @@ union AST_union init_ast_value(enum AST_type type) {
             break;
         default:
             {
-                println("Unsupported type: {s}({i})", ast_type_to_str(type), type);
+                FATAL("Unsupported type: {s}({i})", ast_type_to_str(type), type);
                 exit(1);
             }
     }
@@ -83,7 +83,7 @@ const char * ast_type_to_str(enum AST_type type) {
 }
 #undef ENUM_EL_TO_STR
 
-#define ENUM_EL_TO_UNION_SIZE(NAME, STR, TYPE) case NAME: if (sizeof(TYPE) == 0) { break; } else return sizeof(TYPE);
+#define ENUM_EL_TO_UNION_SIZE(NAME, STR, VALUE) case NAME: return sizeof(a_##VALUE);
 const size_t ast_union_size(enum AST_type type) {
     switch (type) {
         AST_FOREACH(ENUM_EL_TO_UNION_SIZE)
@@ -131,7 +131,12 @@ void _print_ast_tree(struct AST * ast, String pad, char is_last) {
                 a_root root = ast->value.root;
 
                 String next_pad = string_copy(pad);
-                AST_TREE_PRINT_CHILDREN_REVERSE(root.modules, next_pad);
+                struct AST * node;
+                unsigned int counter = 0;
+                kh_size(&root.modules);
+                kh_foreach_value(&root.modules, node, {
+                    _print_ast_tree(node, next_pad, ++counter == kh_size(&root.modules));
+                })
                 free_string(next_pad);
 
                 break;
@@ -144,11 +149,7 @@ void _print_ast_tree(struct AST * ast, String pad, char is_last) {
                 a_module module = ast->value.module;
 
                 String next_pad = string_copy(pad);
-                AST_TREE_PRINT_CHILDREN(module.traits, next_pad);
-                free_string(next_pad);
-
-                next_pad = string_copy(pad);
-                AST_TREE_PRINT_CHILDREN(module.definitions, next_pad);
+                AST_TREE_PRINT_CHILDREN(module.members, next_pad);
                 free_string(next_pad);
 
                 break;
@@ -196,7 +197,7 @@ void _print_ast_tree(struct AST * ast, String pad, char is_last) {
             }
         case AST_EXPR:
             {
-                a_expr expr = ast->value.expression;
+                a_expression expr = ast->value.expression;
 
                 String next_pad = string_copy(pad);
                 AST_TREE_PRINT_CHILDREN(expr.children, next_pad);
@@ -206,7 +207,7 @@ void _print_ast_tree(struct AST * ast, String pad, char is_last) {
             }
         case AST_OP:
             {
-                a_op op = ast->value.operator;
+                a_operator op = ast->value.operator;
 
                 String next_pad = string_copy(pad);
                 if (op.op->mode == BINARY) {
@@ -222,7 +223,7 @@ void _print_ast_tree(struct AST * ast, String pad, char is_last) {
             }
         case AST_RETURN:
             {
-                a_return ret = ast->value.return_statement;
+                a_return_statement ret = ast->value.return_statement;
 
                 if (ret.expression) {
                     String next_pad = string_copy(pad);
@@ -279,7 +280,7 @@ void _print_ast_tree(struct AST * ast, String pad, char is_last) {
 }
 
 void print_ast_tree(struct AST * ast) {
-    String string = init_string("");
+    String string = string_init("");
     _print_ast_tree(ast, string, 1);
     free_string(string);
 }
@@ -294,7 +295,7 @@ char * ast_to_string(struct AST * ast) {
         case AST_MODULE:
             {
                 a_module module = ast->value.module;
-                ast_str = format("{s} " GREY "<" BLUE "Definitions" RESET ": {i}, " BLUE "Path" RESET ": {s}" GREY ">" RESET, ast_str, module.definitions.size, module.path);
+                ast_str = format("{s} " GREY "<" BLUE "Definitions" RESET ": {i}, " BLUE "Path" RESET ": {s}" GREY ">" RESET, ast_str, module.members.size, module.file_path);
                 break;
             }
         case AST_FUNCTION:
@@ -311,13 +312,13 @@ char * ast_to_string(struct AST * ast) {
             } break;
         case AST_IMPL:
             {
-                a_impl impl = ast->value.implementation;
+                a_implementation impl = ast->value.implementation;
                 const char * impl_name = interner_lookup_str(impl.name_id)._ptr;
-                ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}" GREY ">" RESET, ast_str, impl_name);
+                ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Types" RESET ": {s}" GREY ">" RESET, ast_str, impl_name, type_to_str(impl.type));
             } break;
         case AST_OP:
             {
-                a_op op = ast->value.operator;
+                a_operator op = ast->value.operator;
                 ast_str = format("{s} " GREY "<" BLUE "Op" RESET ": '{s}', " BLUE "Mode" RESET ": {s}, " BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, op.op ? op.op->str : "(NULL)", op.op->mode == BINARY ? "Binary" : "Unary", get_type_str(op.type));
                 break;
             }
@@ -325,7 +326,7 @@ char * ast_to_string(struct AST * ast) {
             {
                 a_variable var = ast->value.variable;
                 const char * var_name = interner_lookup_str(var.name_id)._ptr;
-                ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, var_name, get_type_str(var.type));
+                ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, var_name, type_to_str(var.type));
                 break;
             }
         case AST_LITERAL:
@@ -349,6 +350,18 @@ char * ast_to_string(struct AST * ast) {
             {
                 a_declaration declaration = ast->value.declaration;
                 ast_str = format("{s} " GREY "<" BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, declaration.is_const ? "Constant" : "Variable");
+                break;
+            }
+        case AST_IMPORT:
+            {
+                a_import import = ast->value.import;
+                ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}" GREY ">" RESET, ast_str, interner_lookup_str(import.name_id));
+                break;
+            }
+        case AST_SYMBOL:
+            {
+                a_symbol symbol = ast->value.symbol;
+                ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Found" RESET ": {b}" GREY ">" RESET, ast_str, symbol_expand_path(ast), symbol.node != NULL);
                 break;
             }
         default:

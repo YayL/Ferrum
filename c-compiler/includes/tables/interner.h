@@ -2,27 +2,22 @@
 
 #include "common/arena.h"
 #include "common/string.h"
-#include "common/hashmap.h"
-
-#define VALUE_TYPE unsigned int
-KHASH_MAP_INIT_STR(interner_hm, VALUE_TYPE)
-
-#define INVALID_INTERN_ID (0)
+#include "common/ID.h"
 
 typedef struct interner {
-	struct arena entries;
-	khash_t(interner_hm) map;
+	Arena entries;
+	khash_t(map_string_to_id) map;
 } Interner;
 
 struct interner_entry {
 	String str;
-	unsigned int ID;
+	ID id;
 };
 
 void interner_init();
-struct interner_entry interner_entry_init(unsigned int ID, String str);
+struct interner_entry interner_entry_init(ID id, String str);
 
-unsigned int interner_intern(const String string);
+ID interner_intern(const String string);
 
-unsigned int interner_lookup_id(const char * str);
-String interner_lookup_str(unsigned int ID);
+ID interner_lookup_id(const char * str);
+String interner_lookup_str(ID id);

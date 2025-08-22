@@ -1,10 +1,8 @@
 #include "checker/typing.h"
 #include "codegen/AST.h"
 #include "common/arena.h"
-#include "common/hashmap.h"
 #include "common/list.h"
 #include "common/logger.h"
-#include "fmt.h"
 #include "parser/types.h"
 #include <stdlib.h>
 #include <string.h>

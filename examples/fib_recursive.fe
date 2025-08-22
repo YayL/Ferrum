@@ -1,4 +1,4 @@
-package "std/lib"
+import "std/lib" as std
 
 fn fib(num: i32) -> i32 {
     if num <= 1

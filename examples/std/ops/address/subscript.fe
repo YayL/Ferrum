@@ -2,5 +2,5 @@
 // U must implemented Addition
 
 fn inline #OP_SUBSCRIPT<T, U>(ref: &T, offset: U) -> T {
-    *((ref as U) + offset * #sizeof(T))
+    *((ref to U) + offset * #sizeof(T))
 }

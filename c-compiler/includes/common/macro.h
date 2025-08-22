@@ -1,3 +1,3 @@
 #pragma once
 
-#define ALLOC(dest) dest = malloc(sizeof(typeof(*dest)))
+#define ALLOC(dest) if (dest == NULL)  { dest = malloc(sizeof(typeof(*dest))); }
