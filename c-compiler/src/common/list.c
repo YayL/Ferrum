@@ -1,6 +1,6 @@
 #include <memory.h>
 
-#include "codegen/AST.h"
+#include "parser/AST.h"
 #include "common/list.h"
 
 struct List * init_list(size_t item_size) {

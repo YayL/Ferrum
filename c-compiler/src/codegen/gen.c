@@ -1,5 +1,5 @@
 #include "codegen/gen.h"
-#include "codegen/AST.h"
+#include "parser/AST.h"
 #include "codegen/llvm.h"
 #include "parser/types.h"
 

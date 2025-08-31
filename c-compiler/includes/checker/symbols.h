@@ -1,5 +1,5 @@
 #pragma once
 
-#include "codegen/AST.h"
+#include "parser/AST.h"
 
-char * symbol_expand_path(struct AST * symbol_ast);
+char * symbol_expand_path(a_symbol symbol);

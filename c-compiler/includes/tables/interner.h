@@ -1,18 +1,16 @@
 #pragma once
 
-#include "common/arena.h"
 #include "common/string.h"
 #include "common/ID.h"
 
 typedef struct interner {
-	Arena entries;
 	khash_t(map_string_to_id) map;
 } Interner;
 
-struct interner_entry {
+typedef struct interner_entry {
 	String str;
 	ID id;
-};
+} interner_entry;
 
 void interner_init();
 struct interner_entry interner_entry_init(ID id, String str);

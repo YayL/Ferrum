@@ -1,41 +1,37 @@
-#pragma once
-
 #include "parser/modules.h"
-#include "codegen/AST.h"
+
+#include "parser/AST.h"
 #include "common/hashmap.h"
 #include "common/logger.h"
+#include "tables/registry_manager.h"
 
-struct AST * add_module(struct Parser * parser, char * path) {
-	khash_t(modules_hm) * hashmap = &parser->root->value.root.modules;
+ID add_module(struct Parser * parser, char * path) {
+	khash_t(map_string_to_id) * hashmap = &parser->root->modules;
 
 	int retcode;
-	khint_t k = kh_put(modules_hm, hashmap, path, &retcode);
+	khint_t k = kh_put(map_string_to_id, hashmap, path, &retcode);
 	ASSERT1(k != kh_end(hashmap));
 
 	if (retcode == KEY_ALREADY_PRESENT) {
 		return kh_value(hashmap, k);
 	}
 
-	struct AST * module = init_ast(AST_MODULE, parser->root);
-	module->value.module.file_path = path;
+	a_module * module = ast_allocate(ID_AST_MODULE, parser->root->info.node_id);
+	module->file_path = path;
 
-	kh_value(hashmap, k) = module;
+	kh_value(hashmap, k) = module->info.node_id;
 	ARENA_APPEND(&parser->modules_to_parse, path);
 
-	return module;
+	return module->info.node_id;
 }
 
-struct AST * find_module(struct AST * root, const char * module_path) {
-	khash_t(modules_hm) * hashmap = &root->value.root.modules;
-	khint_t k = kh_get(modules_hm, hashmap, module_path);
+ID find_module(a_root * root, const char * module_path) {
+	khash_t(map_string_to_id) * hashmap = &root->modules;
+	khint_t k = kh_get(map_string_to_id, hashmap, module_path);
 
 	if (k == kh_end(hashmap)) {
-		return NULL;
+		return INVALID_ID;
 	}
 
 	return kh_value(hashmap, k);
-}
-
-struct AST * module_lookup_symbol(struct AST * symbol_ast) {
-	struct AST * module_ast = get_scope(AST_MODULE, symbol_ast->scope);
 }

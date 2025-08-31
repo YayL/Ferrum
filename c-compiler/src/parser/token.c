@@ -15,7 +15,7 @@ void set_token(struct Token * tok, char * value, unsigned int length, enum token
 	if (type == TOKEN_ID) {
 		tok->interner_id = interner_intern(string_init_from_source_span(tok->span));
 	} else {
-		tok->interner_id = INVALID_INTERN_ID;
+		tok->interner_id = INVALID_ID;
 	}
 
 	tok->type = type;

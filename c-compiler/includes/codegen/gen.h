@@ -2,9 +2,8 @@
 
 #include "common/common.h"
 #include "common/io.h"
-#include "codegen/AST.h"
+#include "parser/AST.h"
 #include "checker/checker.h"
-#include "codegen/AST.h"
 #include "codegen/builtin.h"
 #include "codegen/llvm.h"
 #include "parser/types.h"

@@ -5,7 +5,7 @@
 
 struct Token {
 	SourceSpan span;
-	unsigned int interner_id;
+	ID interner_id;
 	unsigned int line, pos;
 	enum token_t {
 		TOKEN_EOF,

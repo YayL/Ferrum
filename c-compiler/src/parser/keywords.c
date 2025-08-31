@@ -3,7 +3,7 @@
 #include "common/string.h"
 #include "tables/interner.h"
 
-#define CONVERSION_EL(ENUM, USAGE, STR) {INVALID_INTERN_ID, ENUM, USAGE},
+#define CONVERSION_EL(ENUM, USAGE, STR) { .intern_id = INVALID_ID, .key = ENUM, .flag = USAGE },
 struct Keyword keywords[] = {
     KEYWORDS_LIST_FULL(CONVERSION_EL)
 };
@@ -28,17 +28,17 @@ struct Keyword keyword_get(enum Keywords keyword_enum) {
     return keyword;
 }
 
-char keyword_interner_id_is_inbounds(unsigned int ID) {
-    return GET_KEYWORD(KEYWORD_NOT_FOUND + 1).intern_id <= ID && ID <= GET_KEYWORD(KEYWORDS_LIST_COUNT - 1).intern_id;
+char keyword_interner_id_is_inbounds(ID id) {
+    return GET_KEYWORD(KEYWORD_NOT_FOUND + 1).intern_id.id <= id.id && id.id <= GET_KEYWORD(KEYWORDS_LIST_COUNT - 1).intern_id.id;
 }
 
-struct Keyword keyword_get_by_intern_id(unsigned int ID) {
-    struct Keyword keyword = keyword_get(ID - keyword_get(KEYWORD_NOT_FOUND + 1).intern_id + 1);
-    ASSERT1(keyword.key == KEYWORD_NOT_FOUND || keyword.intern_id == ID);
+struct Keyword keyword_get_by_intern_id(ID id) {
+    struct Keyword keyword = keyword_get(id.id - keyword_get(KEYWORD_NOT_FOUND + 1).intern_id.id + 1);
+    ASSERT1(keyword.key == KEYWORD_NOT_FOUND || id_is_equal(keyword.intern_id, id));
     return keyword;
 }
 
-unsigned int keyword_get_intern_id(enum Keywords keyword_enum) {
+ID keyword_get_intern_id(enum Keywords keyword_enum) {
 	return keyword_get(keyword_enum).intern_id;
 }
 

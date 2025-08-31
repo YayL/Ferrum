@@ -1,8 +1,6 @@
 #pragma once
 
-#include "codegen/AST.h"
-#include "codegen/gen.h"
-#include "codegen/llvm.h"
+#include "common/ID.h"
 
 #define BUILTIN_FOR_EACH(f) \
 	f(LLVM_STORE, "#llvm_store") \
@@ -17,13 +15,13 @@ enum builtins {
 
 struct builtin {
 	const char * str;
-	unsigned int name_id;
+	ID name_id;
 	enum builtins builtin;
 };
 
 void builtin_intern();
 
-char builtin_interner_id_is_inbounds(unsigned int ID);
-struct builtin builtin_get_by_intern_id(unsigned int ID);
+char builtin_interner_id_is_inbounds(ID id);
+struct builtin builtin_get_by_intern_id(ID id);
 
-const char * gen_builtin(struct AST * ast, struct AST * self_type);
+const char * gen_builtin(ID node_id);

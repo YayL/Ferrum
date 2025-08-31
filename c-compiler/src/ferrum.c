@@ -4,7 +4,9 @@
 #include "parser/parser.h"
 #include "checker/checker.h"
 // #include "codegen/gen.h"
+
 #include "tables/interner.h"
+#include "tables/registry_manager.h"
 
 #include <sys/time.h>
 
@@ -22,8 +24,9 @@ unsigned long stop_timer() {
 }
 
 void ferrum_compile(char * file_path) {
+    registry_manager_setup_instance();
     interner_init();
-    struct AST * ast = init_ast(AST_ROOT, NULL);
+    a_root root = { .modules = kh_init(map_string_to_id), .info = { .node_id = { .id = 0, .type = ID_AST_ROOT }, .scope_id = INVALID_ID }};
     
     char * abs_path = get_abs_path(file_path),
          * parser_time,
@@ -33,22 +36,23 @@ void ferrum_compile(char * file_path) {
     long time, total = 0;
 
     start_timer();
-    parser_parse(ast, abs_path);
+    parser_parse(&root, abs_path);
     time = stop_timer();
     total += time;
     asprintf(&parser_time, "Time for parser:\t%.3fms", (double)time / 1000);
 
+    // print_ast_tree_from_root(root);
 
-    // print_ast_tree(ast);
-    // exit(0);
+    printf("Time for parser:\t%.3fms\n", (double)time / 1000);
+    exit(0);
 
     start_timer();
-    checker_check(ast);
+    checker_check(root);
     time = stop_timer();
     total += time;
     asprintf(&checker_time, "Time for checker:\t%.3fms", (double)time / 1000);
 
-    print_ast_tree(ast);
+    // print_ast_tree(ast);
 
 //     const char * OUTPUT_PATH = "./build/ferrum.ll";
 //     FILE * fp = open_file(get_abs_path(OUTPUT_PATH), "w");

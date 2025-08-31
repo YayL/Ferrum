@@ -1,10 +1,10 @@
 #include "parser/operators.h"
-#include "common/logger.h"
-#include "common/string.h"
+
 #include "tables/interner.h"
+#include "parser/lexer.h"
 
 #define OPERATOR_CONVERSION_EL(KEY, MODE, PRECEDENCE, ASSOCIATIVITY, ENCLOSED, REPR) \
-    {REPR, INVALID_INTERN_ID, KEY, MODE, ASSOCIATIVITY, ENCLOSED, (sizeof(REPR) / sizeof(char)) / 2, PRECEDENCE},
+    { .str = REPR, .intern_id = INVALID_ID, .key = KEY, .mode = MODE, .associativity = ASSOCIATIVITY, .enclosed = ENCLOSED, .enclosed_offset = (sizeof(REPR) / sizeof(char)) / 2, .precedence = PRECEDENCE},
 struct Operator op_list[] = {
     OPERATORS_LIST(OPERATOR_CONVERSION_EL)
 };
@@ -156,7 +156,7 @@ void operators_intern() {
     OPERATORS_LIST(OPERATOR_INTERN)
 }
 
-unsigned int operator_get_intern_id(enum Operators op) {
+ID operator_get_intern_id(enum Operators op) {
     return OPERATOR_GET(op).intern_id;
 }
 

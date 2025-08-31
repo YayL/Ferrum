@@ -1,28 +1,29 @@
 #pragma once
 
-#include "parser/types.h"
+#include "common/ID.h"
+#include "common/arena.h"
 
 typedef struct function_resoloution_solver {
-	unsigned int name_id;
-	Type args;
-	struct List * candidates;
+	ID name_id;
+	ID args_type_id;
+	Arena candidates;
 } FRSolver;
 
 typedef struct function_resoloution_result {
-	unsigned int name_id;
-	Type args;
-	struct AST * function;
+	ID name_id;
+	ID args_type_id;
+	ID function_id;
 	Arena substitutions;
 } FRResult;
 
 struct substitution {
-	unsigned int variable_id; // this should be the same as the index
-	Type substitution_type;
+	ID variable_id; // this should be the same as the index
+	ID substitution_type_id;
 };
 
-FRSolver frsolver_init(unsigned int name_id, Type args, struct AST * scope);
+FRSolver frsolver_init(ID name_id, ID args, ID scope_id);
 FRResult frsolver_solve(FRSolver solver);
 
-struct substitution subst_lookup(FRResult fr, unsigned int ID);
+struct substitution subst_lookup(FRResult fr, ID id);
 
-Type * create_type_variable();
+ID * create_type_variable();

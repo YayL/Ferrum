@@ -1,10 +1,6 @@
 #pragma once
 
-#include "common/common.h"
-#include "parser/token.h"
-#include "codegen/AST.h"
-#include "tables/interner.h"
-#include "parser/lexer.h"
+#include "common/ID.h"
 
 enum OP_mode {
     UNARY_PRE, // an operator taking one operand preceeding itself: ++a
@@ -95,16 +91,16 @@ enum Operators {
 #define OPERATOR_CONVERSION_EL(KEY, MODE, PRECEDENCE, ASSOCIATIVITY, ENCLOSED, REPR) \
     {REPR, INVALID_INTERN_ID, KEY, MODE, ASSOCIATIVITY, ENCLOSED, (sizeof(REPR) / sizeof(char)) / 2, PRECEDENCE},
 
-struct Operator {
+typedef struct Operator {
     char * str;
-    unsigned int intern_id;
+    ID intern_id;
     enum Operators key;
     enum OP_mode mode;
     enum OP_associativity associativity;
     enum OP_enclosed enclosed;
     char enclosed_offset;
     char precedence;
-};
+} Operator;
 
 void operators_intern();
 
@@ -113,6 +109,6 @@ char is_operator(const char * str);
 
 struct Operator operator_get(enum Operators operator);
 unsigned int operator_get_count();
-unsigned int operator_get_intern_id(enum Operators op);
+ID operator_get_intern_id(enum Operators op);
 const char * operator_get_runtime_name(enum Operators op);
 char * operator_to_str(struct Operator * operator);

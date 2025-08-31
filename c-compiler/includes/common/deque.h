@@ -1,40 +1,84 @@
 #pragma once
 
-#include "common/common.h"
+#define TYPE ID
+#define INITIAL_CAPACITY (2)
+#define GROWTH_SPEED 2
 
-struct Deque {
-	void** items;
-	int start;
-	int end;
-	int size;
-	size_t capacity;
-	size_t item_size;
-};
+#define DEQUE_T(TYPE) struct deque_##TYPE
+#define DEQUE_INIT(TYPE) deque_init_##TYPE()
+#define DEQUE_FREE(TYPE, deque_ref) deque_free_##TYPE(deque_ref)
+#define DEQUE_EXPAND(TYPE, deque_ref) deque_expand_##TYPE(deque_ref)
+#define DEQUE_PUSH_BACK(TYPE, deque_ref, item) deque_push_back_##TYPE(deque_ref, item)
+#define DEQUE_PUSH_FRONT(TYPE, deque_ref, item) deque_push_front_##TYPE(deque_ref, item)
+#define DEQUE_POP_BACK(TYPE, deque_ref) deque_pop_back_##TYPE(deque_ref)
+#define DEQUE_POP_FRONT(TYPE, deque_ref) deque_pop_front_##TYPE(deque_ref)
+#define DEQUE_FRONT(TYPE, deque_ref) deque_front_##TYPE(deque_ref)
+#define DEQUE_BACK(TYPE, deque_ref) deque_back_##TYPE(deque_ref)
 
-struct Deque * init_deque (size_t item_size);
+#define IMPLEMENT_DEQUE(TYPE) \
+	DEQUE_T(TYPE) { \
+		TYPE * items; \
+		unsigned int start; \
+		unsigned int end; \
+		unsigned int size; \
+		unsigned int capacity; \
+	}; \
+	\
+	static DEQUE_T(TYPE) DEQUE_INIT(TYPE) { return (DEQUE_T(TYPE)) { .capacity = INITIAL_CAPACITY, .start = 0, .end = 0, .size = 0, .items = malloc(INITIAL_CAPACITY * sizeof(TYPE)) }; } \
+	static void DEQUE_FREE(TYPE, DEQUE_T(TYPE) deque) { free(deque.items); } \
+	\
+	static void DEQUE_EXPAND(TYPE, DEQUE_T(TYPE) * deque) { \
+		unsigned int previous_cap = deque->capacity; \
+		deque->capacity = deque->capacity * GROWTH_SPEED; \
+		deque->items = realloc(deque->items, deque->capacity * sizeof(TYPE)); \
+		\
+		if (deque->end < deque->start) { \
+			unsigned int length = previous_cap - deque->start; \
+			memmove(deque->items + deque->capacity - length, deque->items + deque->start, length * sizeof(TYPE)); \
+			deque->start = deque->capacity - length; \
+		} \
+	} \
+	\
+	static void DEQUE_PUSH_BACK(TYPE, DEQUE_T(TYPE) * deque, TYPE item) { \
+		if (++deque->size == deque->capacity) DEQUE_EXPAND(TYPE, deque); \
+		\
+		deque->items[deque->end] = item; \
+		deque->end = (deque->end + deque->capacity + 1) & (deque->capacity - 1); \
+	} \
+	\
+	static void DEQUE_PUSH_FRONT(TYPE, DEQUE_T(TYPE) * deque, TYPE item) { \
+		if (++deque->size == deque->capacity) DEQUE_EXPAND(TYPE, deque); \
+		\
+		deque->start = (deque->start + deque->capacity - 1) & (deque->capacity - 1); \
+		deque->items[deque->start] = item; \
+	} \
+	\
+	static void DEQUE_POP_BACK(TYPE, DEQUE_T(TYPE) * deque) { \
+		if (!deque->size) return; \
+		\
+		deque->size -= 1; \
+		deque->end = (deque->end + deque->capacity - 1) & (deque->capacity - 1); \
+	} \
+	\
+	static void DEQUE_POP_FRONT(TYPE, DEQUE_T(TYPE) * deque) { \
+		if (!deque->size) return; \
+		\
+		deque->size -= 1; \
+		deque->start = (deque->start + deque->capacity + 1) & (deque->capacity - 1); \
+	} \
+	\
+	static TYPE DEQUE_FRONT(TYPE, DEQUE_T(TYPE) * deque) { \
+		if (!deque->size) return (TYPE) {0}; \
+		\
+		return deque->items[deque->start]; \
+	} \
+	\
+	static TYPE DEQUE_BACK(TYPE, DEQUE_T(TYPE) * deque) { \
+		if (!deque->size) return (TYPE) {0}; \
+		\
+		return deque->items[(deque->end + deque->capacity - 1) & (deque->capacity - 1)]; \
+	}
 
-size_t deque_find (struct Deque * deque, void * comp);
+#include "parser/operators.h"
 
-void deque_expand (struct Deque * deque);
-
-void push_back (struct Deque * deque, void * item);
-
-void push_front (struct Deque * deque, void * item);
-
-void pop_back (struct Deque * deque);
-
-void pop_front (struct Deque * deque);
-
-void * deque_front (struct Deque * deque);
-
-void * deque_back (struct Deque * deque);
-
-void deque_rotate (struct Deque * deque, long long rotate);
-
-void * deque_index (struct Deque * deque, size_t index);
-
-void * deque_remove (struct Deque * deque, int index);
-
-struct Deque * deque_copy (struct Deque * src);
-
-void deque_print (struct Deque * deque, void (*print_item)(void *));
+IMPLEMENT_DEQUE(Operator);

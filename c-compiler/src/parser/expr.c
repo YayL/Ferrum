@@ -1,24 +1,17 @@
-#include "checker/symbols.h"
-#include "fmt.h"
 #include "parser/parser.h"
 
 #include "parser/lexer.h"
 #include "common/deque.h"
-#include "codegen/AST.h"
-#include "parser/operators.h"
-#include "common/list.h"
-#include "common/logger.h"
-#include "common/sourcespan.h"
-#include "common/macro.h"
+#include "tables/registry_manager.h"
 
-struct Operator * get_operator(SourceSpan span, struct Token * token, enum OP_mode mode, char * enclosed_flag) {
-    struct Operator * op = malloc(sizeof(struct Operator));
-    *op = str_to_operator(span.start, mode, enclosed_flag);
+Operator get_operator(SourceSpan span, struct Token * token, enum OP_mode mode, char * enclosed_flag) {
+    Operator op = str_to_operator(span.start, mode, enclosed_flag);
 
-    if (op->key == OP_NOT_FOUND && mode == BINARY)
-        *op = str_to_operator(span.start, UNARY_POST, enclosed_flag);
+    if (op.key == OP_NOT_FOUND && mode == BINARY) {
+        op = str_to_operator(span.start, UNARY_POST, enclosed_flag);
+    }
 
-    if (op->key == OP_NOT_FOUND) {
+    if (op.key == OP_NOT_FOUND) {
         FATAL("{s} operator '{s}' not found: {s}", mode == BINARY ? "Binary" : "Unary", span.start, token_to_str(*token));
         print_trace();
         exit(1);
@@ -27,35 +20,35 @@ struct Operator * get_operator(SourceSpan span, struct Token * token, enum OP_mo
     return op;
 }
 
-void consume_add_operator(struct Operator * op, struct List * list, struct Parser * parser) {
-    struct AST * ast = init_ast(AST_OP, parser->current_scope);
-    a_operator * operator = &ast->value.operator;
+void consume_add_operator(Operator op, Arena * arena, struct Parser * parser) {
+    a_operator * operator = ast_allocate(ID_AST_OP, parser->current_scope_id);
 
-    if (list->size == 0) {
+    if (arena->size == 0) {
         FATAL("Invalid expression: Operator without valid operands");
     }
 
     operator->op = op;
-    operator->right = list_at(list, -1);
-    list_pop(list);
+    operator->right_id = ARENA_POP(arena, ID);
 
-    if (op->mode == BINARY) {
-        if (list->size == 0) {
+    if (op.mode == BINARY) {
+        if (arena->size == 0) {
             FATAL("Invalid expression: Binary operator without two valid operands");
         }
-        operator->left = list_at(list, -1);
-        list_pop(list);
+        operator->left_id = ARENA_POP(arena, ID);
     }
 
-    list_push(list, ast);
+    ARENA_APPEND(arena, operator->info.node_id);
 }
 
-Arena _parser_parse_expr(struct Parser * parser, struct List * output, struct Deque * operators, enum Operators EXIT_ON_KEY) {
-    struct AST * node, * temp;
+Arena _parser_parse_expr(struct Parser * parser, Arena * output, DEQUE_T(Operator) * operators, enum Operators EXIT_ON_KEY) {
     Arena expressions = arena_init(sizeof(struct AST *));
+    ID node_id;
+
+    a_operator * node_op = NULL;
+    a_expression * node_expr = NULL;
     
     enum OP_mode mode = UNARY_PRE;
-    struct Operator * op1, * op2;
+    struct Operator op1, op2;
 
     char flag;
 
@@ -68,26 +61,25 @@ Arena _parser_parse_expr(struct Parser * parser, struct List * output, struct De
                     exit(1);
                 }
 
-                struct AST * id = parser_parse_id(parser);
-                // println("{s} | Output({i})", symbol_expand_path(id), output->size);
-                if (id->value.symbol.node != NULL && output->size != 0) {
+                ID node_id = parser_parse_id(parser);
+
+                a_symbol symbol = LOOKUP(node_id, a_symbol);
+                if (!ID_IS_INVALID(symbol.node_id) && output->size != 0) {
                     ERROR("Invalid use of symbol type hinting");
                     exit(1);
                 }
 
-
-                list_push(output, id);
+                ARENA_APPEND(output, node_id);
                 mode = BINARY;
             } break;
             case TOKEN_INT:
             {
-                list_push(output, parser_parse_int(parser));
-
+                ARENA_APPEND(output, parser_parse_int(parser));
                 mode = BINARY;
             } break;
             case TOKEN_STRING_LITERAL:
             {
-                list_push(output, parser_parse_string(parser));
+                ARENA_APPEND(output, parser_parse_string(parser));
                 mode = BINARY;
             } break;
             case TOKEN_OP:
@@ -95,89 +87,89 @@ Arena _parser_parse_expr(struct Parser * parser, struct List * output, struct De
                 // enclosed flag is true if enclosed operator is the closing enclosing operator
                 op1 = get_operator(parser->token->span, parser->token, mode, &flag);
 
-                if (op1->enclosed == ENCLOSED) {
+                if (op1.enclosed == ENCLOSED) {
                     if (!flag) { // open enclosed operator
                         parser_eat(parser, parser->token->type);
                         
-                        struct Deque * temp_d = init_deque(sizeof(struct Operator *));
-                        struct List * temp_l = init_list(sizeof(struct AST *));
-                        push_back(temp_d, op1);
+                        DEQUE_T(Operator) deque = DEQUE_INIT(Operator);
+                        Arena arena = arena_init(sizeof(ID));
+                        DEQUE_PUSH_BACK(Operator, &deque, op1);
 
-                        node = init_ast(AST_OP, parser->current_scope);
-                        temp = init_ast(AST_EXPR, parser->current_scope);
-                        node->value.operator.op = op1;
+                        node_op = ast_allocate(ID_AST_OP, parser->current_scope_id);
+                        node_expr = ast_allocate(ID_AST_EXPR, parser->current_scope_id);
+                        node_op->op = op1;
  
-                        temp->value.expression.children = _parser_parse_expr(parser, temp_l, temp_d, -1);
-                        node->value.operator.right = temp;
+                        node_expr->children = _parser_parse_expr(parser, &arena, &deque, -1);
+                        arena_free(arena);
+                        DEQUE_FREE(Operator, deque);
+                        node_op->right_id = node_expr->info.node_id;
                     } else { // closing enclosed operator
-                        while (strcmp(op1->str, (op2 = deque_back(operators))->str)) { // while not start version of this enclosed operator
-                            if (op2->key == EXIT_ON_KEY) {
-                                ASSERT(sizeof(op1->key) != operator_get_count(), "Possibly invalid EXIT_ON_KEY:");
+                        while (op2 = DEQUE_BACK(Operator, operators), strcmp(op1.str, op2.str)) { // while not start version of this enclosed operator
+                            if (op2.key == EXIT_ON_KEY) {
+                                ASSERT(sizeof(op1.key) != operator_get_count(), "Possibly invalid EXIT_ON_KEY:");
                                 goto exit;
                             }
+
                             if (operators->size == 1) {
                                 println("[Parser] Unmatched enclosed operator: {s}", token_to_str(*parser->token));
                                 exit(1);
                             }
+
                             consume_add_operator(op2, output, parser);
-                            pop_back(operators);
+                            DEQUE_POP_BACK(Operator, operators);
                         }
                        
-                        pop_back(operators);
+                        DEQUE_POP_BACK(Operator, operators);
                         parser_eat(parser, parser->token->type);
                         goto exit;
                     }
                 }
-
-                op2 = deque_back(operators);
-
-                while (op2 && (op2->enclosed != ENCLOSED && 
-                                (op2->precedence < op1->precedence 
-                                 || (op1->precedence == op2->precedence && op2->associativity == LEFT))))
+                op2 = DEQUE_BACK(Operator, operators);
+                while (operators->size && (op2.enclosed != ENCLOSED &&
+                        (op2.precedence < op1.precedence || (op1.precedence == op2.precedence && op2.associativity == LEFT))))
                 {
                     consume_add_operator(op2, output, parser);
-                    pop_back(operators);
-                    op2 = deque_back(operators);
+                    DEQUE_POP_BACK(Operator, operators);
+                    op2 = DEQUE_BACK(Operator, operators);
                 }
                 
-                if (op1->enclosed == ENCLOSED) {
-                    if (op1->mode == BINARY) {
-                        node->value.operator.left = list_at(output, -1);
-                        list_pop(output);
+                if (op1.enclosed == ENCLOSED) {
+                    if (op1.mode == BINARY) {
+                        node_op->left_id = ARENA_POP(output, ID);
                     }
 
-                    list_push(output, node);
+                    ARENA_APPEND(output, node_op->info.node_id);
                     mode = BINARY;
                     break;
                 }
 
-                mode = op1->mode == UNARY_POST 
+                mode = op1.mode == UNARY_POST 
                         ? BINARY 
                         : UNARY_PRE;
                 parser_eat(parser, parser->token->type);
 
-                if (op1->key == CAST) {
+                if (op1.key == CAST) {
                     consume_add_operator(op1, output, parser);
 
-                    struct AST * cast_ast = list_at(output, -1);
-                    ALLOC(cast_ast->value.operator.type);
-                    *cast_ast->value.operator.type = parser_parse_type(parser);
+                    ID cast_id = ARENA_GET(*output, output->size - 1, ID);
+                    a_operator * cast_op = lookup(cast_id);
+                    cast_op->type_id = parser_parse_type(parser);
                 } else {
-                    push_back(operators, op1);
+                    DEQUE_PUSH_BACK(Operator, operators, op1);
                 }
             } break;
             case TOKEN_SEMI:
             case TOKEN_COMMA:
             {
-                while (operators->size && (op2 = deque_back(operators))->enclosed != ENCLOSED) {
+                while (operators->size && (op2 = DEQUE_BACK(Operator, operators), op2.enclosed != ENCLOSED)) {
                     consume_add_operator(op2, output, parser);
-                    pop_back(operators);
+                    DEQUE_POP_BACK(Operator, operators);
                 }
                 
                 if (output->size == 1) {
-                    ARENA_APPEND(&expressions, (struct AST *) list_at(output, 0));
-                    output = init_list(sizeof(struct AST *));
-                }else if (output->size != 1) {
+                    ID temp_id = ARENA_POP(output, ID);
+                    ARENA_APPEND(&expressions, temp_id);
+                } else if (output->size != 1) {
                     FATAL("[Parser] Unprecedentent usage of expression separator: {s}", token_to_str(*parser->token));
                 }
 
@@ -225,17 +217,18 @@ exit:
     flag = operators->size != 0;
 
     while (operators->size) {
-        op1 = deque_back(operators);
-        if (op1->enclosed == ENCLOSED) {
+        op1 = DEQUE_BACK(Operator, operators);
+        if (op1.enclosed == ENCLOSED) {
             FATAL("[Parser] Unmatched enclosed operator near: {s}", token_to_str(*parser->token));
             exit(1);
         }
         consume_add_operator(op1, output, parser);
-        pop_back(operators);
+        DEQUE_POP_BACK(Operator, operators);
     }
 
     if (output->size == 1) {
-        ARENA_APPEND(&expressions, (struct AST *) list_at(output, 0));
+        ID temp_id = ARENA_POP(output, ID);
+        ARENA_APPEND(&expressions, temp_id);
     } else if (flag) {
         ERROR("Invalid expression; too many discarded expressions({i}) | {s}", output->size, token_to_str(*parser->token));
     }
@@ -244,27 +237,28 @@ exit:
 
 }
 
-struct AST * parser_parse_expr_exit_on(struct Parser * parser, enum Operators op) {
-    struct AST * ast = init_ast(AST_EXPR, parser->current_scope);
+ID parser_parse_expr_exit_on(struct Parser * parser, enum Operators op) {
+    a_expression * expr = ast_allocate(ID_AST_EXPR, parser->current_scope_id);
 
-    struct List * output = init_list(sizeof(struct AST *));
-    struct Deque * operators = init_deque(sizeof(struct Operator *));
+    Arena output = arena_init(sizeof(ID));
+    DEQUE_T(Operator) operators = DEQUE_INIT(Operator);
 
     if (op != -1) {
-        struct Operator * temp_operator = malloc(sizeof(struct Operator));
-        *temp_operator = operator_get(op);
-        push_front(operators, temp_operator);
+        DEQUE_PUSH_FRONT(Operator, &operators, operator_get(op));
     }
 
-    ast->value.expression.children = _parser_parse_expr(parser, output, operators, op);
+    expr->children = _parser_parse_expr(parser, &output, &operators, op);
+
+    arena_free(output);
+    DEQUE_FREE(Operator, operators);
 
     if (parser->prev.type == TOKEN_SEMI) {
         WARN("Unnecessary semicolon: {s}", token_to_str(parser->prev));
     }
 
-    return ast;
+    return expr->info.node_id;
 }
 
-struct AST * parser_parse_expr(struct Parser * parser) {
+ID parser_parse_expr(struct Parser * parser) {
     return parser_parse_expr_exit_on(parser, -1);
 }

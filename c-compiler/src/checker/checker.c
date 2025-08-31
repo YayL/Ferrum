@@ -1,76 +1,47 @@
 #include "checker/checker.h"
-#include "checker/context.h"
-#include "checker/symbols.h"
-#include "codegen/AST.h"
-#include "codegen/builtin.h"
-#include "codegen/functions.h"
-#include "common/arena.h"
-#include "common/hashmap.h"
-#include "common/logger.h"
-#include "common/macro.h"
-#include "fmt.h"
-#include "parser/operators.h"
-#include "parser/types.h"
-#include "tables/interner.h"
 
-ID get_interner_id(struct AST * ast) {
-    switch (ast->type) {
-        case AST_FUNCTION:
-            return ast->value.function.name_id;
-        case AST_DECLARATION:
-            return ast->value.declaration.name_id;
+#include "codegen/builtin.h"
+#include "checker/functions.h"
+#include "checker/context.h"
+#include "tables/registry_manager.h"
+
+ID get_interner_id(ID node_id) {
+    switch (node_id.type) {
+        case ID_AST_FUNCTION:
+            return LOOKUP(node_id, a_function).name_id;
+        case ID_AST_DECLARATION:
+            return LOOKUP(node_id, a_declaration).name_id;
         default:
-            print_ast("get_name invalid type: {s}", ast);
+            println("get_name invalid type: {s}", ast_to_string(node_id));
             exit(1);
     }
 }
 
-void add_member_function(Type marker, struct AST * new_member_to_add, struct AST * current_scope) {
-    current_scope = get_scope(AST_ROOT, current_scope);
-
-    a_root root = current_scope->value.root;
-
-    // DEBUG("add_member_function marker: {s}", type_to_str(marker));
-
-    const char * marker_name = get_base_type_str(marker);
-    ASSERT1(marker_name != NULL);
-
-    // struct List * members = hashmap_get(root.markers, marker_name);
-
-    // if (members == NULL) {
-    //     members = init_list(sizeof(struct AST *));
-    //     ASSERT1(marker_name != NULL);
-    //     hashmap_set(root.markers, marker_name, members);
-    // }
-    //
-    // list_push(members, new_member_to_add);
+void checker_check_expr_node(ID node_id) {
+    switch (node_id.type) {
+        case ID_AST_OP:
+            checker_check_op(node_id); break;
+        case ID_AST_VARIABLE:
+            checker_check_variable(node_id); break;
+        case ID_AST_EXPR:
+            checker_check_expression(node_id); break;
+        case ID_AST_LITERAL:
+            checker_check_literal(node_id); break;
+        case ID_AST_SYMBOL:
+            checker_check_symbol(node_id); break;
+        default:
+            FATAL("Unimplemented expr node type: {s}", id_type_to_string(node_id.type));
+    }
 }
 
-void checker_check_expr_node(struct AST * ast) {
-    switch (ast->type) {
-        case AST_OP:
-            checker_check_op(ast); break;
-        case AST_VARIABLE:
-            checker_check_variable(ast); break;
-        case AST_EXPR:
-            checker_check_expression(ast); break;
-        case AST_LITERAL:
-            checker_check_literal(ast); break;
-        case AST_SYMBOL:
-            checker_check_symbol(ast); break;
-        default:
-            FATAL("Unimplemented expr node type: {s}", ast_type_to_str(ast->type));
-    }
-}   
-
-void checker_check_literal(struct AST * ast) {
-    ASSERT1(ast->type == AST_LITERAL);
+void checker_check_literal(ID node_id) {
+    ASSERT1(ID_IS(node_id, ID_AST_LITERAL));
     // ASSERT(0, "Unimplemented");
 }
 
-void checker_check_symbol(struct AST * ast) {
-    ASSERT1(ast->type == AST_SYMBOL);
-    a_symbol symbol = ast->value.symbol;
+void checker_check_symbol(ID node_id) {
+    ASSERT1(ID_IS(node_id, ID_AST_SYMBOL));
+    a_symbol symbol = LOOKUP(node_id, a_symbol);
 
     // if (symbol.node == NULL) {
     //     println("Must lookup symbol: {s}", symbol_expand_path(ast));
@@ -81,25 +52,24 @@ void checker_check_symbol(struct AST * ast) {
     // }
 }
 
-void checker_check_op(struct AST * ast) {
-    Type left = UNKNOWN_TYPE, right = UNKNOWN_TYPE;
-    a_operator * op = &ast->value.operator;
+void checker_check_op(ID node_id) {
+    a_operator * op = lookup(node_id);
 
-    if (op->op->key == CALL) {
-        if (op->left->type != AST_SYMBOL) {
+    if (op->op.key == CALL) {
+        if (!ID_IS(op->left_id, ID_AST_SYMBOL)) {
             ERROR("Arbitrary address calls are not supported yet");
             return;
         }
 
-        a_symbol symbol = op->left->value.symbol;
-        unsigned int first_name_id = ARENA_GET(symbol.name_ids, 0, unsigned int);
+        a_symbol symbol = LOOKUP(op->left_id, a_symbol);
+        ID first_name_id = ARENA_GET(symbol.name_ids, 0, ID);
         if (builtin_interner_id_is_inbounds(first_name_id)) {
             if (symbol.name_ids.size != 1) {
                 ERROR("Invalid to use '::' operator when trying to call builtin function");
                 exit(1);
             }
 
-            op->type = &VOID_TYPE;
+            op->type_id = VOID_TYPE;
             return;
         }
 
@@ -108,39 +78,37 @@ void checker_check_op(struct AST * ast) {
         //     return UNKNOWN_TYPE;
         // }
 
-        checker_check_expr_node(op->right);
+        checker_check_expr_node(op->right_id);
  
-        resolve_function_from_call(ast);
+        resolve_function_from_call(node_id);
 
         println("Resolved function call");
 
-    } else if (op->op->key == TERNARY && op->right->value.operator.op->key != TERNARY_BODY) {
-        FATAL("Detected an error with the ternary operator. This was most likely caused by operator precedence or nested ternary operators. To remedy this try applying parenthesis around the seperate ternary body entries");
-    } else if (op->op->key == PARENTHESES) {
-        ALLOC(op->type);
-        checker_check_expr_node(op->right);
+    } else if (op->op.key == TERNARY) {
+        ASSERT1(ID_IS(op->right_id, ID_AST_OP));
+        if (LOOKUP(op->right_id, a_operator).op.key != TERNARY_BODY) {
+            FATAL("Detected an error with the ternary operator. This was most likely caused by operator precedence or nested ternary operators. To remedy this try applying parenthesis around the seperate ternary body entries");
+        }
+    } else if (op->op.key == PARENTHESES) {
+        checker_check_expr_node(op->right_id);
         return;
-    } else if (op->op->key == ASSIGNMENT) {
-        struct AST * get_address_ast = init_ast(AST_OP, ast->scope);
-        a_operator * get_address = &get_address_ast->value.operator;
-        get_address->right = op->left;
+    } else if (op->op.key == ASSIGNMENT) {
+        a_operator * addr_of_op = ast_allocate(ID_AST_OP, ast_get_scope_id(node_id));
 
-        get_address->op = malloc(sizeof(struct Operator));
-        *(get_address->op) = str_to_operator("&", UNARY_PRE, NULL);
-        
-        op->left = get_address_ast;
+        addr_of_op->right_id = op->left_id;
+        addr_of_op->op = str_to_operator("&", UNARY_PRE, NULL);
+        op->left_id = addr_of_op->info.node_id;
 
-        checker_check_expr_node(op->left);
+        checker_check_expr_node(op->left_id);
         /* exit(0); */
-    } else if (op->left) {
-        checker_check_expr_node(op->left);
+    } else if (!ID_IS_INVALID(op->left_id)) {
+        checker_check_expr_node(op->left_id);
     }
 
-    checker_check_expr_node(op->right);
+    checker_check_expr_node(op->right_id);
 
-    Type self_type = {.intrinsic = IUnknown};
 
-    resolve_function_from_operator(ast);
+    resolve_function_from_operator(node_id);
     // struct AST * func = get_function_for_operator(op->op, left, right, &self_type, ast->scope);
     // ASSERT(func != NULL, "get_function_for_operator returned NULL");
     // DEBUG("Found function: {s}", func->value.function.name);
@@ -160,59 +128,64 @@ void checker_check_op(struct AST * ast) {
     // return *op->type;
 }
 
-void checker_check_if(struct AST * ast) {
-    a_if_statement if_statement = ast->value.if_statement;
+void checker_check_if(ID node_id) {
+    ID next_id = node_id;
+    a_if_statement if_statement;
     
-    while (1) {
-        if (if_statement.expression != NULL) {
-            checker_check_expression(if_statement.expression);
+    do {
+        if_statement = LOOKUP(node_id, a_if_statement);
+
+        if (!ID_IS_INVALID(if_statement.expression_id)) {
+            checker_check_expression(if_statement.expression_id);
+        } else if (!ID_IS_INVALID(if_statement.next_id)) {
+            ERROR("Else is only allowed at the end of an if chain");
+            exit(1);
         }
 
-        checker_check_scope(if_statement.body);
+        checker_check_scope(if_statement.body_id);
 
-        if (if_statement.next == NULL) {
+        if (ID_IS_INVALID(if_statement.next_id)) {
             break;
         }
 
-        if_statement = *if_statement.next;
-    }
+        next_id = if_statement.next_id;
+    } while (!ID_IS_INVALID(next_id));
 }
 
-void checker_check_while(struct AST * ast) {
-    a_while_statement while_statement = ast->value.while_statement;
+void checker_check_while(ID node_id) {
+    a_while_statement while_statement = LOOKUP(node_id, a_while_statement);
 
-    checker_check_expression(while_statement.expression);
-    checker_check_scope(while_statement.body);
+    checker_check_expression(while_statement.expression_id);
+    checker_check_scope(while_statement.body_id);
 }
 
-void checker_check_for(struct AST * ast) {
-    a_for_statement for_statement = ast->value.for_statement;
+void checker_check_for(ID node_id) {
+    a_for_statement for_statement = LOOKUP(node_id, a_for_statement);
 
-    checker_check_expression(for_statement.expression);
-    checker_check_scope(for_statement.body);
+    checker_check_expression(for_statement.expression_id);
+    checker_check_scope(for_statement.body_id);
 }
 
-void checker_check_return(struct AST * ast) {
-    a_return_statement return_statement = ast->value.return_statement;
+void checker_check_return(ID node_id) {
+    a_return_statement return_statement = LOOKUP(node_id, a_return_statement);
 
-    checker_check_expression(return_statement.expression);
+    checker_check_expression(return_statement.expression_id);
 }
 
-void checker_check_expression(struct AST * ast) {
-    a_expression * expr = &ast->value.expression;
+void checker_check_expression(ID node_id) {
+    a_expression * expr = lookup(node_id);
 
     ASSERT1(expr->children.size != 0);
     for (int i = 0; i < expr->children.size; ++i) {
-        struct AST * node = ARENA_GET(expr->children, i, struct AST *);
-        ASSERT1(node != NULL);
-        checker_check_expr_node(node);
+        ID child_node_id = ARENA_GET(expr->children, i, ID);
+        ASSERT1(!ID_IS_INVALID(child_node_id));
+        checker_check_expr_node(child_node_id);
     }
 
-    ALLOC(expr->type);
-    *expr->type = ast_to_type(ast);
+    // expr->type = ast_to_type(node_id);
 }
 
-void checker_check_variable(struct AST * ast) {
+void checker_check_variable(ID node_id) {
     // struct AST * var_ast = get_variable(ast);
     //
     // if (var_ast == NULL || !var_ast->value.variable.is_declared) {
@@ -224,18 +197,16 @@ void checker_check_variable(struct AST * ast) {
     // ast->value = var_ast->value;
 }
 
-struct AST * checker_check_struct(struct AST * ast) {
-    a_structure * _struct = &ast->value.structure;
+void checker_check_struct(ID node_id) {
+    a_structure _struct = LOOKUP(node_id, a_structure);
 
     // if (ast != get_symbol(_struct->name, ast->scope)) {
     //     FATAL("Multiple definitions for struct '{s}'", _struct->name);
     // }
-
-    return ast;
 }
 
-struct AST * checker_check_impl(struct AST * ast) {
-    a_implementation impl = ast->value.implementation;
+void checker_check_impl(ID node_id) {
+    a_implementation impl = LOOKUP(node_id, a_implementation);
     // struct AST * node = get_symbol(impl.name, ast->scope),
     //            * temp1,
     //            * temp2;
@@ -278,7 +249,7 @@ struct AST * checker_check_impl(struct AST * ast) {
     //     arena = impl.type->value.tuple.types;
     // }
     //
-    // if (ast->scope->type != AST_MODULE) {
+    // if (ast->scope->type != ID_AST_MODULE) {
     //     FATAL("impl is not at module scope?");
     // }
     //
@@ -298,178 +269,165 @@ struct AST * checker_check_impl(struct AST * ast) {
 
 }
 
-struct AST * checker_check_trait(struct AST * ast) {
-    a_trait trait = ast->value.trait;
+void checker_check_trait(ID node_id) {
+    a_trait trait = LOOKUP(node_id, a_trait);
 
     // struct AST * node = get_symbol(trait.name, ast->scope);
     //
     // if (ast != node) {
     //     FATAL("Multiple definitions for trait '{s}'", trait.name);
     // }
-
-    return ast;
-
 }
 
-void checker_check_scope(struct AST * ast) {
-    context_enter_scope(ast);
-    a_scope scope = ast->value.scope;
+void checker_check_scope(ID node_id) {
+    a_scope scope = LOOKUP(node_id, a_scope);
+    context_enter_scope(scope);
 
     for (int i = 0; i < scope.nodes.size; ++i) {
-        struct AST * node = ARENA_GET(scope.nodes, i, struct AST *);
-        switch (node->type) {
-            case AST_EXPR:
-                checker_check_expression(node);
+        ID child_node_id = ARENA_GET(scope.nodes, i, ID);
+        switch (child_node_id.type) {
+            case ID_AST_EXPR:
+                checker_check_expression(child_node_id);
                 break;
-            case AST_DECLARATION:
-                checker_check_declaration(node);
+            case ID_AST_DECLARATION:
+                checker_check_declaration(child_node_id);
                 break;
-            case AST_IF:
-                checker_check_if(node);
+            case ID_AST_IF:
+                checker_check_if(child_node_id);
                 break;
-            case AST_WHILE:
-                checker_check_while(node);
+            case ID_AST_WHILE:
+                checker_check_while(child_node_id);
                 break;
-            case AST_FOR:
-                checker_check_for(node);
+            case ID_AST_FOR:
+                checker_check_for(child_node_id);
                 break;
-            case AST_RETURN:
-                checker_check_return(node);
+            case ID_AST_RETURN:
+                checker_check_return(child_node_id);
                 break;
             default:
-                ERROR("Invalid scope node type: {s}\n", ast_type_to_str(node->type));
+                ERROR("Invalid scope node type: {s}\n", id_type_to_string(child_node_id.type));
                 break;
         }
     }
 
-    context_exit_scope(ast);
+    context_exit_scope(scope);
 }
 
-void checker_check_declaration(struct AST * ast) {
-    a_declaration declaration = ast->value.declaration;
-    a_expression expr = declaration.expression->value.expression;
+void checker_check_declaration(ID node_id) {
+    a_declaration declaration = LOOKUP(node_id, a_declaration);
+    a_expression expr = LOOKUP(declaration.expression_id, a_expression);
 
     for (int i = 0; i < expr.children.size; ++i) {
-        struct AST * node = ARENA_GET(expr.children, i, struct AST *);
-        if (node->type == AST_OP) {
-            a_operator * op = &node->value.operator;
-            if (op->op->key == ASSIGNMENT) {
-                if (op->left->type != AST_VARIABLE) {
-                    FATAL("On declaration the LHS must always be a variable");
-                }
-                checker_check_expr_node(op->right);
-                op->left->value.variable.is_declared = 1;
+        ID child_node_id = ARENA_GET(expr.children, i, ID);
 
-                switch (ast->scope->type) {
-                    case AST_SCOPE:
-                        {
-                            // list_push(ast->scope->value.scope.variables, op->left);
-                            break;
-                        }
-                    case AST_MODULE:
-                        {
-                            ARENA_APPEND(&ast->scope->value.module.members, op->left);
-                            break;
-                        }
-                    default:
-                        {
-                            FATAL("Unsupported type '{s}' as variable holder", ast_type_to_str(ast->scope->type));
-                        }
-                }
-            } else {
+        if (ID_IS(child_node_id, ID_AST_OP)) {
+            a_operator assignment_op = LOOKUP(child_node_id, a_operator);
+
+            if (assignment_op.op.key != ASSIGNMENT) {
                 FATAL("Declarations require a direct assignment");
             }
-        } else if (node->type == AST_VARIABLE) {
-            node->value.variable.is_declared = 1;
 
-            switch (ast->scope->type) {
-                case AST_SCOPE:
-                    {
-                        // list_push(ast->scope->value.scope.variables, node);
-                        break;
-                    }
-                case AST_MODULE:
-                    {
-                        ARENA_APPEND(&ast->scope->value.module.members, node);
-                        break;
-                    }
-                default:
-                    {
-                        FATAL("Unsupported type '{s}' as variable holder", ast_type_to_str(ast->scope->type));
-                    }
+            if (!ID_IS(assignment_op.left_id, ID_AST_VARIABLE)) {
+                FATAL("On declaration the LHS must always be a variable");
             }
+
+            checker_check_expr_node(assignment_op.right_id);
+            child_node_id = assignment_op.left_id;
         }
 
-        checker_check_expr_node(node);
+        if (!ID_IS(child_node_id, ID_AST_VARIABLE)) {
+            FATAL("Must be a variable in declaration");
+        }
+
+        a_variable * variable = lookup(child_node_id);
+        variable->is_declared = 1;
+
+        switch (variable->info.scope_id.type) {
+            case ID_AST_SCOPE:
+                {
+                    // list_push(ast->scope->value.scope.variables, node);
+                    break;
+                }
+            case ID_AST_MODULE:
+                {
+                    a_module * module = lookup(variable->info.scope_id);
+                    ARENA_APPEND(&module->members, node_id);
+                    break;
+                }
+            default:
+                {
+                    FATAL("Unsupported type '{s}' as variable holder", id_type_to_string(variable->info.scope_id.type));
+                }
+        }
+
+        checker_check_expr_node(child_node_id);
     }
 }
 
-void checker_check_function(struct AST * ast) {
-    context_enter_function(ast);
+void checker_check_function(ID node_id) {
+    a_function function = LOOKUP(node_id, a_function);
+    context_enter_function(function);
 
-    a_function function = ast->value.function;
-    a_expression arguments = function.arguments->value.expression;
+    a_expression arguments = LOOKUP(function.arguments_id, a_expression);
 
     for (int i = 0; i < arguments.children.size; ++i) {
-        struct AST * node = ARENA_GET(arguments.children, i, struct AST *);
-        ASSERT(node->type == AST_SYMBOL, "Function arguments currently only support declarations");
-        node->value.variable.is_declared = 1;
-        checker_check_variable(node);
+        ID child_node_id = ARENA_GET(arguments.children, i, ID);
+        ASSERT(ID_IS(child_node_id, ID_AST_SYMBOL), "Function arguments currently only support declarations");
+        a_symbol symbol = LOOKUP(child_node_id, a_symbol);
+        a_variable * variable = lookup(symbol.node_id);
+
+        variable->is_declared = 1;
+        checker_check_variable(symbol.node_id);
     }
 
-    checker_check_scope(function.body);
+    checker_check_scope(function.body_id);
 
-    context_exit_function(ast);
+    context_exit_function(function);
 }
 
-void checker_check_import(struct AST * ast) {
+void checker_check_import(ID node_id) {
 
 }
 
-void checker_check_definitions(struct AST * ast) {
-    ASSERT1(ast != NULL);
+void checker_check_definitions(ID node_id) {
+    ASSERT1(!ID_IS_INVALID(node_id));
 
-    switch (ast->type) {
-        case AST_FUNCTION:
-            checker_check_function(ast); break;
-        case AST_DECLARATION:
-            checker_check_declaration(ast); break;
-        case AST_STRUCT:
-            checker_check_struct(ast); break;
-        case AST_TRAIT:
-            checker_check_trait(ast); break;
-        case AST_IMPL:
-            checker_check_impl(ast); break;
-        case AST_IMPORT:
-            checker_check_import(ast); break;
+    switch (node_id.type) {
+        case ID_AST_FUNCTION:
+            checker_check_function(node_id); break;
+        case ID_AST_DECLARATION:
+            checker_check_declaration(node_id); break;
+        case ID_AST_STRUCT:
+            checker_check_struct(node_id); break;
+        case ID_AST_TRAIT:
+            checker_check_trait(node_id); break;
+        case ID_AST_IMPL:
+            checker_check_impl(node_id); break;
+        case ID_AST_IMPORT:
+            checker_check_import(node_id); break;
         default:
-            FATAL("Invalid AST type: {s}", ast_type_to_str(ast->type));
+            FATAL("Invalid AST type: {s}", id_type_to_string(node_id.type));
     }
 }
 
-void checker_check_module(struct AST * ast) {
-    ASSERT1(ast != NULL);
-    ASSERT1(ast->type == AST_MODULE);
+void checker_check_module(ID node_id) {
+    ASSERT1(ID_IS(node_id, ID_AST_MODULE));
+    a_module module = LOOKUP(node_id, a_module);
+    context_enter_module(module);
 
-    a_module * module = &ast->value.module;
-    context_enter_module(ast);
-
-    for (int i = 0; i < module->members.size; ++i) {
-        checker_check_definitions(ARENA_GET(module->members, i, struct AST *));
+    for (int i = 0; i < module.members.size; ++i) {
+        checker_check_definitions(ARENA_GET(module.members, i, ID));
     }
 
-    context_exit_module(ast);
+    context_exit_module(module);
 }
 
-void checker_check(struct AST * ast) {
-    ASSERT1(ast->type == AST_ROOT);
-    a_root root = ast->value.root;
-
+void checker_check(a_root root) {
     context_init();
 
-    struct AST * module;
-    kh_foreach_value(&root.modules, module, {
-        checker_check_module(module);
+    ID module_id;
+    kh_foreach_value(&root.modules, module_id, {
+        checker_check_module(module_id);
     });
 
     // perform main function lookup on root.entry_point module

@@ -1,9 +1,7 @@
 #include "common/arena.h"
-#include "common/logger.h"
+
+#include "common/common.h"
 #include "common/math.h"
-#include "fmt.h"
-#include <stdlib.h>
-#include <string.h>
 
 #define ARENA_GET_INDEX(ARENA, INDEX) ARENA.arena + INDEX * ARENA.item_size
 #define ARENA_INITIAL_CAPACITY 1
@@ -17,6 +15,10 @@ Arena arena_init(uint32_t item_size) {
 		.size = 0,
 		.item_size = item_size,
 	};
+}
+
+void arena_free(Arena arena) {
+	free(arena.arena);
 }
 
 void arena_grow(Arena * arena, uint32_t new_capacity) {
@@ -51,7 +53,6 @@ void * arena_get_ref(Arena arena, uint32_t index) {
 
 	return ARENA_GET_INDEX(arena, index);
 }
-
 
 void * arena_next(Arena * arena) {
 	if (arena->arena == NULL) {

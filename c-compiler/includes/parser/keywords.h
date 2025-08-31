@@ -45,7 +45,7 @@ enum Keywords {
 #define CONVERSION_EL(ENUM, USAGE, STR) {INVALID_INTERN_ID, ENUM, USAGE},
 
 struct Keyword {
-    unsigned int intern_id;
+    ID intern_id;
     const enum Keywords key;
     const char flag;
 };
@@ -53,8 +53,8 @@ struct Keyword {
 void keywords_intern();
 
 struct Keyword keyword_get(enum Keywords keyword_enum);
-struct Keyword keyword_get_by_intern_id(unsigned int ID);
+struct Keyword keyword_get_by_intern_id(ID id);
 
-char keyword_interner_id_is_inbounds(unsigned int ID);
-unsigned int keyword_get_intern_id(enum Keywords keyword_enum);
+char keyword_interner_id_is_inbounds(ID id);
+ID keyword_get_intern_id(enum Keywords keyword_enum);
 const char * keyword_get_str(enum Keywords keyword_enum);

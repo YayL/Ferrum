@@ -27,7 +27,12 @@ if [ "$1" = "perf" ] ; then  # perf test
     qcachegrind
 elif [ "$1" = "mem" ] ; then # memory test
     shift 1
-    valgrind ./build/compiler "$@"
+    if [ "$1" = "leak" ]; then
+        shift 1
+        valgrind --leak-check=full --show-leak-kinds=definite ./build/compiler "$@"
+    else
+        valgrind ./build/compiler "$@"
+    fi
 else
     ./build/compiler "$@"
 fi

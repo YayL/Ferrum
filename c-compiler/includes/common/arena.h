@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common/common.h"
+#include <stdint.h>
 
 typedef struct arena {
 	void * arena;
@@ -14,6 +14,7 @@ typedef struct arena {
 #define ARENA_POP(arena_ref, type) ARENA_GET(*arena_ref, (arena_ref)->size - 1, type); arena_shrink(arena_ref, 1)
 
 Arena arena_init(uint32_t item_size);
+void arena_free(Arena arena);
 
 void arena_grow(Arena * arena, uint32_t new_capacity);
 void arena_shrink(Arena * arena, uint32_t shrink_amount);

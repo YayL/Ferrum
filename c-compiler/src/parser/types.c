@@ -1,23 +1,20 @@
 #include "parser/types.h"
 
-#include "checker/symbols.h"
-#include "codegen/AST.h"
-#include "common/arena.h"
-#include "common/logger.h"
-#include "common/sourcespan.h"
+#include "parser/AST.h"
 #include "parser/keywords.h"
 #include "parser/parser.h"
-#include "parser/token.h"
-#include "common/macro.h"
-#include <stdlib.h>
+#include "tables/registry_manager.h"
+#include "checker/symbols.h"
 
-Type _parser_parse_numeric_type(struct Parser * parser) {
-    Type type = {.intrinsic = INumeric, .value = init_intrinsic_type(INumeric) };
+struct registry_manager types_manager;
+
+ID _parser_parse_numeric_type(struct Parser * parser) {
+    enum Numeric_T_TYPE numeric_type;
     switch (parser->token->span.start[0]) {
-        case 'i': type.value.numeric.type = NUMERIC_SIGNED; break;
-        case 'u': type.value.numeric.type = NUMERIC_UNSIGNED; break;
-        case 'f': type.value.numeric.type = NUMERIC_FLOAT; break;
-        default: return UNKNOWN_TYPE;
+        case 'i': numeric_type = NUMERIC_SIGNED; break;
+        case 'u': numeric_type = NUMERIC_UNSIGNED; break;
+        case 'f': numeric_type = NUMERIC_FLOAT; break;
+        default: return INVALID_ID;
     }
 
     SourceSpan span = parser->token->span;
@@ -25,107 +22,112 @@ Type _parser_parse_numeric_type(struct Parser * parser) {
     int width = strtol(&span.start[1], &end_ptr, 10);
 
     if (!(0 < width && width <= UINT16_MAX) || end_ptr != &span.start[span.length - 1]) {
-        return UNKNOWN_TYPE;
+        return INVALID_ID;
     }
 
     parser_eat(parser, TOKEN_ID);
-    type.value.numeric.width = (unsigned short) width;
-    return type;
+    Numeric_T * numeric = type_allocate(ID_NUMERIC_TYPE);
+    numeric->width = (unsigned short) width;
+    return numeric->info.type_id;
 }
 
-Type parser_parse_type(struct Parser * parser) {
-    Type type = UNKNOWN_TYPE;
-
+ID parser_parse_type(struct Parser * parser) {
     switch (parser->token->type) {
     case TOKEN_ID:
-        if (parser->token->interner_id == keyword_get_intern_id(KEYWORD_IMPL)) {
+        if (id_is_equal(parser->token->interner_id, keyword_get_intern_id(KEYWORD_IMPL))) {
             parser_eat(parser, TOKEN_ID);
-            type.intrinsic = IImpl;
-            type.symbol = parser_parse_symbol(parser);
-        } else if (parser->token->interner_id == keyword_get_intern_id(KEYWORD_BOOL)) {
-            parser_eat(parser, TOKEN_ID);
-            type.intrinsic = INumeric;
-            type.value = init_intrinsic_type(INumeric);
-            type.value.numeric.type = NUMERIC_UNSIGNED;
-            type.value.numeric.width = 1;
-        } else {
-            type = _parser_parse_numeric_type(parser);
 
-            if (type.intrinsic != IUnknown) {
-                break;
+            Impl_T * impl = type_allocate(ID_IMPL_TYPE);
+            impl->symbol_id = parser_parse_symbol(parser);
+
+            return impl->info.type_id;
+        } else if (id_is_equal(parser->token->interner_id, keyword_get_intern_id(KEYWORD_BOOL))) {
+            parser_eat(parser, TOKEN_ID);
+
+            Numeric_T * numeric = type_allocate(ID_NUMERIC_TYPE);
+            numeric->type = NUMERIC_UNSIGNED;
+            numeric->width = 1;
+            
+            return numeric->info.type_id;
+        } else {
+            ID numeric_type_id = _parser_parse_numeric_type(parser);
+
+            if (!ID_IS_INVALID(numeric_type_id)) {
+                return numeric_type_id;
             }
 
-            type.intrinsic = IType;
-            type.symbol = parser_parse_symbol(parser);
+            Type_T * type = type_allocate(ID_TYPE_TYPE);
+            type->symbol_id = parser_parse_symbol(parser);
 
             if (parser->token->type == TOKEN_LT) {
                 FATAL("Template type parsing is not implemented yet");
             }
+
+            return type->info.type_id;
         }
 
         break;
-    case TOKEN_AMPERSAND:
-        type.intrinsic = IRef;
-        type.value = init_intrinsic_type(IRef);
+    case TOKEN_AMPERSAND: {
+        Ref_T * ref = type_allocate(ID_REF_TYPE);
 
         while (parser->token->type == TOKEN_AMPERSAND) {
             parser_eat(parser, TOKEN_AMPERSAND);
-            type.value.ref.depth += 1;
+            ref->depth += 1;
         }
 
-        ALLOC(type.value.ref.basetype);
-        *type.value.ref.basetype = parser_parse_type(parser);
-
-        break;
+        ref->basetype_id = parser_parse_type(parser);
+        return ref->info.type_id;
+    }
     case TOKEN_LBRACKET:
         parser_eat(parser, TOKEN_LBRACKET);
-        type.intrinsic = IArray;
-        type.value = init_intrinsic_type(IArray);
+
+        Array_T * array = type_allocate(ID_ARRAY_TYPE);
 
         switch (parser->token->type) {
         case TOKEN_INT:
-            type.value.array.size = atoi(parser->token->span.start);
+            array->size = atoi(parser->token->span.start);
             parser_eat(parser, TOKEN_INT);
             break;
         case TOKEN_UNDERSCORE:
             FATAL("Slices are not yet implemented");
         default:
-            type.value.array.size = -1;
+            array->size = -1;
         }
 
         parser_eat(parser, TOKEN_RBRACKET);
 
-        ALLOC(type.value.array.basetype);
-        *type.value.array.basetype = parser_parse_type(parser);
+        array->basetype_id = parser_parse_type(parser);
 
-        break;
+        return array->info.type_id;
     case TOKEN_LPAREN:
         parser_eat(parser, TOKEN_LPAREN);
-        type.intrinsic = ITuple;
-        type.value = init_intrinsic_type(ITuple);
+
+        Tuple_T * tuple = type_allocate(ID_TUPLE_TYPE);
 
         do {
-            ARENA_APPEND(&type.value.tuple.types, parser_parse_type(parser));
+            ARENA_APPEND(&tuple->types, parser_parse_type(parser));
         } while (parser->token->type == TOKEN_COMMA && (parser_eat(parser, TOKEN_COMMA), 1));
         parser_eat(parser, TOKEN_RPAREN);
 
-        break;
+        return tuple->info.type_id;
     default:
         FATAL("Invalid token type: {s}", token_type_to_str(parser->token->type));
     }
-
-    return type;
 }
 
-union intrinsic_union init_intrinsic_type(enum intrinsic_type type) {
-    union intrinsic_union value = {0};
-
+void type_init_intrinsic_type(enum id_type type, void * type_ref) {
     switch (type) {
-        case ITuple: value.tuple.types = arena_init(sizeof(Type)); break;
-        default: break;
+        case ID_TUPLE_TYPE:
+            ((Tuple_T *) type_ref)->types = arena_init(sizeof(ID)); break;
+        case ID_NUMERIC_TYPE:
+        case ID_TYPE_TYPE:
+        case ID_IMPL_TYPE:
+        case ID_ARRAY_TYPE:
+        case ID_REF_TYPE:
+            break;
+        default:
+            println("Invalid ID type: {s}", id_type_to_string(type));
     }
-
-    return value;
 }
 
 // char __is_template_type(struct hashmap * map, char * name) {
@@ -135,215 +137,206 @@ union intrinsic_union init_intrinsic_type(enum intrinsic_type type) {
 //     return hashmap_has(map, name);
 // }
 
-char is_template_type(struct AST * current_scope, unsigned int name_id) {
-    struct AST * scope = get_scope(AST_FUNCTION, current_scope); 
+char is_template_type(ID scope_id, ID name_id) {
+    struct AST * scope = get_scope(ID_AST_FUNCTION, scope_id); 
     
     return 0;
     // return scope->type == AST_FUNCTION;
     //         && __is_template_type(scope->value.function.template_types, name);
 }
 
-Type ast_get_type_of(struct AST * ast) {
-    switch (ast->type) {
-        case AST_OP:
+ID ast_get_type_of(ID node_id) {
+    switch (node_id.type) {
+        case ID_AST_OP:
             {
-                ASSERT1(ast->value.operator.type != NULL);
-                return *ast->value.operator.type;
+                a_operator operator = LOOKUP(node_id, a_operator);
+                ASSERT1(!ID_IS_INVALID(operator.type_id));
+                return operator.type_id;
             }
-        case AST_LITERAL:
+        case ID_AST_LITERAL:
             {
-                ASSERT1(ast->value.literal.type != NULL);
-                return *ast->value.literal.type;
+                a_literal literal = LOOKUP(node_id, a_literal);
+                ASSERT1(!ID_IS_INVALID(literal.type_id));
+                return literal.type_id;
             }
-        case AST_VARIABLE:
+        case ID_AST_VARIABLE:
             {
-                return ast->value.variable.type;
+                a_variable variable = LOOKUP(node_id, a_variable);
+                ASSERT1(!ID_IS_INVALID(variable.type_id));
+                return variable.type_id;
             }
-        case AST_SYMBOL:
+        case ID_AST_SYMBOL:
             {
-                return ast_get_type_of(ast->value.symbol.node);
+                a_symbol symbol = LOOKUP(node_id, a_symbol);
+                ASSERT1(!ID_IS_INVALID(symbol.node_id));
+                return ast_get_type_of(symbol.node_id);
             }
         default:
-            FATAL("Unable to get a type from ast type '{s}'", ast_type_to_str(ast->type));
+            FATAL("Unable to get a type from ast type '{s}'", id_type_to_string(node_id.type));
     }
 }
 
-Type ast_to_type(struct AST * ast) {
-    Type type = {0};
-
-    switch (ast->type) {
-        case AST_EXPR:
+ID ast_to_type(ID node_id) {
+    switch (node_id.type) {
+        case ID_AST_EXPR:
         {
-            a_expression expr = ast->value.expression;
+            a_expression expr = LOOKUP(node_id, a_expression);
 
             if (expr.children.size == 1) {
-                Type type_ref = ast_get_type_of(ARENA_GET(expr.children, 0, struct AST *));
-                return type_ref;
+                return ast_get_type_of(ARENA_GET(expr.children, 0, ID));
             }
 
-            type.intrinsic = ITuple;
-            type.value = init_intrinsic_type(ITuple);
+            Tuple_T * tuple = type_allocate(ID_TUPLE_TYPE);
 
             for (int i = 0; i < expr.children.size; ++i) {
-                struct AST * child = ARENA_GET(expr.children, i, struct AST *);
-                ASSERT1(child != NULL);
+                ID child_node_id = ARENA_GET(expr.children, i, ID);
+                ASSERT1(!ID_IS_INVALID(child_node_id));
 
-                Type child_type = ast_get_type_of(child);
-                ARENA_APPEND(&type.value.tuple.types, child_type);
+                ARENA_APPEND(&tuple->types, ast_get_type_of(child_node_id));
             }
+
+            return tuple->info.type_id;
         } break;
         default:
         {
-            FATAL("'{s}' is not an implemented type for type conversion", ast_type_to_str(ast->type));
+            FATAL("'{s}' is not an implemented type for type conversion", id_type_to_string(node_id.type));
         }
     }
-
-    return type;
 }
 
-char is_implementer(Type implementation, Type implementer) {
+char is_implementer(ID implementation, ID implementer) {
 
 }
 
-char is_implicitly_equal(Type type1, Type type2) {
+char is_implicitly_equal(ID type1, ID type2) {
     if (!is_equal_type(get_base_type(type1), get_base_type(type2)))
         return 0;
  
     return 0;
 }
 
-char is_compatible_type(Type type1, Type type2) {
-    if (type1.intrinsic == type2.intrinsic) {
-        return is_equal_type(type1, type2);
+char is_compatible_type(ID type1_id, ID type2_id) {
+    if (type1_id.type == type2_id.type) {
+        return is_equal_type(type1_id, type2_id);
     }
 
-    if (type1.intrinsic == IImpl) {
-        return is_implementer(type1, type2);
-    } else if (type1.intrinsic == IImpl) {
-        return is_implementer(type2, type1);
+    if (type1_id.type == ID_IMPL_TYPE) {
+        return is_implementer(type1_id, type2_id);
+    } else if (type1_id.type == ID_IMPL_TYPE) {
+        return is_implementer(type2_id, type1_id);
     }
 
     return 0;
 }
 
-char is_equal_type(Type type1, Type type2) {
-    ASSERT1(type1.intrinsic != IUnknown);
-    ASSERT1(type2.intrinsic != IUnknown);
-    if (type1.intrinsic != type2.intrinsic) {
+char is_equal_type(ID type1_id, ID type2_id) {
+    ASSERT1(!ID_IS_INVALID(type1_id));
+    ASSERT1(!ID_IS_INVALID(type2_id));
+
+    if (type1_id.type != type2_id.type) {
         return 0;
     }
 
-    switch (type1.intrinsic) {
-        case IType:
-            return type1.symbol->value.symbol.node == type2.symbol->value.symbol.node;
-        case INumeric:
+    switch (type1_id.type) {
+        case ID_TYPE_TYPE: {
+            return id_is_equal(LOOKUP(type1_id, a_symbol).node_id, LOOKUP(type2_id, a_symbol).node_id);
+        }
+        case ID_NUMERIC_TYPE:
         {
-            Numeric_T num1 = type1.value.numeric, num2 = type2.value.numeric;
+            Numeric_T num1 = LOOKUP(type1_id, Numeric_T), num2 = LOOKUP(type2_id, Numeric_T);
             return num1.type == num2.type && num1.width == num2.width;
         }
-        case IImpl:
-        case IArray:
+        case ID_IMPL_TYPE:
+            FATAL("Impl equal is not implemented yet");
+            break;
+        case ID_ARRAY_TYPE:
         {
-            Array_T arr1 = type1.value.array, arr2 = type2.value.array;
-            ASSERT1(arr1.basetype != NULL);
-            ASSERT1(arr2.basetype != NULL);
-            return arr1.size == arr2.size && is_equal_type(*arr1.basetype, *arr2.basetype);
+            Array_T arr1 = LOOKUP(type1_id, Array_T), arr2 = LOOKUP(type2_id, Array_T);
+            ASSERT1(!ID_IS_INVALID(arr1.basetype_id));
+            ASSERT1(!ID_IS_INVALID(arr2.basetype_id));
+            return arr1.size == arr2.size && is_equal_type(arr1.basetype_id, arr2.basetype_id);
         }
-        case IRef:
+        case ID_REF_TYPE:
         {
-            Ref_T ref1 = type1.value.ref, ref2 = type2.value.ref;
+            Ref_T ref1 = LOOKUP(type1_id, Ref_T), ref2 = LOOKUP(type2_id, Ref_T);
  
-            ASSERT1(ref1.basetype != NULL);
-            ASSERT1(ref2.basetype != NULL);
-            return ref1.depth == ref2.depth && is_equal_type(*ref1.basetype, *ref2.basetype);
+            ASSERT1(!ID_IS_INVALID(ref1.basetype_id));
+            ASSERT1(!ID_IS_INVALID(ref2.basetype_id));
+            return ref1.depth == ref2.depth && is_equal_type(ref1.basetype_id, ref2.basetype_id);
         }
-        case ITuple:
+        case ID_TUPLE_TYPE:
         {
-            Tuple_T tuple1 = type1.value.tuple,
-                    tuple2 = type2.value.tuple;
+            Tuple_T tuple1 = LOOKUP(type1_id, Tuple_T), tuple2 = LOOKUP(type2_id, Tuple_T);
             if (tuple1.types.size != tuple2.types.size) {
                 return 0;
             }
-            
+
             for (int i = 0; i < tuple1.types.size; ++i) {
-                Type child1 = ARENA_GET(tuple1.types, i, Type), child2 = ARENA_GET(tuple2.types, i, Type);
-                if (!is_equal_type(child1, child2)) {
+                if (!is_equal_type(ARENA_GET(tuple1.types, i, ID), ARENA_GET(tuple2.types, i, ID))) {
                     return 0;
                 }
             }
         } break;
         default:
-            FATAL("{u} is not an implemented intrinsic for checking type equivalance", type1.intrinsic);
+            FATAL("'{s}' is not an implemented intrinsic for checking type equivalance", id_type_to_string(type1_id.type));
     }
 
     return 1;
 }
 
-struct arena type_to_type_arena(Type type) {
-    switch (type.intrinsic) {
-        case ITuple:
-            return type.value.tuple.types;
+const Arena type_to_type_arena(ID type_id) {
+    switch (type_id.type) {
+        case ID_TUPLE_TYPE:
+            return LOOKUP(type_id, Tuple_T).types;
         default:
         {
-            struct arena arena = arena_init(sizeof(Type));
-            ARENA_APPEND(&arena, type);
+            Arena arena = arena_init(sizeof(ID));
+            ARENA_APPEND(&arena, type_id);
             return arena;
         }
     }
 
 }
 
-Type get_base_type(Type type) {
-    switch (type.intrinsic) {
-        case IType:
-        case INumeric:
-        case IImpl:
-        case ITuple:
-            return type;
-        case IArray:
-            return get_base_type(*type.value.array.basetype);
-        case IRef:
-            return get_base_type(*type.value.ref.basetype);
+ID get_base_type(ID type_id) {
+    switch (type_id.type) {
+        case ID_TYPE_TYPE:
+        case ID_NUMERIC_TYPE:
+        case ID_IMPL_TYPE:
+        case ID_TUPLE_TYPE:
+            return type_id;
+        case ID_ARRAY_TYPE:
+            return get_base_type(LOOKUP(type_id, Array_T).basetype_id);
+        case ID_REF_TYPE:
+            return get_base_type(LOOKUP(type_id, Ref_T).basetype_id);
     }
 
-    FATAL("Invalid type: {d}", type.intrinsic);
+    FATAL("Invalid type: {s}", id_type_to_string(type_id.type));
 }
 
-const char * get_base_type_str(Type type) {
-    switch (type.intrinsic) {
-        case IUnknown:
-        case IType:
-        case INumeric:
-        case IImpl:
-            return type_to_str(type);
-        case IArray:
-            return get_base_type_str(*type.value.array.basetype);
-        case IRef:
-            return get_base_type_str(*type.value.ref.basetype);
-        case ITuple:
-        {
-            Tuple_T tuple = type.value.tuple;
-            if (tuple.types.size == 1) {
-                return get_base_type_str(ARENA_GET(tuple.types, 0, Type));
-            }
-            return NULL;
-        }
+const char * get_base_type_str(ID type_id) {
+    switch (type_id.type) {
+        case ID_TYPE_TYPE:
+        case ID_NUMERIC_TYPE:
+        case ID_IMPL_TYPE:
+        case ID_ARRAY_TYPE:
+        case ID_REF_TYPE:
+        case ID_TUPLE_TYPE:
+            return type_to_str(get_base_type(type_id));
     }
 
     return "(NULL)";
 }
 
-char * type_to_str(Type type) {
-    switch (type.intrinsic) {
-        case IUnknown:
-            return "Unknown";
-        case IType:
+char * type_to_str(ID type_id) {
+    switch (type_id.type) {
+        case ID_TYPE_TYPE:
         {
-            return symbol_expand_path(type.symbol);
+            return symbol_expand_path(LOOKUP(LOOKUP(type_id, Type_T).symbol_id, a_symbol));
         }
-        case INumeric:
+        case ID_NUMERIC_TYPE:
         {
-            Numeric_T num = type.value.numeric;
+            Numeric_T num = LOOKUP(type_id, Numeric_T);
             char c = 'i';
             switch (num.type) {
                 case NUMERIC_SIGNED:
@@ -357,15 +350,15 @@ char * type_to_str(Type type) {
             }
             return format("{c}{u}", c, num.width);
         }
-        case IArray:
+        case ID_ARRAY_TYPE:
         {
-            Array_T array = type.value.array;
-            ASSERT(array.basetype != NULL, "Array basetype is invalidly NULL");
-            return format("[]{s}", type_to_str(*array.basetype));
+            Array_T array = LOOKUP(type_id, Array_T);
+            ASSERT(!ID_IS_INVALID(array.basetype_id), "Array basetype is invalidly unknown");
+            return format("[]{s}", type_to_str(array.basetype_id));
         }
-        case IRef:
+        case ID_REF_TYPE:
         {
-            Ref_T ref = type.value.ref;
+            Ref_T ref = LOOKUP(type_id, Ref_T);
             char * buf = malloc(sizeof(char) * (ref.depth + 1));
             
             int i = 0;
@@ -374,86 +367,30 @@ char * type_to_str(Type type) {
             }
             buf[i] = 0;
 
-            ASSERT(ref.basetype != NULL, "Reference basetype is invalidly NULL");
-            return format("{2s}", buf, type_to_str(*ref.basetype));
+            ASSERT(!ID_IS_INVALID(ref.basetype_id), "Reference basetype is invalidly unknown");
+            return format("{2s}", buf, type_to_str(ref.basetype_id));
         }
-        case ITuple:
+        case ID_TUPLE_TYPE:
         {
-            Tuple_T tuple = type.value.tuple;
+            Tuple_T tuple = LOOKUP(type_id, Tuple_T);
 
             if (tuple.types.size == 0) {
                 return "()";
             }
 
-            Type temp = ARENA_GET(tuple.types, 0, Type);
-            char * buf = format("({s}", type_to_str(temp));
+            ID child_type_id = ARENA_GET(tuple.types, 0, ID);
+            char * buf = format("({s}", type_to_str(child_type_id));
 
             for (int i = 1; i < tuple.types.size; ++i) {
-                temp = ARENA_GET(tuple.types, i, Type);
-                buf = format("{2s:, }", buf, type_to_str(temp));
+                child_type_id = ARENA_GET(tuple.types, i, ID);
+                buf = format("{2s:, }", buf, type_to_str(child_type_id));
             }
 
             return format("{s})", buf);
         }
-        case IImpl:
-            return format("impl {s}", symbol_expand_path(type.symbol));
+        case ID_IMPL_TYPE:
+            return format("impl {s}", symbol_expand_path(LOOKUP(LOOKUP(type_id, Impl_T).symbol_id, a_symbol)));
     }
 
     return "(NULL)";
-}
-
-Type copy_type(Type src) {
-    Type copy = src;
-
-    copy.value = init_intrinsic_type(copy.intrinsic);
-    switch (src.intrinsic) {
-        case INumeric:
-            copy.value.numeric = src.value.numeric; break;
-        case IArray:
-            copy.value.array = src.value.array; break;
-        case IRef:
-            copy.value.ref = src.value.ref; break;
-        default:
-            ASSERT(0, "Intrinsic type {i} is not implemented", copy.intrinsic);
-    }
- 
-    return copy;
-}
-
-Type replace_self_in_type(Type to_replace, Type replacement) {
-    Type type, prev, curr;
-
-    char start = 1, finished = 0;
-
-    while (!finished) {
-        switch (to_replace.intrinsic) {
-            case IArray:
-                curr = copy_type(to_replace);
-                to_replace = *to_replace.value.array.basetype;
-                break;
-            case IRef:
-                curr = copy_type(to_replace);
-                to_replace = *to_replace.value.ref.basetype;
-                break;
-            default:
-                ASSERT(0, "Invalid intrinsic type: {i}", to_replace.intrinsic);
-        }
-
-        if (start) {
-            type = curr;
-            start = 0;
-        } else {
-            switch (prev.intrinsic) {
-                case IArray:
-                    *prev.value.array.basetype = curr; break;
-                case IRef:
-                    *prev.value.ref.basetype = curr; break;
-                default:
-                    ASSERT(0, "Invalid intrinsic type");
-            }
-        }
-        prev = curr;
-    }
-
-    return type;
 }

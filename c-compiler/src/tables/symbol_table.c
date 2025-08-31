@@ -1,82 +1,68 @@
 #include "tables/symbol_table.h"
-#include "tables/registry.h"
 
-void symbol_table_append(struct symbol_table * symbol_table, struct AST * item);
+void symbol_table_append(struct symbol_table * symbol_table, ID ast_id);
 
 struct symbol_table symbol_table_init() {
-	return (struct symbol_table) {
-		.symbol_registry = registry_init(sizeof(struct AST *)),
+	return (struct symbol_table) { 
+		.map = kh_init(map_id_to_id),			// store name_id -> symbol_id
 	};
 }
 
-void symbol_table_insert(struct symbol_table * symbol_table, ID name_id, struct AST * node) {
-	struct symbol_table_entry entry = {
-		.name_id = name_id,
-		.ast = node,
-	};
+void symbol_table_insert(struct symbol_table * symbol_table, ID name_id, ID node_id) {
+	struct symbol_table_entry * entry = symbol_allocate();
+	entry->name_id = name_id;
+	entry->node_id = node_id;
 
-	unsigned int previous_value = INVALID_REGISTRY_ID;
-	struct symbol_table_entry * addr = registry_insert(&symbol_table->symbol_registry, name_id, &previous_value);
+	int ret_code;
+	khint_t k = kh_put(map_id_to_id, &symbol_table->map, name_id, &ret_code);
 
-	if (previous_value != INVALID_REGISTRY_ID) {
-		entry.shadowed_symbol_id = previous_value;
+	if (ret_code == KEY_ALREADY_PRESENT) {
+		entry->shadowed_symbol_id = kh_value(&symbol_table->map, k);
 	}
 
-	entry.symbol_id = symbol_table->symbol_registry.entries.size; // This has already been incremented by 1 in registry_insert
-	*addr = entry;
+	ASSERT(ret_code == 1, "Some error occured while retrieving from hashmap. Error code {i}", ret_code);
+	kh_value(&symbol_table->map, k) = entry->symbol_id;
 }
 
-void symbol_table_remove(struct symbol_table * symbol_table, unsigned int name_id) {
-	khint_t k = kh_get(map_id_to_id, &symbol_table->symbol_registry.map, name_id);
-	ASSERT1(k != kh_end(&symbol_table->symbol_registry.map)); // Unable to find name_id
+void symbol_table_remove(struct symbol_table * symbol_table, ID name_id) {
+	khint_t k = kh_get(map_id_to_id, &symbol_table->map, name_id);
+	ASSERT1(k != kh_end(&symbol_table->map)); // Unable to find name_id
 
-	unsigned int symbol_id = kh_value(&symbol_table->symbol_registry.map, k);
-	// Subtract by one because symbol ids starts at 1 and their index is one less
-	struct symbol_table_entry entry = ARENA_GET(symbol_table->symbol_registry.entries, symbol_id - 1, struct symbol_table_entry);
-	ASSERT1(entry.symbol_id == symbol_id);
+	ID symbol_id = kh_value(&symbol_table->map, k);
+	ASSERT1(ID_IS(symbol_id, ID_SYMBOL));
 
-	if (entry.shadowed_symbol_id != 0) {
-		kh_value(&symbol_table->symbol_registry.map, k) = entry.shadowed_symbol_id;
+	struct symbol_table_entry entry = LOOKUP(symbol_id, struct symbol_table_entry);
+	ASSERT1(id_is_equal(entry.symbol_id, symbol_id));
+
+	if (!ID_IS_INVALID(entry.shadowed_symbol_id)) {
+		kh_value(&symbol_table->map, k) = entry.shadowed_symbol_id;
 	} else {
-		kh_del(map_id_to_id, &symbol_table->symbol_registry.map, name_id);
+		kh_del(map_id_to_id, &symbol_table->map, k);
 	}
 
-	ASSERT1(entry.symbol_id == symbol_table->symbol_registry.entries.size); // A promise made when calling symbol_table_remove
-	arena_shrink(&symbol_table->symbol_registry.entries, 1);
+	_symbol_remove_only_last_allowed(symbol_id);
 }
 
-struct symbol_table_entry symbol_table_entry_init(const unsigned int ID, struct AST * item) {
-	return (struct symbol_table_entry) {
-		.ast = item,
-		.symbol_id = ID,
-	};
-}
+ID symbol_table_name_to_id(const struct symbol_table * symbol_table, ID name_id) {
+	unsigned int k = kh_get(map_id_to_id, &symbol_table->map, name_id);
 
-unsigned int symbol_table_name_to_id(const struct symbol_table * symbol_table, unsigned int name_id) {
-	unsigned int k = kh_get(map_id_to_id, &symbol_table->symbol_registry.map, name_id);
-
-	if (k == kh_end(&symbol_table->symbol_registry.map)) {
-		return INVALID_SYMBOL_ID;
+	if (k == kh_end(&symbol_table->map)) {
+		return INVALID_ID;
 	}
 
-	return kh_value(&symbol_table->symbol_registry.map, k);
+	return kh_value(&symbol_table->map, k);
 }
 
-struct symbol_table_entry symbol_table_get_by_id(const struct symbol_table * symbol_table, unsigned int symbol_id) {
-	return *(struct symbol_table_entry *) arena_get_ref(symbol_table->symbol_registry.entries, symbol_id);
+struct symbol_table_entry symbol_table_get_by_id(const struct symbol_table * symbol_table, ID symbol_id) {
+	return LOOKUP(symbol_id, struct symbol_table_entry);
 }
 
-struct symbol_table_entry symbol_table_get_by_name(const struct symbol_table * symbol_table, unsigned int name_id) {
-	unsigned int ID = symbol_table_name_to_id(symbol_table, name_id);
+struct symbol_table_entry symbol_table_get_by_name(const struct symbol_table * symbol_table, ID name_id) {
+	ID id = symbol_table_name_to_id(symbol_table, name_id);
 
-	if (ID == INVALID_SYMBOL_ID) {
-		return (struct symbol_table_entry) {.symbol_id = INVALID_SYMBOL_ID};
+	if (ID_IS_INVALID(id)) {
+		return (struct symbol_table_entry) { .symbol_id = INVALID_ID };
 	}
 
-	return symbol_table_get_by_id(symbol_table, ID);
-}
-
-void symbol_table_append(struct symbol_table * symbol_table, struct AST * item) {
-	struct symbol_table_entry entry = symbol_table_entry_init(symbol_table->symbol_registry.entries.size, item);
-	ARENA_APPEND(&symbol_table->symbol_registry.entries, entry);
+	return symbol_table_get_by_id(symbol_table, id);
 }
