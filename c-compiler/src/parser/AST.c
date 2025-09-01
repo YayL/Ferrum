@@ -15,23 +15,28 @@ void ast_init_node(enum id_type type, void * node_ref) {
         //     break;
         case ID_AST_MODULE:
             ((a_module *) node_ref)->members = arena_init(sizeof(ID));
+            ((a_module *) node_ref)->file_path = NULL;
             break;
         case ID_AST_SCOPE:
             ((a_scope *) node_ref)->nodes = arena_init(sizeof(ID));
             ((a_scope *) node_ref)->declarations = arena_init(sizeof(ID));
             break;
         case ID_AST_STRUCT:
-            ((a_structure *) node_ref)->name_id = INVALID_ID;
             ((a_structure *) node_ref)->definitions = arena_init(sizeof(ID));
+            ((a_structure *) node_ref)->name_id = INVALID_ID;
             break;
         case ID_AST_TRAIT:
             ((a_trait *) node_ref)->children = arena_init(sizeof(ID));
+            ((a_trait *) node_ref)->name_id = INVALID_ID;
             break;
         case ID_AST_IMPL:
             ((a_implementation *) node_ref)->members = arena_init(sizeof(ID));
+            ((a_implementation *) node_ref)->name_id = INVALID_ID;
+            ((a_implementation *) node_ref)->type_id = INVALID_ID;
             break;
         case ID_AST_SYMBOL:
             ((a_symbol *) node_ref)->name_ids = arena_init(sizeof(ID));
+            ((a_symbol *) node_ref)->node_id = INVALID_ID;
             break;
         case ID_AST_VARIABLE:
         case ID_AST_IMPORT:

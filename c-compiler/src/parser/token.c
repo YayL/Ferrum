@@ -1,26 +1,10 @@
 #include "parser/token.h"
 
 #include "common/sourcespan.h"
-#include "common/string.h"
 #include "fmt.h"
-#include "tables/interner.h"
 
 struct Token init_token() {
 	return (struct Token) { 0 };
-}
-
-void set_token(struct Token * tok, char * value, unsigned int length, enum token_t type, unsigned int line, unsigned int pos) {
-	tok->span = source_span_init(value, length);
-
-	if (type == TOKEN_ID) {
-		tok->interner_id = interner_intern(string_init_from_source_span(tok->span));
-	} else {
-		tok->interner_id = INVALID_ID;
-	}
-
-	tok->type = type;
-	tok->line = line;
-	tok->pos = pos;
 }
 
 const char* token_type_to_str(enum token_t type) {

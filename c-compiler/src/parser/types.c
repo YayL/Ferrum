@@ -10,14 +10,14 @@ struct registry_manager types_manager;
 
 ID _parser_parse_numeric_type(struct Parser * parser) {
     enum Numeric_T_TYPE numeric_type;
-    switch (parser->token->span.start[0]) {
+    switch (parser->lexer.tok.span.start[0]) {
         case 'i': numeric_type = NUMERIC_SIGNED; break;
         case 'u': numeric_type = NUMERIC_UNSIGNED; break;
         case 'f': numeric_type = NUMERIC_FLOAT; break;
         default: return INVALID_ID;
     }
 
-    SourceSpan span = parser->token->span;
+    SourceSpan span = parser->lexer.tok.span;
     char * end_ptr;
     int width = strtol(&span.start[1], &end_ptr, 10);
 
@@ -32,16 +32,16 @@ ID _parser_parse_numeric_type(struct Parser * parser) {
 }
 
 ID parser_parse_type(struct Parser * parser) {
-    switch (parser->token->type) {
+    switch (parser->lexer.tok.type) {
     case TOKEN_ID:
-        if (id_is_equal(parser->token->interner_id, keyword_get_intern_id(KEYWORD_IMPL))) {
+        if (id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_IMPL))) {
             parser_eat(parser, TOKEN_ID);
 
             Impl_T * impl = type_allocate(ID_IMPL_TYPE);
             impl->symbol_id = parser_parse_symbol(parser);
 
             return impl->info.type_id;
-        } else if (id_is_equal(parser->token->interner_id, keyword_get_intern_id(KEYWORD_BOOL))) {
+        } else if (id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_BOOL))) {
             parser_eat(parser, TOKEN_ID);
 
             Numeric_T * numeric = type_allocate(ID_NUMERIC_TYPE);
@@ -59,7 +59,7 @@ ID parser_parse_type(struct Parser * parser) {
             Type_T * type = type_allocate(ID_TYPE_TYPE);
             type->symbol_id = parser_parse_symbol(parser);
 
-            if (parser->token->type == TOKEN_LT) {
+            if (parser->lexer.tok.type == TOKEN_LT) {
                 FATAL("Template type parsing is not implemented yet");
             }
 
@@ -70,7 +70,7 @@ ID parser_parse_type(struct Parser * parser) {
     case TOKEN_AMPERSAND: {
         Ref_T * ref = type_allocate(ID_REF_TYPE);
 
-        while (parser->token->type == TOKEN_AMPERSAND) {
+        while (parser->lexer.tok.type == TOKEN_AMPERSAND) {
             parser_eat(parser, TOKEN_AMPERSAND);
             ref->depth += 1;
         }
@@ -83,9 +83,9 @@ ID parser_parse_type(struct Parser * parser) {
 
         Array_T * array = type_allocate(ID_ARRAY_TYPE);
 
-        switch (parser->token->type) {
+        switch (parser->lexer.tok.type) {
         case TOKEN_INT:
-            array->size = atoi(parser->token->span.start);
+            array->size = atoi(parser->lexer.tok.span.start);
             parser_eat(parser, TOKEN_INT);
             break;
         case TOKEN_UNDERSCORE:
@@ -106,12 +106,12 @@ ID parser_parse_type(struct Parser * parser) {
 
         do {
             ARENA_APPEND(&tuple->types, parser_parse_type(parser));
-        } while (parser->token->type == TOKEN_COMMA && (parser_eat(parser, TOKEN_COMMA), 1));
+        } while (parser->lexer.tok.type == TOKEN_COMMA && (parser_eat(parser, TOKEN_COMMA), 1));
         parser_eat(parser, TOKEN_RPAREN);
 
         return tuple->info.type_id;
     default:
-        FATAL("Invalid token type: {s}", token_type_to_str(parser->token->type));
+        FATAL("Invalid token type: {s}", token_type_to_str(parser->lexer.tok.type));
     }
 }
 

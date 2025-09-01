@@ -10,8 +10,10 @@ struct Lexer {
     char c;
 };
 
-struct Lexer * lexer_init(char * src, size_t length);
+struct Lexer lexer_init(const char * file_path);
 void lexer_free(struct Lexer * lexer);
+
+void lexer_update_token(struct Lexer * lexer, const char * start, size_t length, enum token_t type);
 
 void lexer_advance(struct Lexer * lexer);
 void lexer_skip_whitespace(struct Lexer * lexer);

@@ -9,13 +9,12 @@ typedef struct Parser {
     a_root * root;
     char * path;
 
-    struct Lexer * lexer;
+    struct Lexer lexer;
     ID current_scope_id;
 
     Arena modules_to_parse;
 
-    struct Token * token;
-    struct Token prev;
+    struct Token previous_token;
     char error;
 } Parser;
 

@@ -96,7 +96,7 @@ void checker_check_op(ID node_id) {
         a_operator * addr_of_op = ast_allocate(ID_AST_OP, ast_get_scope_id(node_id));
 
         addr_of_op->right_id = op->left_id;
-        addr_of_op->op = str_to_operator("&", UNARY_PRE, NULL);
+        addr_of_op->op = operator_get(ADDRESS_OF);
         op->left_id = addr_of_op->info.node_id;
 
         checker_check_expr_node(op->left_id);

@@ -4,15 +4,15 @@
 #include "common/deque.h"
 #include "tables/registry_manager.h"
 
-Operator get_operator(SourceSpan span, struct Token * token, enum OP_mode mode, char * enclosed_flag) {
-    Operator op = str_to_operator(span.start, mode, enclosed_flag);
+Operator get_operator(SourceSpan span, struct Token token, enum OP_mode mode, char * enclosed_flag) {
+    Operator op = str_to_operator(span, mode, enclosed_flag);
 
     if (op.key == OP_NOT_FOUND && mode == BINARY) {
-        op = str_to_operator(span.start, UNARY_POST, enclosed_flag);
+        op = str_to_operator(span, UNARY_POST, enclosed_flag);
     }
 
     if (op.key == OP_NOT_FOUND) {
-        FATAL("{s} operator '{s}' not found: {s}", mode == BINARY ? "Binary" : "Unary", span.start, token_to_str(*token));
+        FATAL("{s} operator '{s}' not found: {s}", mode == BINARY ? "Binary" : "Unary", string_init_from_source_span(span)._ptr, token_to_str(token));
         print_trace();
         exit(1);
     }
@@ -40,9 +40,9 @@ void consume_add_operator(Operator op, Arena * arena, struct Parser * parser) {
     ARENA_APPEND(arena, operator->info.node_id);
 }
 
+// The parse_expr family of functions really need a refactor but they are a blackbox so I will not touch them for now
 Arena _parser_parse_expr(struct Parser * parser, Arena * output, DEQUE_T(Operator) * operators, enum Operators EXIT_ON_KEY) {
     Arena expressions = arena_init(sizeof(struct AST *));
-    ID node_id;
 
     a_operator * node_op = NULL;
     a_expression * node_expr = NULL;
@@ -53,17 +53,19 @@ Arena _parser_parse_expr(struct Parser * parser, Arena * output, DEQUE_T(Operato
     char flag;
 
     while (1) {
-        switch (parser->token->type) {
+        switch (parser->lexer.tok.type) {
             case TOKEN_ID:
             {
                 if (mode == BINARY) {
-                    println("[Parser] Invalid expression token: {s}\n", token_to_str(*parser->token));
+                    println("[Parser] Invalid expression token: {s}\n", token_to_str(parser->lexer.tok));
                     exit(1);
                 }
 
                 ID node_id = parser_parse_id(parser);
 
+                ASSERT1(ID_IS(node_id, ID_AST_SYMBOL));
                 a_symbol symbol = LOOKUP(node_id, a_symbol);
+
                 if (!ID_IS_INVALID(symbol.node_id) && output->size != 0) {
                     ERROR("Invalid use of symbol type hinting");
                     exit(1);
@@ -85,11 +87,11 @@ Arena _parser_parse_expr(struct Parser * parser, Arena * output, DEQUE_T(Operato
             case TOKEN_OP:
             {
                 // enclosed flag is true if enclosed operator is the closing enclosing operator
-                op1 = get_operator(parser->token->span, parser->token, mode, &flag);
+                op1 = get_operator(parser->lexer.tok.span, parser->lexer.tok, mode, &flag);
 
                 if (op1.enclosed == ENCLOSED) {
                     if (!flag) { // open enclosed operator
-                        parser_eat(parser, parser->token->type);
+                        parser_eat(parser, parser->lexer.tok.type);
                         
                         DEQUE_T(Operator) deque = DEQUE_INIT(Operator);
                         Arena arena = arena_init(sizeof(ID));
@@ -111,7 +113,7 @@ Arena _parser_parse_expr(struct Parser * parser, Arena * output, DEQUE_T(Operato
                             }
 
                             if (operators->size == 1) {
-                                println("[Parser] Unmatched enclosed operator: {s}", token_to_str(*parser->token));
+                                println("[Parser] Unmatched enclosed operator: {s}", token_to_str(parser->lexer.tok));
                                 exit(1);
                             }
 
@@ -120,7 +122,7 @@ Arena _parser_parse_expr(struct Parser * parser, Arena * output, DEQUE_T(Operato
                         }
                        
                         DEQUE_POP_BACK(Operator, operators);
-                        parser_eat(parser, parser->token->type);
+                        parser_eat(parser, parser->lexer.tok.type);
                         goto exit;
                     }
                 }
@@ -146,7 +148,7 @@ Arena _parser_parse_expr(struct Parser * parser, Arena * output, DEQUE_T(Operato
                 mode = op1.mode == UNARY_POST 
                         ? BINARY 
                         : UNARY_PRE;
-                parser_eat(parser, parser->token->type);
+                parser_eat(parser, parser->lexer.tok.type);
 
                 if (op1.key == CAST) {
                     consume_add_operator(op1, output, parser);
@@ -170,11 +172,11 @@ Arena _parser_parse_expr(struct Parser * parser, Arena * output, DEQUE_T(Operato
                     ID temp_id = ARENA_POP(output, ID);
                     ARENA_APPEND(&expressions, temp_id);
                 } else if (output->size != 1) {
-                    FATAL("[Parser] Unprecedentent usage of expression separator: {s}", token_to_str(*parser->token));
+                    FATAL("[Parser] Unprecedentent usage of expression separator: {s}", token_to_str(parser->lexer.tok));
                 }
 
                 mode = UNARY_PRE;
-                parser_eat(parser, parser->token->type);
+                parser_eat(parser, parser->lexer.tok.type);
             } break;
             case TOKEN_SLASH:
             case TOKEN_PLUS:
@@ -196,10 +198,10 @@ Arena _parser_parse_expr(struct Parser * parser, Arena * output, DEQUE_T(Operato
             case TOKEN_VERTICAL_LINE:
             case TOKEN_LBRACKET:
             case TOKEN_RBRACKET:
-                lexer_parse_operator(parser->lexer);
+                lexer_parse_operator(&parser->lexer);
                 break;
             case TOKEN_LINE_BREAK:
-                if (parser->prev.type == TOKEN_BACKSLASH) {
+                if (parser->previous_token.type == TOKEN_BACKSLASH) {
                     break;
                 }
             case TOKEN_EOF:
@@ -207,7 +209,7 @@ Arena _parser_parse_expr(struct Parser * parser, Arena * output, DEQUE_T(Operato
             case TOKEN_RBRACE:
                 goto exit;
             default:
-                FATAL("[Parser] Unrecognized token in expression: {s}", token_to_str(*parser->token));
+                FATAL("[Parser] Unrecognized token in expression: {s}", token_to_str(parser->lexer.tok));
         }
     }
 
@@ -219,7 +221,7 @@ exit:
     while (operators->size) {
         op1 = DEQUE_BACK(Operator, operators);
         if (op1.enclosed == ENCLOSED) {
-            FATAL("[Parser] Unmatched enclosed operator near: {s}", token_to_str(*parser->token));
+            FATAL("[Parser] Unmatched enclosed operator near: {s}", token_to_str(parser->lexer.tok));
             exit(1);
         }
         consume_add_operator(op1, output, parser);
@@ -230,7 +232,7 @@ exit:
         ID temp_id = ARENA_POP(output, ID);
         ARENA_APPEND(&expressions, temp_id);
     } else if (flag) {
-        ERROR("Invalid expression; too many discarded expressions({i}) | {s}", output->size, token_to_str(*parser->token));
+        ERROR("Invalid expression; too many discarded expressions({i}) | {s}", output->size, token_to_str(parser->lexer.tok));
     }
 
     return expressions;
@@ -252,8 +254,8 @@ ID parser_parse_expr_exit_on(struct Parser * parser, enum Operators op) {
     arena_free(output);
     DEQUE_FREE(Operator, operators);
 
-    if (parser->prev.type == TOKEN_SEMI) {
-        WARN("Unnecessary semicolon: {s}", token_to_str(parser->prev));
+    if (parser->previous_token.type == TOKEN_SEMI) {
+        WARN("Unnecessary semicolon: {s}", token_to_str(parser->previous_token));
     }
 
     return expr->info.node_id;

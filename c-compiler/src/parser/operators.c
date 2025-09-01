@@ -91,15 +91,8 @@ void lexer_parse_operator(struct Lexer * lexer) {
         FATAL("Invalid operator '{s}'", &lexer->src[lexer->index - 1]);
     }
     
-    char * str = malloc(sizeof(char) * (length + 1));
-    strncpy(str, &lexer->src[lexer->index - 1], length);
-    str[length] = '\0';
-
-    // lexer_update updates lexer->pos so must keep track of that value for set_token
-    offset = lexer->pos;
-
+    lexer_update_token(lexer, lexer->src + lexer->index - 1, length, TOKEN_OP);
     lexer_update(lexer, length - 1);
-    set_token(&lexer->tok, str, length, TOKEN_OP, lexer->line, offset);
 }
 
 unsigned int operator_get_count() {
@@ -112,38 +105,33 @@ struct Operator operator_get(enum Operators operator) {
     return op_list[operator];
 }
 
-struct Operator str_to_operator(const char * str, enum OP_mode mode, char * enclosed_flag) {
-    const char * op_str;
-    for (int i = 0; i < sizeof(op_list) / sizeof(op_list[0]); ++i) {
-        op_str = op_list[i].str;
-
-        if (op_list[i].enclosed == ENCLOSED && op_list[i].mode == mode) {
-            if (!strcmp(str, op_str)) {
-                if (enclosed_flag != NULL)
-                    *enclosed_flag = 0;
-                return op_list[i];
-            } else if (!strcmp(str, op_str + strlen(op_str) + 1)) {
-                if (enclosed_flag != NULL)
-                    *enclosed_flag = 1;
-                return op_list[i];
-            }
-        }
-
-        if ((mode == OP_TYPE_ANY || op_list[i].mode == mode) && !strcmp(str, op_str))
-            return op_list[i];
+#define CHECK_SPAN_IS_OPERATOR(ENUM, MODE, PRIORITY, ASSOCIATIVITY, SPECIALITY, STR) \
+    if (SPECIALITY == ENCLOSED) { \
+        *enclosed_flag = 0; \
+        if (mode == MODE && span.length == ((sizeof(STR) / 2) - 1)) { \
+            if (!strncmp(span.start, STR, (sizeof(STR) / 2) - 1)) { \
+                return operator_get(ENUM); \
+            } else if (!strncmp(span.start, &STR[sizeof(STR) / 2], (sizeof(STR) / 2) - 1)) { \
+                *enclosed_flag = 1; \
+                return operator_get(ENUM); \
+            } \
+        } \
+    } else if (mode == MODE && span.length == (sizeof(STR) - 1) && !strncmp(span.start, STR, sizeof(STR) - 1)) { \
+        return operator_get(ENUM); \
     }
-    return op_list[0];
+
+struct Operator str_to_operator(const SourceSpan span, enum OP_mode mode, char * enclosed_flag) {
+    OPERATORS_LIST(CHECK_SPAN_IS_OPERATOR);
+
+    return operator_get(OP_NOT_FOUND);
 }
 
-char is_operator(const char * str) {
-    for (int i = 0; i < sizeof(op_list) / sizeof(op_list[0]); ++i) {
-        if (!strcmp(str, op_list[i].str)) {
-            return op_list[i].key != OP_NOT_FOUND;
-        } else if (op_list[i].enclosed && !strcmp(str, op_list[i].str + strlen(op_list[i].str) + 1)) {
-            return 1;
-        }
+#define CHECK_ID_SPAN_IS_OPERATOR(ENUM, MODE, PRIORITY, ASSOCIATIVITY, SPECIALITY, STR) \
+    if (SPECIALITY == ALPHABETIC && span.length == (sizeof(STR) - 1) && !strncmp(span.start, STR, sizeof(STR) - 1)) { \
+        return 1; \
     }
-
+char id_is_operator(const SourceSpan span) {
+    OPERATORS_LIST(CHECK_ID_SPAN_IS_OPERATOR);
     return 0;
 }
 

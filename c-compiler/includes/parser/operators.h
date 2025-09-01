@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/ID.h"
+#include "common/sourcespan.h"
 
 enum OP_mode {
     UNARY_PRE, // an operator taking one operand preceeding itself: ++a
@@ -14,8 +15,9 @@ enum OP_associativity {
     RIGHT
 };
 
-enum OP_enclosed {
+enum OP_speciality {
     NORMAL,
+    ALPHABETIC,
     ENCLOSED, // an operator where the last operand is enclosed by certain characthers 
               // separated by a \0 to separate the starting characthers to the ending
 };
@@ -65,7 +67,7 @@ enum OP_enclosed {
     f(LOGICAL_AND, BINARY, 11, LEFT, NORMAL, "&&") \
     f(LOGICAL_OR, BINARY, 12, LEFT, NORMAL, "||") \
     \
-    f(CAST, UNARY_POST, 13, LEFT, NORMAL, "to") \
+    f(CAST, UNARY_POST, 13, LEFT, ALPHABETIC, "to") \
     \
     f(TERNARY, BINARY, 14, RIGHT, NORMAL, "?") \
     f(TERNARY_BODY, BINARY, 14, RIGHT, NORMAL, ":") \
@@ -88,24 +90,21 @@ enum Operators {
     OPERATORS_LIST(OPERATORS_ENUM_EL)
 };
 
-#define OPERATOR_CONVERSION_EL(KEY, MODE, PRECEDENCE, ASSOCIATIVITY, ENCLOSED, REPR) \
-    {REPR, INVALID_INTERN_ID, KEY, MODE, ASSOCIATIVITY, ENCLOSED, (sizeof(REPR) / sizeof(char)) / 2, PRECEDENCE},
-
 typedef struct Operator {
     char * str;
     ID intern_id;
     enum Operators key;
     enum OP_mode mode;
     enum OP_associativity associativity;
-    enum OP_enclosed enclosed;
+    enum OP_speciality enclosed;
     char enclosed_offset;
     char precedence;
 } Operator;
 
 void operators_intern();
 
-struct Operator str_to_operator(const char * str, enum OP_mode mode, char * enclosed_flag);
-char is_operator(const char * str);
+struct Operator str_to_operator(const SourceSpan str, enum OP_mode mode, char * enclosed_flag);
+char id_is_operator(const SourceSpan span);
 
 struct Operator operator_get(enum Operators operator);
 unsigned int operator_get_count();

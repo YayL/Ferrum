@@ -1,26 +1,44 @@
 #include "parser/lexer.h"
 
 #include "parser/operators.h"
+#include "common/io.h"
 
 #include <ctype.h>
 
-struct Lexer * lexer_init(char * src, size_t length) {
+struct Lexer lexer_init(const char * file_path) {
+    size_t length;
+    char * src = read_file(file_path, &length);
 
-    struct Lexer * lexer = malloc(sizeof(struct Lexer));
+    struct Lexer lexer = {
+        .src = src,
+        .size = length,
+        .c = src[0],
+        .pos = 1,
+        .line = 1,
+        .index = 0,
+        .tok = init_token()
+    };
 
-    lexer->src = src;
-    lexer->size = length;
-    lexer->c = src[0];
-    lexer->pos = lexer->line = 1;
-    lexer->index = 0;
-    lexer->tok = init_token();
+    lexer_next_token(&lexer);
 
     return lexer;
 }
 
 void lexer_free(struct Lexer * lexer) {
     free(lexer->src);
-    free(lexer);
+}
+
+void lexer_update_token(struct Lexer * lexer, const char * start, size_t length, enum token_t type) {
+    lexer->tok.span = source_span_init(start, length);
+    lexer->tok.interner_id = INVALID_ID;
+
+    if (type == TOKEN_ID) {
+        lexer->tok.interner_id = interner_intern(string_init_from_source_span(lexer->tok.span));
+    }
+
+    lexer->tok.type = type;
+    lexer->tok.line = lexer->line;
+    lexer->tok.pos = lexer->pos;
 }
 
 void lexer_advance(struct Lexer * lexer) {
@@ -64,7 +82,6 @@ void lexer_skip_whitespace(struct Lexer * lexer) {
 
 
 char lexer_peek(struct Lexer * lexer, unsigned int offset) {
-    
     const unsigned int index = lexer->index + offset;
     if (index < lexer->size)
         return lexer->src[index];
@@ -73,75 +90,42 @@ char lexer_peek(struct Lexer * lexer, unsigned int offset) {
 }
 
 void lexer_parse_id(struct Lexer * lexer) {
-    const unsigned int _start = lexer->pos;
-    unsigned int start_index = lexer->index, length;
-    char * id;
+    unsigned int length = 0;
     
-    char peek = lexer_peek(lexer, 1);
-    while (isalpha(peek) || peek == '_' || isdigit(peek)) {
-        lexer_advance(lexer);
-        peek = lexer_peek(lexer, 1);
-    }
+    char peek;
+    while (peek = lexer_peek(lexer, length++), isalpha(peek) || peek == '_' || (length > 1 && isdigit(peek)) || (length == 1 && peek == '#'));
+    length -= 1; // Went pass the end of ID
 
-    length = lexer->index - start_index + 1;
-    id = malloc(sizeof(char) * (length + 1));
+    SourceSpan id_span = source_span_init(lexer->src + lexer->index, length);
 
-    memcpy(id, lexer->src + start_index, length);
-    id[length] = 0;
-    
-    set_token(&lexer->tok, id, length + 1, is_operator(id) ? TOKEN_OP : TOKEN_ID, lexer->line, _start);
+    lexer_update_token(lexer, lexer->src + lexer->index, length, id_is_operator(id_span) ? TOKEN_OP : TOKEN_ID);
+    lexer_update(lexer, length);
 }
 
 
 void lexer_parse_string_literal(struct Lexer * lexer) {
-    const unsigned int _start = lexer->pos;
-	int start = lexer->index + 1, end = start;
+	unsigned int length = 0;
+    char peek;
 
-	while (lexer->src[end] != lexer->c) {
-		if(end == lexer->size) {
-			println("\nEnd of file found while reading string.");
-			exit(1);
-		}
-		else if (lexer->src[end] == '\n') {
-			println("[Parsing Error]: {u}:{u} Newline inside of string literal" 
-						"is not allowed\n", lexer->line, lexer->pos);
-			exit(1);
-		}
-        end += 1;
-	}
+    ASSERT1(lexer->c != '\'');
 
-	const size_t length = end - start;
-	char * string = malloc(sizeof(char) * (length + 1));
-	memcpy(string, lexer->src + start, length);
-	string[length] = 0;
+    // Skip first '"' so perform pre-increment
+	while (peek = lexer_peek(lexer, ++length), isprint(peek) && peek != '"');
 
-    lexer_update(lexer, length + 1); // add one for the extra " at the end
-
-	set_token(&lexer->tok, string, length + 1, TOKEN_STRING_LITERAL, lexer->line, _start);
-
+    lexer_update_token(lexer, lexer->src + lexer->index + 1, length - 1, TOKEN_STRING_LITERAL);
+    lexer_update(lexer, length + 1); // Add 1 to skip last '"'
 }
 
 
 void lexer_parse_int(struct Lexer * lexer) {
-    unsigned int _start = lexer->pos;
-
-	char * number_string = malloc(0);
     unsigned int length = 0;
-    char peek = lexer->c;
+    char peek;
 
-	while (isdigit(peek)) {
-        number_string = realloc(number_string, sizeof(char) * (length + 2));
-        number_string[length] = peek;
-		
-        peek = lexer_peek(lexer, ++length);
-        while (peek == '_')
-			peek = lexer_peek(lexer, ++length);
-	}
-    number_string[length] = 0;
+	while (peek = lexer_peek(lexer, length++), isdigit(peek) || peek == '_');
+    length -= 1; // Went pass the end of int
 
-    lexer_update(lexer, length - 1);
-
-	set_token(&lexer->tok, number_string, length + 1, TOKEN_INT, lexer->line, _start);
+    lexer_update_token(lexer, lexer->src + lexer->index, length, TOKEN_INT);
+    lexer_update(lexer, length);
 }
 
 void lexer_parse_multi_line_comment(struct Lexer * lexer) {
@@ -175,7 +159,7 @@ void lexer_parse_single_line_comment(struct Lexer * lexer) {
 
 void lexer_advance_current(struct Lexer * lexer, enum token_t type) {
     lexer_advance(lexer);
-    set_token(&lexer->tok, NULL, 0, type, lexer->line, lexer->pos);
+    lexer_update_token(lexer, NULL, 0, type);
 }
 
 
@@ -185,7 +169,8 @@ void lexer_next_token(struct Lexer * lexer) {
     
     switch (lexer->c) {
         case (0):
-            set_token(&lexer->tok, NULL, 0, TOKEN_EOF, lexer->line, lexer->pos);
+            lexer_update_token(lexer, NULL, 0, TOKEN_EOF);
+            // set_token(&lexer->tok, NULL, 0, TOKEN_EOF, lexer->line, lexer->pos);
             break;
         case '\n':
             lexer->pos = 0;
@@ -206,7 +191,6 @@ void lexer_next_token(struct Lexer * lexer) {
         case '\'':
         case '"':
             lexer_parse_string_literal(lexer);
-            lexer_advance(lexer);
             break;
         case '\\':
             return lexer_advance_current(lexer, TOKEN_BACKSLASH);
@@ -266,13 +250,11 @@ void lexer_next_token(struct Lexer * lexer) {
         default:
             if (isalpha(lexer->c) || lexer->c == '#') {
                 lexer_parse_id(lexer);
-                lexer_advance(lexer);
                 break;
             }
 
             if (isdigit(lexer->c)) {
                 lexer_parse_int(lexer);
-                lexer_advance(lexer);
                 break;
             }
 

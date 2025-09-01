@@ -19,11 +19,12 @@ rm coredump.* &> /dev/null
 echo "-------------------------------------------------"
 set -e
 
-
 if [ "$1" = "perf" ] ; then  # perf test
-    rm callgrind.* &> /dev/null # rm callgrind.* > /dev/null 2>&1
     shift 1
-    valgrind --tool=callgrind --collect-systime=usec ./build/compiler "$@"
+    rm -f callgrind.* &> /dev/null # rm callgrind.* > /dev/null 2>&1
+    echo "1"
+    valgrind --tool=callgrind --collect-systime=usec --dump-instr=yes ./build/compiler "$@"
+    echo "2"
     qcachegrind
 elif [ "$1" = "mem" ] ; then # memory test
     shift 1
@@ -31,7 +32,7 @@ elif [ "$1" = "mem" ] ; then # memory test
         shift 1
         valgrind --leak-check=full --show-leak-kinds=definite ./build/compiler "$@"
     else
-        valgrind ./build/compiler "$@"
+        valgrind --track-origins=yes ./build/compiler "$@"
     fi
 else
     ./build/compiler "$@"
