@@ -91,7 +91,7 @@ enum Operators {
 };
 
 typedef struct Operator {
-    char * str;
+    const char * str;
     ID intern_id;
     enum Operators key;
     enum OP_mode mode;

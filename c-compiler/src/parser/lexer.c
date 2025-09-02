@@ -33,7 +33,7 @@ void lexer_update_token(struct Lexer * lexer, const char * start, size_t length,
     lexer->tok.interner_id = INVALID_ID;
 
     if (type == TOKEN_ID) {
-        lexer->tok.interner_id = interner_intern(string_init_from_source_span(lexer->tok.span));
+        lexer->tok.interner_id = interner_intern(lexer->tok.span);
     }
 
     lexer->tok.type = type;

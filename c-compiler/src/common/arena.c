@@ -22,18 +22,11 @@ void arena_free(Arena arena) {
 }
 
 void arena_grow(Arena * arena, uint32_t new_capacity) {
-	if (new_capacity <= arena->capacity) {
-		FATAL("Call to arena_grow does not grow arena");
-	} else if (arena->arena == NULL) {
-		arena->capacity = ARENA_INITIAL_CAPACITY;
-		arena->arena = malloc(arena->item_size * arena->capacity);
-		ASSERT1(arena->arena != NULL);
-	} else {
-		ASSERT1(arena->arena != NULL);
-		arena->capacity = new_capacity;
-		arena->arena = realloc(arena->arena, arena->item_size * arena->capacity);
-		ASSERT1(arena->arena != NULL);
-	}
+	ASSERT1(arena->arena != NULL);
+	ASSERT1(arena->capacity < new_capacity);
+	arena->capacity = new_capacity;
+	arena->arena = realloc(arena->arena, arena->item_size * arena->capacity);
+	ASSERT1(arena->arena != NULL);
 }
 
 void arena_shrink(Arena * arena, uint32_t shrink_amount) {
@@ -61,10 +54,7 @@ void * arena_next(Arena * arena) {
 		arena->arena = malloc(arena->item_size * arena->capacity);
 		ASSERT1(arena->arena != NULL);
 	} else if (arena->capacity <= arena->size) {
-		ASSERT1(arena->arena != NULL);
-		arena->capacity *= ARENA_GROWTH_RATE;
-		arena->arena = realloc(arena->arena, arena->item_size * arena->capacity);
-		ASSERT1(arena->arena != NULL);
+		arena_grow(arena, arena->capacity * ARENA_GROWTH_RATE);
 	}
 
 	return arena->arena + arena->item_size * arena->size++;

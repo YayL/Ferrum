@@ -13,6 +13,7 @@ typedef struct arena {
 #define ARENA_GET(arena, index, type) (*(type *) arena_get_ref(arena, index))
 #define ARENA_POP(arena_ref, type) ARENA_GET(*arena_ref, (arena_ref)->size - 1, type); arena_shrink(arena_ref, 1)
 
+
 Arena arena_init(uint32_t item_size);
 void arena_free(Arena arena);
 

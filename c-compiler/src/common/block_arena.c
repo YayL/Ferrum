@@ -38,8 +38,10 @@ void block_arena_add_block(BArena * barena) {
 		barena->blocks = realloc(barena->blocks, sizeof(*barena->blocks) * barena->block_count);
 	}
 
+	void * new_blocks_start = malloc((barena->block_count - initial_block_count) * barena->item_size * barena->block_max_item_count);
+
 	for (size_t i = initial_block_count; i < barena->block_count; ++i) {
-		barena->blocks[i] = malloc(barena->item_size * barena->block_max_item_count);
+		barena->blocks[i] = new_blocks_start + (i - initial_block_count) * barena->item_size * barena->block_max_item_count;
 	}
 }
 

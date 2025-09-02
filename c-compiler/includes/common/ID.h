@@ -76,6 +76,7 @@ static const char * id_type_to_string(enum id_type type) {
 	switch (type) {
 		case ID_INVALID_TYPE: return "INVALID";
 		case ID_VOID_TYPE: return "VOID";
+		case ID_AST_ROOT: return "ROOT";
 		REGISTRY_KINDS(_ID_GEN_ID_TO_TYPE_STRING_CASE)
 	}
 }

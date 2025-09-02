@@ -12,7 +12,7 @@ struct builtin builtin_list[] = {
 
 #define BUILTIN_LIST_COUNT (sizeof(builtin_list) / sizeof(builtin_list[0]))
 
-#define BUILTIN_INTERN(ENUM, STR) builtin_list[ENUM].name_id = interner_intern(STRING_FROM_LITERAL(STR));
+#define BUILTIN_INTERN(ENUM, STR) builtin_list[ENUM].name_id = interner_intern(source_span_init(builtin_list[ENUM].str, sizeof(STR) - 1));
 void builtin_intern() {
 	BUILTIN_FOR_EACH(BUILTIN_INTERN);
 }

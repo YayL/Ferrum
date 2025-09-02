@@ -1,6 +1,5 @@
 #include "parser/keywords.h"
 
-#include "common/string.h"
 #include "tables/interner.h"
 
 #define CONVERSION_EL(ENUM, USAGE, STR) { .intern_id = INVALID_ID, .key = ENUM, .flag = USAGE },
@@ -9,7 +8,7 @@ struct Keyword keywords[] = {
 };
 #define KEYWORDS_LIST_COUNT (sizeof(keywords) / sizeof(keywords[0]))
 
-#define GET_KEYWORD(KEY) keywords[KEY]
+#define GET_KEYWORD(KEY) (keywords[KEY])
 
 #define KEYWORD_GET_STR(ENUM_KEY, USAGE, STR) case ENUM_KEY: return STR;
 const char * keyword_get_str(enum Keywords keyword_enum) {
@@ -43,7 +42,7 @@ ID keyword_get_intern_id(enum Keywords keyword_enum) {
 }
 
 #define INTERN_KEYWORD(ENUM_KEY, USAGE, STR) \
-    GET_KEYWORD(ENUM_KEY).intern_id = interner_intern(STRING_FROM_LITERAL(STR));
+    GET_KEYWORD(ENUM_KEY).intern_id = interner_intern(source_span_init(STR, sizeof(STR) - 1));
 void keywords_intern() {
     KEYWORDS_LIST(INTERN_KEYWORD)
 }

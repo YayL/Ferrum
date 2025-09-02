@@ -1,6 +1,5 @@
 #include "common/string.h"
-#include "common/sourcespan.h"
-#include <stdlib.h>
+#include "common/common.h"
 
 void free_string(String string) {
     free((void *) string._ptr);

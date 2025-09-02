@@ -3,6 +3,7 @@
 #include "tables/interner.h"
 #include "parser/lexer.h"
 
+#define OPERATOR_GET_RUNTIME_NAME(KEY) "#OP_" #KEY
 #define OPERATOR_CONVERSION_EL(KEY, MODE, PRECEDENCE, ASSOCIATIVITY, ENCLOSED, REPR) \
     { .str = REPR, .intern_id = INVALID_ID, .key = KEY, .mode = MODE, .associativity = ASSOCIATIVITY, .enclosed = ENCLOSED, .enclosed_offset = (sizeof(REPR) / sizeof(char)) / 2, .precedence = PRECEDENCE},
 struct Operator op_list[] = {
@@ -135,10 +136,9 @@ char id_is_operator(const SourceSpan span) {
     return 0;
 }
 
-#define OPERATOR_GET_RUNTIME_NAME(KEY) "#OP_" #KEY
 #define OPERATOR_GET(KEY) op_list[KEY]
 #define OPERATOR_INTERN(KEY, ...) \
-    OPERATOR_GET(KEY).intern_id = interner_intern(STRING_FROM_LITERAL(OPERATOR_GET_RUNTIME_NAME(KEY)));
+    OPERATOR_GET(KEY).intern_id = interner_intern(source_span_init(OPERATOR_GET_RUNTIME_NAME(KEY), sizeof(OPERATOR_GET_RUNTIME_NAME(KEY)) - 1));
 
 void operators_intern() {
     OPERATORS_LIST(OPERATOR_INTERN)

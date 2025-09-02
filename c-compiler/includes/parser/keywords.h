@@ -1,6 +1,7 @@
 #pragma once
 
-#include "tables/interner.h"
+#include "common/ID.h"
+
 enum Keywords_usage {
     ANY,
     GLOBAL_ONLY,
@@ -41,8 +42,6 @@ enum Keywords_usage {
 enum Keywords {
     KEYWORDS_LIST_FULL(KEYWORDS_ENUM_EL)
 };
-
-#define CONVERSION_EL(ENUM, USAGE, STR) {INVALID_INTERN_ID, ENUM, USAGE},
 
 struct Keyword {
     ID intern_id;

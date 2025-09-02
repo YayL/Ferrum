@@ -2,6 +2,7 @@
 #include "common/ID.h"
 #include "common/sourcespan.h"
 #include "parser/operators.h"
+#include "common/arena.h"
 
 ID ast_get_scope_id(ID node_id);
 

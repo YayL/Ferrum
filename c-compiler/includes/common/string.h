@@ -1,6 +1,7 @@
 #pragma once
 
-#include "common/common.h"
+#include <stddef.h>
+#include <stdint.h>
 
 typedef struct string {
     char * _ptr;
