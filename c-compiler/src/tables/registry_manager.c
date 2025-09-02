@@ -6,7 +6,11 @@ void registry_manager_setup_instance() {
 	manager = registry_manager_init();
 }
 
-struct symbol_table_entry * symbol_allocate() {
+const struct registry_manager registry_manager_get() {
+	return manager;
+}
+
+struct symbol_map_entry * symbol_allocate() {
 	return registry_manager_allocate(&manager, ID_SYMBOL, INVALID_ID);
 }
 
@@ -18,8 +22,10 @@ void * ast_allocate(enum id_type type, ID scope_id) {
 	return registry_manager_allocate(&manager, type, scope_id);
 }
 
-void * type_allocate(enum id_type type) {
-	return registry_manager_allocate(&manager, type, INVALID_ID);
+void * type_allocate(enum id_type type, char is_mut) {
+	struct type_info * type_info = registry_manager_allocate(&manager, type, INVALID_ID);
+	type_info->is_mut = is_mut;
+	return (void *) type_info;
 }
 
 struct symbol_table_entry * symbol_lookup(ID symbol_id) {

@@ -40,7 +40,7 @@ int main() {
 	kh_del(32, h, k);
 	for (k = kh_begin(h); k != kh_end(h); ++k)
 		if (kh_exist(h, k)) kh_value(h, k) = 1;
-	kh_destroy(32, h);
+	kh_free(32, h);
 	return 0;
 }
 */
@@ -161,7 +161,8 @@ typedef unsigned long long khint64_t;
 #endif
 #endif /* klib_unused */
 
-#define KEY_ALREADY_PRESENT 0
+#define KH_PUT_ALREADY_PRESENT 0
+#define KH_PUT_SUCCESS 1
 
 typedef khint32_t khint_t;
 typedef khint_t khiter_t;
@@ -205,7 +206,7 @@ static const double __ac_HASH_UPPER = 0.77;
 
 #define __KHASH_PROTOTYPES(name, khkey_t, khval_t)	 					\
 	extern kh_##name##_t kh_init_##name(void);							\
-	extern void kh_destroy_##name(kh_##name##_t *h);					\
+	extern void kh_free_##name(kh_##name##_t *h);					\
 	extern void kh_clear_##name(kh_##name##_t *h);						\
 	extern khint_t kh_get_##name(const kh_##name##_t *h, khkey_t key); 	\
 	extern int kh_resize_##name(kh_##name##_t *h, khint_t new_n_buckets); \
@@ -216,12 +217,11 @@ static const double __ac_HASH_UPPER = 0.77;
 	SCOPE kh_##name##_t kh_init_##name(void) {							\
 		return (kh_##name##_t) {0};										\
 	}																	\
-	SCOPE void kh_destroy_##name(kh_##name##_t *h)						\
+	SCOPE void kh_free_##name(kh_##name##_t *h)						\
 	{																	\
 		if (h) {														\
 			kfree((void *)h->keys); kfree(h->flags);					\
 			kfree((void *)h->vals);										\
-			kfree(h);													\
 		}																\
 	}																	\
 	SCOPE void kh_clear_##name(kh_##name##_t *h)						\
@@ -450,7 +450,7 @@ static kh_inline khint_t __ac_Wang_hash(khint_t key)
   @param  name  Name of the hash table [symbol]
   @param  h     Pointer to the hash table [khash_t(name)*]
  */
-#define kh_destroy(name, h) kh_destroy_##name(h)
+#define kh_free(name, h) kh_free_##name(h)
 
 /*! @function
   @abstract     Reset a hash table without deallocating memory.

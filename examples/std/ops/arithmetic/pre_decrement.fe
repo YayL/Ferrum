@@ -1,8 +1,13 @@
-// T is required to implement #OP_SUBTRACTION
+import "../../groups/numeric" as numeric
+import "addition" as addition
 
-fn inline #OP_PRE_DECREMENT<T>(ref: &T) -> T {
-    let res: T = *ref - 1
-    *ref = res
-    res
+trait Pre_Decrement {
+	fn inline #OP_PRE_DECREMENT(ref: &mut Self) -> mut Self
+}
+
+impl Pre_Decrement for (impl addition::Addition) {
+	fn inline #OP_PRE_DECREMENT(ref: &mut Self) -> mut Self {
+        *ref = *ref - 1
+	}
 }
 

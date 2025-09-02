@@ -1,68 +1,125 @@
 #include "tables/symbol_table.h"
 
-void symbol_table_append(struct symbol_table * symbol_table, ID ast_id);
+#include "tables/registry_manager.h"
+#include "parser/AST.h"
 
 struct symbol_table symbol_table_init() {
-	return (struct symbol_table) { 
-		.map = kh_init(map_id_to_id),			// store name_id -> symbol_id
+	return (struct symbol_table) {
+		.declarations = symbol_map_init(),
+		.types  = symbol_map_init(),
+		.traits = symbol_map_init(),
+		.imports = symbol_map_init(),
 	};
 }
 
-void symbol_table_insert(struct symbol_table * symbol_table, ID name_id, ID node_id) {
-	struct symbol_table_entry * entry = symbol_allocate();
-	entry->name_id = name_id;
-	entry->node_id = node_id;
-
-	int ret_code;
-	khint_t k = kh_put(map_id_to_id, &symbol_table->map, name_id, &ret_code);
-
-	if (ret_code == KEY_ALREADY_PRESENT) {
-		entry->shadowed_symbol_id = kh_value(&symbol_table->map, k);
+void _symbol_table_insert(struct symbol_table * table, ID name_id, ID node_id) {
+	switch (node_id.type) {
+		case ID_AST_DECLARATION:
+		case ID_AST_FUNCTION: symbol_map_insert(&table->declarations, name_id, node_id); break;
+		case ID_AST_STRUCT: 
+		case ID_AST_ENUM: symbol_map_insert(&table->types, name_id, node_id); break;
+		case ID_AST_TRAIT: symbol_map_insert(&table->traits, name_id, node_id); break;
+		case ID_AST_IMPORT: symbol_map_insert(&table->imports, name_id, node_id); break;
+		default:
+		FATAL("Unable to handle '{s}' insert", id_type_to_string(node_id.type));
 	}
-
-	ASSERT(ret_code == 1, "Some error occured while retrieving from hashmap. Error code {i}", ret_code);
-	kh_value(&symbol_table->map, k) = entry->symbol_id;
 }
 
-void symbol_table_remove(struct symbol_table * symbol_table, ID name_id) {
-	khint_t k = kh_get(map_id_to_id, &symbol_table->map, name_id);
-	ASSERT1(k != kh_end(&symbol_table->map)); // Unable to find name_id
-
-	ID symbol_id = kh_value(&symbol_table->map, k);
-	ASSERT1(ID_IS(symbol_id, ID_SYMBOL));
-
-	struct symbol_table_entry entry = LOOKUP(symbol_id, struct symbol_table_entry);
-	ASSERT1(id_is_equal(entry.symbol_id, symbol_id));
-
-	if (!ID_IS_INVALID(entry.shadowed_symbol_id)) {
-		kh_value(&symbol_table->map, k) = entry.shadowed_symbol_id;
-	} else {
-		kh_del(map_id_to_id, &symbol_table->map, k);
+void symbol_table_insert(struct symbol_table * table, ID node_id) {
+	switch (node_id.type) {
+		case ID_AST_DECLARATION: {
+			a_declaration declaration = LOOKUP(node_id, a_declaration);
+			_symbol_table_insert(table, declaration.name_id, node_id);
+		} break;
+		case ID_AST_FUNCTION: {
+			a_function function = LOOKUP(node_id, a_function);
+			_symbol_table_insert(table, function.name_id, node_id);
+		} break;
+		case ID_AST_STRUCT: {
+			a_structure structure = LOOKUP(node_id, a_structure);
+			_symbol_table_insert(table, structure.name_id, node_id);
+		} break;
+		case ID_AST_ENUM: {
+			a_enumeration enumeration = LOOKUP(node_id, a_enumeration);
+			_symbol_table_insert(table, enumeration.name_id, node_id);
+		} break;
+		case ID_AST_TRAIT: {
+			a_trait trait = LOOKUP(node_id, a_trait);
+			_symbol_table_insert(table, trait.name_id, node_id);
+		} break;
+		case ID_AST_SYMBOL: {
+			a_symbol symbol = LOOKUP(node_id, a_symbol);
+			_symbol_table_insert(table, symbol.name_id, symbol.node_id);
+		} break;
+		case ID_AST_IMPORT: {
+			a_import import = LOOKUP(node_id, a_import);
+			_symbol_table_insert(table, import.name_id, node_id);
+		} break;
+		case ID_AST_IMPL: break;
+		default:
+			FATAL("Invalid AST type: {s}", id_type_to_string(node_id.type));
 	}
-
-	_symbol_remove_only_last_allowed(symbol_id);
 }
 
-ID symbol_table_name_to_id(const struct symbol_table * symbol_table, ID name_id) {
-	unsigned int k = kh_get(map_id_to_id, &symbol_table->map, name_id);
-
-	if (k == kh_end(&symbol_table->map)) {
-		return INVALID_ID;
+void _symbol_table_remove(struct symbol_table * table, ID name_id, enum id_type node_type) {
+	switch (node_type) {
+		case ID_AST_DECLARATION:
+		case ID_AST_FUNCTION: symbol_map_remove(&table->declarations, name_id); break;
+		case ID_AST_STRUCT: 
+		case ID_AST_ENUM: symbol_map_remove(&table->types, name_id); break;
+		case ID_AST_TRAIT: symbol_map_remove(&table->traits, name_id); break;
+		case ID_AST_IMPORT: symbol_map_remove(&table->imports, name_id); break;
+		default:
+		FATAL("Unable to handle '{s}' insert", id_type_to_string(node_type));
 	}
-
-	return kh_value(&symbol_table->map, k);
 }
 
-struct symbol_table_entry symbol_table_get_by_id(const struct symbol_table * symbol_table, ID symbol_id) {
-	return LOOKUP(symbol_id, struct symbol_table_entry);
+void symbol_table_remove(struct symbol_table * table, ID node_id) {
+	switch (node_id.type) {
+		case ID_AST_DECLARATION: {
+			a_declaration declaration = LOOKUP(node_id, a_declaration);
+			_symbol_table_remove(table, declaration.name_id, ID_AST_DECLARATION);
+		} break;
+		case ID_AST_FUNCTION: {
+			a_function function = LOOKUP(node_id, a_function);
+			_symbol_table_remove(table, function.name_id, ID_AST_FUNCTION);
+		} break;
+		case ID_AST_STRUCT: {
+			a_structure structure = LOOKUP(node_id, a_structure);
+			_symbol_table_remove(table, structure.name_id, ID_AST_STRUCT);
+		} break;
+		case ID_AST_ENUM: {
+			a_enumeration enumeration = LOOKUP(node_id, a_enumeration);
+			_symbol_table_remove(table, enumeration.name_id, ID_AST_ENUM);
+		} break;
+		case ID_AST_TRAIT: {
+			a_trait trait = LOOKUP(node_id, a_trait);
+			_symbol_table_remove(table, trait.name_id, ID_AST_TRAIT);
+		} break;
+		case ID_AST_SYMBOL: {
+			a_symbol symbol = LOOKUP(node_id, a_symbol);
+			_symbol_table_remove(table, symbol.name_id, symbol.node_id.type);
+		} break;
+		case ID_AST_IMPORT: {
+			a_import import = LOOKUP(node_id, a_import);
+			_symbol_table_remove(table, import.name_id, ID_AST_IMPORT);
+		} break;
+		case ID_AST_IMPL: break;
+		default:
+			FATAL("Invalid AST type: {s}", id_type_to_string(node_id.type));
+	}
 }
 
-struct symbol_table_entry symbol_table_get_by_name(const struct symbol_table * symbol_table, ID name_id) {
-	ID id = symbol_table_name_to_id(symbol_table, name_id);
+void symbol_table_extend(struct symbol_table * table, const struct symbol_table other) {
+	symbol_map_extend(&table->declarations, &other.declarations);
+	symbol_map_extend(&table->types, &other.types);
+	symbol_map_extend(&table->traits, &other.traits);
+	symbol_map_extend(&table->imports, &other.imports);
+}
 
-	if (ID_IS_INVALID(id)) {
-		return (struct symbol_table_entry) { .symbol_id = INVALID_ID };
-	}
-
-	return symbol_table_get_by_id(symbol_table, id);
+void symbol_table_clear(struct symbol_table * table) {
+	symbol_map_clear(&table->declarations);
+	symbol_map_clear(&table->types);
+	symbol_map_clear(&table->traits);
+	symbol_map_clear(&table->imports);
 }

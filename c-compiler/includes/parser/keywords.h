@@ -12,8 +12,8 @@ enum Keywords_usage {
 #define KEYWORDS_LIST(f) \
     f(KEYWORD_BOOL, NONE, "bool") \
     \
-    f(KEYWORD_CONST, ANY, "const") \
     f(KEYWORD_LET, ANY, "let") \
+    f(KEYWORD_MUT, ANY, "mut") \
     \
     f(KEYWORD_FN, GLOBAL_ONLY, "fn") \
     f(KEYWORD_IMPORT, GLOBAL_ONLY, "import") \

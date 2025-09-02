@@ -1,7 +1,7 @@
 #include <memory.h>
 
 #include "parser/AST.h"
-#include "common/list.h"
+#include "common/data/list.h"
 
 struct List * init_list(size_t item_size) {
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common/ID.h"
-#include "common/bufferstring.h"
+#include "common/memory/bufferstring.h"
 
 typedef struct interner {
 	khash_t(map_bstring_to_id) map;

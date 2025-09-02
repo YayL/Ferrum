@@ -1,0 +1,15 @@
+import "../../groups/numeric" as numeric
+import "addition" as addition
+
+trait Post_Decrement {
+	fn inline #OP_POST_DECREMENT(ref: &mut Self) -> mut Self
+}
+
+impl Post_Decrement for (impl addition::Addition) {
+	fn inline #OP_POST_DECREMENT(ref: &mut Self) -> mut Self {
+		let old: mut Self = *ref
+		*ref = *ref - 1
+		old
+	}
+}
+

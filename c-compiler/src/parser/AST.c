@@ -1,6 +1,5 @@
 #include "parser/AST.h"
 
-#include "checker/symbols.h"
 #include "tables/interner.h"
 #include "tables/registry_manager.h"
 
@@ -15,6 +14,7 @@ void ast_init_node(enum id_type type, void * node_ref) {
         //     break;
         case ID_AST_MODULE:
             ((a_module *) node_ref)->members = arena_init(sizeof(ID));
+            ((a_module *) node_ref)->sym_table = symbol_table_init();
             ((a_module *) node_ref)->file_path = NULL;
             break;
         case ID_AST_SCOPE:
@@ -27,23 +27,29 @@ void ast_init_node(enum id_type type, void * node_ref) {
             break;
         case ID_AST_TRAIT:
             ((a_trait *) node_ref)->children = arena_init(sizeof(ID));
+            ((a_trait *) node_ref)->implementations = arena_init(sizeof(ID));
             ((a_trait *) node_ref)->name_id = INVALID_ID;
             break;
         case ID_AST_IMPL:
             ((a_implementation *) node_ref)->members = arena_init(sizeof(ID));
-            ((a_implementation *) node_ref)->name_id = INVALID_ID;
+            ((a_implementation *) node_ref)->trait_symbol_id = INVALID_ID;
             ((a_implementation *) node_ref)->type_id = INVALID_ID;
             break;
         case ID_AST_SYMBOL:
             ((a_symbol *) node_ref)->name_ids = arena_init(sizeof(ID));
             ((a_symbol *) node_ref)->node_id = INVALID_ID;
             break;
+        case ID_AST_OP:
+            ((a_operator *) node_ref)->definition.function_id = INVALID_ID;
+            ((a_operator *) node_ref)->left_id = INVALID_ID;
+            ((a_operator *) node_ref)->right_id = INVALID_ID;
+            ((a_operator *) node_ref)->type_id = INVALID_ID;
+            ((a_operator *) node_ref)->op = operator_get(OP_NOT_FOUND);
         case ID_AST_VARIABLE:
         case ID_AST_IMPORT:
         case ID_AST_FUNCTION:
         case ID_AST_DECLARATION:
         case ID_AST_EXPR:
-        case ID_AST_OP:
         case ID_AST_LITERAL:
         case ID_AST_RETURN:
         case ID_AST_FOR:
@@ -291,7 +297,9 @@ char * ast_to_string(ID node_id) {
         case ID_AST_IMPL:
             {
                 a_implementation impl = LOOKUP(node_id, a_implementation);
-                const char * impl_name = interner_lookup_str(impl.name_id)._ptr;
+                ASSERT1(ID_IS(impl.trait_symbol_id, ID_AST_SYMBOL));
+                a_symbol symbol = LOOKUP(impl.trait_symbol_id, a_symbol);
+                const char * impl_name = interner_lookup_str(symbol.name_id)._ptr;
                 ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Types" RESET ": {s}" GREY ">" RESET, ast_str, impl_name, type_to_str(impl.type_id));
             } break;
         case ID_AST_OP:
@@ -324,12 +332,6 @@ char * ast_to_string(ID node_id) {
                 ast_str = format(fmt_string, ast_str, type_to_str(literal.type_id), literal.value);
                 break;
             }
-        case ID_AST_DECLARATION:
-            {
-                a_declaration declaration = LOOKUP(node_id, a_declaration);
-                ast_str = format("{s} " GREY "<" BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, declaration.is_const ? "Constant" : "Variable");
-                break;
-            }
         case ID_AST_IMPORT:
             {
                 a_import import = LOOKUP(node_id, a_import);
@@ -339,7 +341,7 @@ char * ast_to_string(ID node_id) {
         case ID_AST_SYMBOL:
             {
                 a_symbol symbol = LOOKUP(node_id, a_symbol);
-                ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Found" RESET ": {b}" GREY ">" RESET, ast_str, symbol_expand_path(symbol), !ID_IS_INVALID(symbol.node_id));
+                ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Found" RESET ": {b}" GREY ">" RESET, ast_str, interner_lookup_str(symbol.name_id)._ptr, !ID_IS_INVALID(symbol.node_id));
                 break;
             }
         default:
@@ -359,13 +361,15 @@ void print_ast(const char * template, ID node_id) {
 }
 
 void * get_scope(enum id_type type, ID scope_id) {
-    void * scope;
+    void * node = NULL;
 
-    do {
-        scope = lookup(scope_id);
-        scope_id = ((struct AST_info *) scope)->scope_id;
-    } while (!ID_IS(scope_id, ID_AST_ROOT) && !ID_IS(scope_id, type));
+    while (!ID_IS(scope_id, ID_AST_ROOT) && !ID_IS(scope_id, type)) {
+        node = lookup(scope_id);
+        scope_id = ((struct AST_info *) node)->scope_id;
+    }
 
-    ASSERT1(ID_IS(((struct AST_info *)scope)->node_id, type));
-    return scope;
+    node = lookup(scope_id);
+
+    ASSERT1(ID_IS(((struct AST_info *)node)->node_id, type));
+    return node;
 }

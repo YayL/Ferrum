@@ -1,14 +1,12 @@
-
 import "arithmetic/addition" as addition
 import "arithmetic/subtraction" as subtraction
 import "arithmetic/multiplication" as multiplication
 import "arithmetic/division" as division
 
-/* == Not working ==
-package "arithmetic/pre_decrement"
-package "arithmetic/pre_increment"
-package "arithmetic/post_increment"
-*/
+import "arithmetic/pre_increment" as pre_increment
+import "arithmetic/post_increment" as post_increment
+import "arithmetic/pre_decrement" as pre_decrement
+import "arithmetic/post_decrement" as post_decrement
 
 import "relational/less_equal_to" as less_equal_to
 import "relational/less_than" as less_than

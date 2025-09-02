@@ -8,7 +8,7 @@
 
 #include "fmt.h"
 #include "common/defines.h"
-#include "common/list.h"
-#include "common/arena.h"
+#include "common/data/list.h"
+#include "common/memory/arena.h"
 #include "common/logger.h"
 

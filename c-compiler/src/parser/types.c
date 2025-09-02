@@ -4,11 +4,10 @@
 #include "parser/keywords.h"
 #include "parser/parser.h"
 #include "tables/registry_manager.h"
-#include "checker/symbols.h"
 
 struct registry_manager types_manager;
 
-ID _parser_parse_numeric_type(struct Parser * parser) {
+ID _parser_parse_numeric_type(struct Parser * parser, char is_mut) {
     enum Numeric_T_TYPE numeric_type;
     switch (parser->lexer.tok.span.start[0]) {
         case 'i': numeric_type = NUMERIC_SIGNED; break;
@@ -21,42 +20,51 @@ ID _parser_parse_numeric_type(struct Parser * parser) {
     char * end_ptr;
     int width = strtol(&span.start[1], &end_ptr, 10);
 
-    if (!(0 < width && width <= UINT16_MAX) || end_ptr != &span.start[span.length - 1]) {
+    if (!(0 < width && width <= UINT16_MAX) || end_ptr != &span.start[span.length]) {
+        println("invalid: {u}, {u}", end_ptr - span.start, span.length);
         return INVALID_ID;
     }
 
     parser_eat(parser, TOKEN_ID);
-    Numeric_T * numeric = type_allocate(ID_NUMERIC_TYPE);
+    Numeric_T * numeric = type_allocate(ID_NUMERIC_TYPE, is_mut);
+    numeric->type = numeric_type;
     numeric->width = (unsigned short) width;
     return numeric->info.type_id;
 }
 
 ID parser_parse_type(struct Parser * parser) {
+    char is_mut = 0;
+
+    if (parser->lexer.tok.type == TOKEN_ID && id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUT))) {
+        parser_eat_keyword(parser, KEYWORD_MUT);
+        is_mut = 1;
+    }
+
     switch (parser->lexer.tok.type) {
     case TOKEN_ID:
         if (id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_IMPL))) {
             parser_eat(parser, TOKEN_ID);
 
-            Impl_T * impl = type_allocate(ID_IMPL_TYPE);
+            Impl_T * impl = type_allocate(ID_IMPL_TYPE, is_mut);
             impl->symbol_id = parser_parse_symbol(parser);
 
             return impl->info.type_id;
         } else if (id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_BOOL))) {
             parser_eat(parser, TOKEN_ID);
 
-            Numeric_T * numeric = type_allocate(ID_NUMERIC_TYPE);
+            Numeric_T * numeric = type_allocate(ID_NUMERIC_TYPE, is_mut);
             numeric->type = NUMERIC_UNSIGNED;
             numeric->width = 1;
             
             return numeric->info.type_id;
         } else {
-            ID numeric_type_id = _parser_parse_numeric_type(parser);
+            ID numeric_type_id = _parser_parse_numeric_type(parser, is_mut);
 
             if (!ID_IS_INVALID(numeric_type_id)) {
                 return numeric_type_id;
             }
 
-            Type_T * type = type_allocate(ID_TYPE_TYPE);
+            Symbol_T * type = type_allocate(ID_SYMBOL_TYPE, is_mut);
             type->symbol_id = parser_parse_symbol(parser);
 
             if (parser->lexer.tok.type == TOKEN_LT) {
@@ -68,7 +76,8 @@ ID parser_parse_type(struct Parser * parser) {
 
         break;
     case TOKEN_AMPERSAND: {
-        Ref_T * ref = type_allocate(ID_REF_TYPE);
+        Ref_T * ref = type_allocate(ID_REF_TYPE, is_mut);
+        ref->depth = 0;
 
         while (parser->lexer.tok.type == TOKEN_AMPERSAND) {
             parser_eat(parser, TOKEN_AMPERSAND);
@@ -81,7 +90,7 @@ ID parser_parse_type(struct Parser * parser) {
     case TOKEN_LBRACKET:
         parser_eat(parser, TOKEN_LBRACKET);
 
-        Array_T * array = type_allocate(ID_ARRAY_TYPE);
+        Array_T * array = type_allocate(ID_ARRAY_TYPE, is_mut);
 
         switch (parser->lexer.tok.type) {
         case TOKEN_INT:
@@ -102,7 +111,7 @@ ID parser_parse_type(struct Parser * parser) {
     case TOKEN_LPAREN:
         parser_eat(parser, TOKEN_LPAREN);
 
-        Tuple_T * tuple = type_allocate(ID_TUPLE_TYPE);
+        Tuple_T * tuple = type_allocate(ID_TUPLE_TYPE, is_mut);
 
         do {
             ARENA_APPEND(&tuple->types, parser_parse_type(parser));
@@ -120,7 +129,7 @@ void type_init_intrinsic_type(enum id_type type, void * type_ref) {
         case ID_TUPLE_TYPE:
             ((Tuple_T *) type_ref)->types = arena_init(sizeof(ID)); break;
         case ID_NUMERIC_TYPE:
-        case ID_TYPE_TYPE:
+        case ID_SYMBOL_TYPE:
         case ID_IMPL_TYPE:
         case ID_ARRAY_TYPE:
         case ID_REF_TYPE:
@@ -182,11 +191,7 @@ ID ast_to_type(ID node_id) {
         {
             a_expression expr = LOOKUP(node_id, a_expression);
 
-            if (expr.children.size == 1) {
-                return ast_get_type_of(ARENA_GET(expr.children, 0, ID));
-            }
-
-            Tuple_T * tuple = type_allocate(ID_TUPLE_TYPE);
+            Tuple_T * tuple = type_allocate(ID_TUPLE_TYPE, 0);
 
             for (int i = 0; i < expr.children.size; ++i) {
                 ID child_node_id = ARENA_GET(expr.children, i, ID);
@@ -204,87 +209,7 @@ ID ast_to_type(ID node_id) {
     }
 }
 
-char is_implementer(ID implementation, ID implementer) {
-
-}
-
-char is_implicitly_equal(ID type1, ID type2) {
-    if (!is_equal_type(get_base_type(type1), get_base_type(type2)))
-        return 0;
- 
-    return 0;
-}
-
-char is_compatible_type(ID type1_id, ID type2_id) {
-    if (type1_id.type == type2_id.type) {
-        return is_equal_type(type1_id, type2_id);
-    }
-
-    if (type1_id.type == ID_IMPL_TYPE) {
-        return is_implementer(type1_id, type2_id);
-    } else if (type1_id.type == ID_IMPL_TYPE) {
-        return is_implementer(type2_id, type1_id);
-    }
-
-    return 0;
-}
-
-char is_equal_type(ID type1_id, ID type2_id) {
-    ASSERT1(!ID_IS_INVALID(type1_id));
-    ASSERT1(!ID_IS_INVALID(type2_id));
-
-    if (type1_id.type != type2_id.type) {
-        return 0;
-    }
-
-    switch (type1_id.type) {
-        case ID_TYPE_TYPE: {
-            return id_is_equal(LOOKUP(type1_id, a_symbol).node_id, LOOKUP(type2_id, a_symbol).node_id);
-        }
-        case ID_NUMERIC_TYPE:
-        {
-            Numeric_T num1 = LOOKUP(type1_id, Numeric_T), num2 = LOOKUP(type2_id, Numeric_T);
-            return num1.type == num2.type && num1.width == num2.width;
-        }
-        case ID_IMPL_TYPE:
-            FATAL("Impl equal is not implemented yet");
-            break;
-        case ID_ARRAY_TYPE:
-        {
-            Array_T arr1 = LOOKUP(type1_id, Array_T), arr2 = LOOKUP(type2_id, Array_T);
-            ASSERT1(!ID_IS_INVALID(arr1.basetype_id));
-            ASSERT1(!ID_IS_INVALID(arr2.basetype_id));
-            return arr1.size == arr2.size && is_equal_type(arr1.basetype_id, arr2.basetype_id);
-        }
-        case ID_REF_TYPE:
-        {
-            Ref_T ref1 = LOOKUP(type1_id, Ref_T), ref2 = LOOKUP(type2_id, Ref_T);
- 
-            ASSERT1(!ID_IS_INVALID(ref1.basetype_id));
-            ASSERT1(!ID_IS_INVALID(ref2.basetype_id));
-            return ref1.depth == ref2.depth && is_equal_type(ref1.basetype_id, ref2.basetype_id);
-        }
-        case ID_TUPLE_TYPE:
-        {
-            Tuple_T tuple1 = LOOKUP(type1_id, Tuple_T), tuple2 = LOOKUP(type2_id, Tuple_T);
-            if (tuple1.types.size != tuple2.types.size) {
-                return 0;
-            }
-
-            for (int i = 0; i < tuple1.types.size; ++i) {
-                if (!is_equal_type(ARENA_GET(tuple1.types, i, ID), ARENA_GET(tuple2.types, i, ID))) {
-                    return 0;
-                }
-            }
-        } break;
-        default:
-            FATAL("'{s}' is not an implemented intrinsic for checking type equivalance", id_type_to_string(type1_id.type));
-    }
-
-    return 1;
-}
-
-const Arena type_to_type_arena(ID type_id) {
+Arena type_to_type_arena(ID type_id) {
     switch (type_id.type) {
         case ID_TUPLE_TYPE:
             return LOOKUP(type_id, Tuple_T).types;
@@ -295,12 +220,19 @@ const Arena type_to_type_arena(ID type_id) {
             return arena;
         }
     }
+}
 
+ID type_from_arena(Arena arena) {
+    Tuple_T * tuple = type_allocate(ID_TUPLE_TYPE, 0);
+
+    tuple->types = arena;
+
+    return tuple->info.type_id;
 }
 
 ID get_base_type(ID type_id) {
     switch (type_id.type) {
-        case ID_TYPE_TYPE:
+        case ID_SYMBOL_TYPE:
         case ID_NUMERIC_TYPE:
         case ID_IMPL_TYPE:
         case ID_TUPLE_TYPE:
@@ -316,7 +248,7 @@ ID get_base_type(ID type_id) {
 
 const char * get_base_type_str(ID type_id) {
     switch (type_id.type) {
-        case ID_TYPE_TYPE:
+        case ID_SYMBOL_TYPE:
         case ID_NUMERIC_TYPE:
         case ID_IMPL_TYPE:
         case ID_ARRAY_TYPE:
@@ -328,19 +260,27 @@ const char * get_base_type_str(ID type_id) {
     return "(NULL)";
 }
 
+#define RETURN_WITH_MUT_ADDED(IS_MUT, FMT, ...) if (IS_MUT) return format("mut " FMT, __VA_ARGS__); else return format(FMT, __VA_ARGS__);
+
 char * type_to_str(ID type_id) {
     switch (type_id.type) {
-        case ID_TYPE_TYPE:
+        case ID_SYMBOL_TYPE:
         {
-            return symbol_expand_path(LOOKUP(LOOKUP(type_id, Type_T).symbol_id, a_symbol));
+            Symbol_T symbol_type = LOOKUP(type_id, Symbol_T);
+            a_symbol symbol = LOOKUP(symbol_type.symbol_id, a_symbol);
+            if (symbol_type.info.is_mut) {
+                return format("mut {s}", interner_lookup_str(symbol.name_id)._ptr);
+            } else {
+                return interner_lookup_str(symbol.name_id)._ptr;
+            }
         }
         case ID_NUMERIC_TYPE:
         {
             Numeric_T num = LOOKUP(type_id, Numeric_T);
-            char c = 'i';
+            char c;
             switch (num.type) {
                 case NUMERIC_SIGNED:
-                    break;
+                    c = 'i'; break;
                 case NUMERIC_UNSIGNED:
                     c = 'u'; break;
                 case NUMERIC_FLOAT:
@@ -348,13 +288,14 @@ char * type_to_str(ID type_id) {
                 default:
                     ERROR("Invalid numeric type: {i}", num.type);
             }
-            return format("{c}{u}", c, num.width);
+
+            RETURN_WITH_MUT_ADDED(num.info.is_mut, "{c}{u}", c, num.width);
         }
         case ID_ARRAY_TYPE:
         {
             Array_T array = LOOKUP(type_id, Array_T);
             ASSERT(!ID_IS_INVALID(array.basetype_id), "Array basetype is invalidly unknown");
-            return format("[]{s}", type_to_str(array.basetype_id));
+            RETURN_WITH_MUT_ADDED(array.info.is_mut, "[]{s}", type_to_str(array.basetype_id));
         }
         case ID_REF_TYPE:
         {
@@ -368,7 +309,7 @@ char * type_to_str(ID type_id) {
             buf[i] = 0;
 
             ASSERT(!ID_IS_INVALID(ref.basetype_id), "Reference basetype is invalidly unknown");
-            return format("{2s}", buf, type_to_str(ref.basetype_id));
+            RETURN_WITH_MUT_ADDED(ref.info.is_mut, "{2s}", buf, type_to_str(ref.basetype_id));
         }
         case ID_TUPLE_TYPE:
         {
@@ -388,8 +329,10 @@ char * type_to_str(ID type_id) {
 
             return format("{s})", buf);
         }
-        case ID_IMPL_TYPE:
-            return format("impl {s}", symbol_expand_path(LOOKUP(LOOKUP(type_id, Impl_T).symbol_id, a_symbol)));
+        case ID_IMPL_TYPE: {
+            a_symbol symbol = LOOKUP(LOOKUP(type_id, Impl_T).symbol_id, a_symbol);
+            return format("impl {s}", interner_lookup_str(symbol.name_id)._ptr);
+        }
     }
 
     return "(NULL)";

@@ -1,4 +1,4 @@
-#include "common/string.h"
+#include "common/data/string.h"
 #include "common/common.h"
 
 void free_string(String string) {
@@ -56,7 +56,7 @@ void string_concat_span(String * dest, SourceSpan span) {
         dest->_ptr = realloc(dest->_ptr, sizeof(char) * new_size);
     }
     memcpy(dest->_ptr + dest->length, span.start, span.length);
-    dest->_ptr[new_size - 1] = 0;
+    dest->_ptr[new_size] = 0;
 
     dest->length = new_size;
 }

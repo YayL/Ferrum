@@ -25,6 +25,7 @@ struct Token * next_token(struct Parser * parser);
 unsigned int is_statement(char *);
 
 void parser_eat(struct Parser * parser, enum token_t type);
+void parser_eat_keyword(struct Parser * parser, enum Keywords keyword);
 
 void parser_parse(a_root * root, char * path);
 

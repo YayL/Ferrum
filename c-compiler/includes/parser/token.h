@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common/sourcespan.h"
+#include "common/data/sourcespan.h"
 #include "tables/interner.h"
 
 struct Token {

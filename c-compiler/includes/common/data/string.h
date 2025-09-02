@@ -8,7 +8,7 @@ typedef struct string {
     size_t length;
 } String;
 
-#include "common/sourcespan.h"
+#include "common/data/sourcespan.h"
 
 #define STRING_FROM_LITERAL(STR) string_init_with_length(STR, (sizeof(STR) / sizeof(char)) - 1)
 

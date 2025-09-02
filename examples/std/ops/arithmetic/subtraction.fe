@@ -1,5 +1,5 @@
 trait Subtraction {
-    fn inline #OP_SUBTRACTION(first: Self, second: Self) -> Self;
+    fn inline #OP_SUBTRACTION(first: Self, second: Self) -> Self
 }
 
 impl Subtraction for (i8, i16, i32, i64, i128) {

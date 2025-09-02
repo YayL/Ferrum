@@ -1,6 +1,5 @@
 #include "checker/context.h"
 
-#include "checker/symbols.h"
 #include "parser/AST.h"
 #include "tables/registry_manager.h"
 
@@ -8,99 +7,53 @@ Context context;
 
 void context_init() {
 	context = (Context) {
-		.declarations = symbol_table_init(),
-		.traits = symbol_table_init(),
-		.types = symbol_table_init(),
-		.imports = symbol_table_init(),
+		.symbol_table = symbol_table_init()
 	};
 }
 
-// These should perhaps not be a thing. Modules should maybe just have their own symbol tables instead, it would help with a lot of things tbh
-void context_enter_module(a_module module) {
-	for (size_t i = 0; i < module.members.size; ++i) {
-		ID child_node_id = ARENA_GET(module.members, i, ID);
-		unsigned int name_id;
-		struct symbol_table * sym_table;
+ID context_lookup_declaration(ID name_id) {
+	struct symbol_map_entry entry = symbol_map_get_by_name(&context.symbol_table.declarations, name_id);
 
-		switch (child_node_id.type) {
-			case ID_AST_DECLARATION: {
-				a_declaration declaration = LOOKUP(child_node_id, a_declaration);
-				symbol_table_insert(&context.declarations, declaration.name_id, child_node_id); break;
-			}
-			case ID_AST_FUNCTION: {
-				a_function function = LOOKUP(child_node_id, a_function);
-				symbol_table_insert(&context.declarations, function.name_id, child_node_id); break;
-			}
-			case ID_AST_STRUCT: {
-				a_structure structure = LOOKUP(child_node_id, a_structure);
-				symbol_table_insert(&context.types, structure.name_id, child_node_id); break;
-			}
-			case ID_AST_ENUM: {
-				a_enumeration enumeration = LOOKUP(child_node_id, a_enumeration);
-				symbol_table_insert(&context.types, enumeration.name_id, child_node_id); break;
-			}
-			case ID_AST_TRAIT: {
-				a_trait trait = LOOKUP(child_node_id, a_trait);
-				symbol_table_insert(&context.traits, trait.name_id, child_node_id); break;
-			}
-			case ID_AST_IMPORT: {
-				a_import import = LOOKUP(child_node_id, a_import);
-				symbol_table_insert(&context.imports, import.name_id, import.module_id); break;
-			}
-			case ID_AST_IMPL: break;
-			default:
-				FATAL("Invalid AST type: {s}", id_type_to_string(child_node_id.type));
-		}
+	if (ID_IS_INVALID(entry.symbol_id)) {
+		return INVALID_ID;
 	}
+
+	return entry.node_id;
+}
+
+Arena context_lookup_all_declarations(ID name_id) {
+	Arena arena = arena_init(sizeof(ID));
+
+	struct symbol_map_entry entry = symbol_map_get_by_name(&context.symbol_table.declarations, name_id);
+	ARENA_APPEND(&arena, entry.node_id);
+
+	while (!ID_IS_INVALID(entry.shadowed_symbol_id)) {
+		entry = symbol_map_get_by_id(&context.symbol_table.declarations, entry.shadowed_symbol_id);
+		ARENA_APPEND(&arena, entry.node_id);
+	}
+
+	return arena;
+}
+
+void context_enter_module(a_module module) {
+	symbol_table_extend(&context.symbol_table, module.sym_table);
 }
 
 void context_exit_module(a_module module) {
-	unsigned int declarations = 0, types = 0, traits = 0;
-
-	// reverse order so that symbol_table_remove can pop arena elements
-	for (ssize_t i = module.members.size - 1; i >= 0; --i) {
-		ID child_node_id = ARENA_GET(module.members, i, ID);
-		switch (child_node_id.type) {
-			case ID_AST_DECLARATION: {
-				a_declaration declaration = LOOKUP(child_node_id, a_declaration);
-				symbol_table_remove(&context.declarations, declaration.name_id); break;
-			}
-			case ID_AST_FUNCTION: {
-				a_function function = LOOKUP(child_node_id, a_function);
-				symbol_table_remove(&context.declarations, function.name_id); break;
-			}
-			case ID_AST_STRUCT: {
-				a_structure structure = LOOKUP(child_node_id, a_structure);
-				symbol_table_remove(&context.types, structure.name_id); break;
-			}
-			case ID_AST_ENUM: {
-				a_enumeration enumeration = LOOKUP(child_node_id, a_enumeration);
-				symbol_table_remove(&context.types, enumeration.name_id); break;
-			}
-			case ID_AST_TRAIT: {
-				a_trait trait = LOOKUP(child_node_id, a_trait);
-				symbol_table_remove(&context.traits, trait.name_id); break;
-			}
-			case ID_AST_IMPORT: {
-				a_import import = LOOKUP(child_node_id, a_import);
-				symbol_table_remove(&context.imports, import.name_id); break;
-			}
-			case ID_AST_IMPL: break;
-			default:
-				FATAL("Invalid AST type: {s}", id_type_to_string(child_node_id.type));
-		}
-	}
+	symbol_table_clear(&context.symbol_table);
 }
 
 void context_enter_function(a_function function) {
+	println("Entering: '{s}'", interner_lookup_str(function.name_id)._ptr);
 	for (size_t i = 0; i < function.templates.size; ++i) {
 		ID child_node_id = ARENA_GET(function.templates, i, ID);
 		ASSERT1(ID_IS(child_node_id, ID_AST_SYMBOL)); // should be handled in the parser
+
 		a_symbol symbol = LOOKUP(child_node_id, a_symbol);
+		ASSERT1(ID_IS(symbol.name_id, ID_INTERNER)); // should be handled in the parser
 		ASSERT1(symbol.name_ids.size == 1); // should be handled in the parser
 
-		symbol_table_insert(&context.types, ARENA_GET(symbol.name_ids, 0, ID), child_node_id);
-		println("Template type({i}): {s}", i, symbol_expand_path(symbol));
+		symbol_map_insert(&context.symbol_table.types, symbol.name_id, child_node_id);
 	}
 
 	ASSERT1(ID_IS(function.arguments_id, ID_AST_EXPR));
@@ -114,16 +67,56 @@ void context_enter_function(a_function function) {
 		ASSERT1(!ID_IS_INVALID(symbol.node_id)); // Should be handled in the parser
 		ASSERT1(symbol.name_ids.size == 1); // Should be handled in the parser
 
-		symbol_table_insert(&context.declarations, ARENA_GET(symbol.name_ids, 0, ID), symbol.node_id);
+		symbol_map_insert(&context.symbol_table.declarations, symbol.name_id, symbol.node_id);
+		println("Added symbol: {s}", interner_lookup_str(symbol.name_id)._ptr);
 	}
-
 }
 
 void context_exit_function(a_function function) {
+	println("Leaving: '{s}'", interner_lookup_str(function.name_id)._ptr);
+	ASSERT1(ID_IS(function.arguments_id, ID_AST_EXPR));
+	a_expression arguments = LOOKUP(function.arguments_id, a_expression);
+
+	for (size_t index_plus_one = arguments.children.size; index_plus_one > 0; --index_plus_one) {
+		ID arg_id = ARENA_GET(arguments.children, index_plus_one - 1, ID);
+		ASSERT1(ID_IS(arg_id, ID_AST_SYMBOL)); // Should be handled in the parser
+
+		a_symbol symbol = LOOKUP(arg_id, a_symbol);
+		ASSERT1(!ID_IS_INVALID(symbol.node_id)); // Should be handled in the parser
+		ASSERT1(symbol.name_ids.size == 1); // Should be handled in the parser
+
+		symbol_map_remove(&context.symbol_table.declarations, symbol.name_id);
+	}
+
+	for (size_t index_plus_one = function.templates.size; index_plus_one > 0; --index_plus_one) {
+		ID child_node_id = ARENA_GET(function.templates, index_plus_one - 1, ID);
+		ASSERT1(ID_IS(child_node_id, ID_AST_SYMBOL)); // should be handled in the parser
+
+		a_symbol symbol = LOOKUP(child_node_id, a_symbol);
+		ASSERT1(ID_IS(symbol.name_id, ID_INTERNER)); // should be handled in the parser
+		ASSERT1(symbol.name_ids.size == 1); // should be handled in the parser
+
+		symbol_map_remove(&context.symbol_table.types, symbol.name_id);
+	}
 }
 
 void context_enter_scope(a_scope scope) {
+	println("Scope declarations: {u}", scope.declarations.size);
+	for (size_t i = 0; i < scope.declarations.size; ++i) {
+		ID node_id = ARENA_GET(scope.declarations, i, ID);
+		ASSERT1(ID_IS(node_id, ID_AST_VARIABLE));
+
+		a_variable variable = LOOKUP(node_id, a_variable);
+		symbol_map_insert(&context.symbol_table.declarations, variable.name_id, node_id);
+	}
 }
 
 void context_exit_scope(a_scope scope) {
+	for (size_t index_plus_one = scope.declarations.size; index_plus_one > 0; --index_plus_one) {
+		ID node_id = ARENA_GET(scope.declarations, index_plus_one - 1, ID);
+		ASSERT1(ID_IS(node_id, ID_AST_VARIABLE));
+
+		a_variable variable = LOOKUP(node_id, a_variable);
+		symbol_map_insert(&context.symbol_table.declarations, variable.name_id, node_id);
+	}
 }

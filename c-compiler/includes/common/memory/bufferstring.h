@@ -7,8 +7,8 @@ typedef struct {
 	size_t length;
 } BString;
 
-#include "common/sourcespan.h"
-#include "common/buffer.h"
+#include "common/data/sourcespan.h"
+#include "common/memory/buffer.h"
 
 #define BUFFER_BUFFER_STRING_FROM_LITERAL(STR) buffer_string_init_with_length(STR, (sizeof(STR) / sizeof(char)) - 1)
 
@@ -35,8 +35,7 @@ static inline SourceSpan buffer_string_to_source_span(BString bstring) {
 	return (SourceSpan) { .start = bstring._ptr, .length = bstring.length };
 }
 
-#include "common/hashmap.h"
-#include "common/ID.h"
+#include "common/data/hashmap.h"
 
 static kh_inline khint_t _bstring_hash(BString string) {
 	uint32_t h = 2166136261u;         // FNV offset basis
@@ -51,4 +50,5 @@ static kh_inline char _bstring_is_equal(BString string1, BString string2) {
 	return string1.length == string2.length && string1._ptr[0] == string2._ptr[0] && !strncmp(&string1._ptr[1], &string2._ptr[1], string1.length - 1);
 }
 
+#include "common/ID.h"
 KHASH_INIT(map_bstring_to_id, BString, ID, KHASH_IS_MAP, _bstring_hash, _bstring_is_equal);

@@ -6,6 +6,8 @@
 	f(LLVM_STORE, "#llvm_store") \
 	f(LLVM_LOAD, "#llvm_load") \
 	f(LLVM_REGISTER_OF, "#llvm_register_of") \
+	f(LLVM_TYPE_OF, "#llvm_type_of") \
+	f(LLVM_OP, "#llvm_op") \
 	f(LLVM_GET_TYPE, "#llvm_get_type")
 
 #define BUILTIN_ENUM_MEMBER(ENUM, ...) ENUM,

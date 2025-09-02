@@ -1,7 +1,7 @@
 #include "parser/parser.h"
 
 #include "parser/lexer.h"
-#include "common/deque.h"
+#include "common/data/deque.h"
 #include "tables/registry_manager.h"
 
 Operator get_operator(SourceSpan span, struct Token token, enum OP_mode mode, char * enclosed_flag) {

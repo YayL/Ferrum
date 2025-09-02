@@ -1,10 +1,10 @@
-#include "common/arena.h"
+#include "common/memory/arena.h"
 
 #include "common/common.h"
 #include "common/math.h"
 
 #define ARENA_GET_INDEX(ARENA, INDEX) ARENA.arena + INDEX * ARENA.item_size
-#define ARENA_INITIAL_CAPACITY 1
+#define ARENA_INITIAL_CAPACITY 4
 #define ARENA_GROWTH_RATE 2
 
 Arena arena_init(uint32_t item_size) {

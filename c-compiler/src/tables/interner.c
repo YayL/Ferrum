@@ -1,9 +1,10 @@
 #include "tables/interner.h"
 
-#include "common/hashmap.h"
+#include "common/data/hashmap.h"
+#include "tables/registry_manager.h"
 #include "parser/keywords.h"
 #include "parser/operators.h"
-#include "tables/registry_manager.h"
+#include "codegen/builtin.h"
 
 #define INTERNER_ID_TO_ARENA_INDEX(ID) ((ID.id) - 1)
 Interner interner;
@@ -15,6 +16,7 @@ void interner_init() {
 
 	keywords_intern();
 	operators_intern();
+	builtin_intern();
 }
 
 ID interner_intern(SourceSpan span) {
@@ -29,8 +31,8 @@ ID interner_intern(SourceSpan span) {
 	int ret_code;
 	k = kh_put(map_bstring_to_id, &interner.map, bstring, &ret_code);
 
-	ASSERT(ret_code != KEY_ALREADY_PRESENT, "Key already exists but was not retrieved when using get???");
-	ASSERT(ret_code == 1, "Some error occured while retrieving from hashmap. Error code {i}", ret_code);
+	ASSERT(ret_code != KH_PUT_ALREADY_PRESENT, "Key already exists but was not retrieved when using get???");
+	ASSERT(ret_code == KH_PUT_SUCCESS, "Some error occured while retrieving from hashmap. Error code {i}", ret_code);
 
 	struct interner_entry * entry = interner_allocate();
 	entry->str = bstring;

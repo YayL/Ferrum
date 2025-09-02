@@ -1,12 +1,13 @@
 #pragma once
 
-#include "common/arena.h"
+#include "common/memory/arena.h"
 #include "common/ID.h"
 
 #define VOID_TYPE ((ID) { .type = ID_VOID_TYPE, .id = 0 })
 
 struct type_info {
     ID type_id;
+    char is_mut;
 };
 
 typedef struct Numeric_T {
@@ -19,10 +20,10 @@ typedef struct Numeric_T {
     } type;
 } Numeric_T;
 
-typedef struct Type_T {
+typedef struct Symbol_T { // any struct/enum types
     struct type_info info;
     ID symbol_id;
-} Type_T;
+} Symbol_T;
 
 typedef struct Ref_T {
     struct type_info info;
@@ -55,12 +56,7 @@ char * type_to_str(ID type_id);
 ID ast_get_type_of(ID node_id);
 ID ast_to_type(ID node_id);
 
-char is_template_type(ID current_scope, ID name_id);
-ID get_type(ID node_id, ID name_id);
-const Arena type_to_type_arena(ID type_id);
-
-char is_implicitly_equal(ID type1, ID type2);
-char is_equal_type(ID type1, ID type2);
+ID type_from_arena(Arena arena);
 
 // struct AST * get_self_type(ID first_id, ID second_id);
 // Type replace_self_in_type(ast, Type self);

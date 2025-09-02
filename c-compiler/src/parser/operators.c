@@ -157,13 +157,13 @@ const char * operator_get_runtime_name(enum Operators op) {
     }
 }
 
-char * operator_to_str(struct Operator * operator) {
+char * operator_to_str(struct Operator operator) {
     return format("<name='{s}', op='{s}', precedence='{u}', mode='{s}', enclosed='{b}', associativity='{s}'>",
-                  operator_get_runtime_name(operator->key),
-                  operator->str,
-                  operator->precedence,
-                  operator->mode == BINARY ? "binary" : "unary",
-                  operator->enclosed == ENCLOSED,
-                  operator->associativity == LEFT ? "left" : "right"
+                  operator_get_runtime_name(operator.key),
+                  operator.str,
+                  operator.precedence,
+                  operator.mode == BINARY ? "binary" : "unary",
+                  operator.enclosed == ENCLOSED,
+                  operator.associativity == LEFT ? "left" : "right"
                   );
 }

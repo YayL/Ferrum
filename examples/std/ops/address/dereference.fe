@@ -1,5 +1,9 @@
-fn inline #OP_DEREFERENCE<T>(ref: &T) -> T {
-    #llvm_load(ref)
+trait Dereferenceable<T> {
+	fn inline #OP_DEREFERENCE(ref: Self) -> T
 }
 
-// trait 
+impl Dereferenceable<T> for T {
+	fn inline #OP_DEREFERENCE(ref: &T) -> T {
+		#llvm_load(ref)
+	}
+}

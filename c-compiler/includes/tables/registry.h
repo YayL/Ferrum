@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common/block_arena.h"
+#include "common/memory/block_arena.h"
 #include "common/ID.h"
 #include "common/logger.h"
 

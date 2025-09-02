@@ -1,7 +1,7 @@
 #include "parser/modules.h"
 
 #include "parser/AST.h"
-#include "common/hashmap.h"
+#include "common/data/hashmap.h"
 #include "common/logger.h"
 #include "tables/registry_manager.h"
 
@@ -12,7 +12,7 @@ ID add_module(struct Parser * parser, char * path) {
 	khint_t k = kh_put(map_string_to_id, hashmap, path, &retcode);
 	ASSERT1(k != kh_end(hashmap));
 
-	if (retcode == KEY_ALREADY_PRESENT) {
+	if (retcode == KH_PUT_ALREADY_PRESENT) {
 		return kh_value(hashmap, k);
 	}
 

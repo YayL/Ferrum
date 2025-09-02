@@ -1,13 +1,14 @@
-// T is required to implement #OP_ADDITION
+import "../../groups/numeric" as numeric
+import "addition" as addition
 
-trait OP_Pre_Increment {
-	fn inline #OP_PRE_INCREMENT(ref: &Self) -> Self;
+trait Pre_Increment {
+	fn inline #OP_PRE_INCREMENT(ref: &mut Self) -> Self
 }
 
-impl OP_Pre_Increment for (i8, i16, i32, i64, i128) {
-	fn inline #OP_PRE_INCREMENT(ref: &Self) -> Self {
-		let res: Self = *ref + 1
-		*ref = res
-		res
+impl Pre_Increment for (impl addition::Addition) {
+	fn inline #OP_PRE_INCREMENT(ref: &mut Self) -> Self {
+        *ref = *ref + 1
 	}
 }
+
+

@@ -1,6 +1,6 @@
 #include "parser/token.h"
 
-#include "common/sourcespan.h"
+#include "common/data/sourcespan.h"
 #include "fmt.h"
 
 struct Token init_token() {

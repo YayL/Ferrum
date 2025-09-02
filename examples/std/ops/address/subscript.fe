@@ -1,6 +1,17 @@
-// subscript operator: ref[offset]
-// U must implemented Addition
+import "../../groups/numeric" as numeric
 
-fn inline #OP_SUBSCRIPT<T, U>(ref: &T, offset: U) -> T {
-    *((ref to U) + offset * #sizeof(T))
+trait Indexable<T, U> {
+    fn inline #OP_SUBSCRIPT(ref: &Self, offset: U) -> T
+}
+
+impl Indexable<T, U: (impl numeric::Signed)> for T {
+    fn inline #OP_SUBSCRIPT(ref: &[]T, offset: U) -> T {
+        #llvm_getelementptr(ref, offset)
+    }
+}
+
+impl Indexable<T, U: (impl numeric::Signed)> for T {
+    fn inline #OP_SUBSCRIPT(ref: &mut []T, offset: U) -> &mut T {
+        #llvm_getelementptr(ref, offset)
+    }
 }

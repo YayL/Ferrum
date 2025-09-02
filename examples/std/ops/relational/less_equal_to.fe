@@ -1,5 +1,5 @@
 trait OP_Less_Equal_To {
-    fn inline #OP_LESS_EQUAL_TO(left: Self, right: Self) -> bool;
+    fn inline #OP_LESS_EQUAL_TO(left: Self, right: Self) -> bool
 }
 
 impl OP_Less_Equal_To for (i8, i16, i32, i64, i128) {

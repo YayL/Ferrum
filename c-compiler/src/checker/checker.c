@@ -3,6 +3,7 @@
 #include "codegen/builtin.h"
 #include "checker/functions.h"
 #include "checker/context.h"
+#include "checker/symbol.h"
 #include "tables/registry_manager.h"
 
 ID get_interner_id(ID node_id) {
@@ -17,81 +18,81 @@ ID get_interner_id(ID node_id) {
     }
 }
 
-void checker_check_expr_node(ID node_id) {
+ID checker_check_expr_node(ID node_id) {
     switch (node_id.type) {
         case ID_AST_OP:
-            checker_check_op(node_id); break;
+            return checker_check_op(node_id);
         case ID_AST_VARIABLE:
-            checker_check_variable(node_id); break;
+            return checker_check_variable(node_id);
         case ID_AST_EXPR:
-            checker_check_expression(node_id); break;
+            return checker_check_expression(node_id);
         case ID_AST_LITERAL:
-            checker_check_literal(node_id); break;
+            return checker_check_literal(node_id);
         case ID_AST_SYMBOL:
-            checker_check_symbol(node_id); break;
+            return checker_check_symbol(node_id);
         default:
             FATAL("Unimplemented expr node type: {s}", id_type_to_string(node_id.type));
     }
 }
 
-void checker_check_literal(ID node_id) {
+ID checker_check_literal(ID node_id) {
     ASSERT1(ID_IS(node_id, ID_AST_LITERAL));
-    // ASSERT(0, "Unimplemented");
+
+    a_literal literal = LOOKUP(node_id, a_literal);
+    ASSERT1(!ID_IS_INVALID(literal.type_id));
+    ASSERT1(literal.value._ptr != NULL && literal.value.length > 0)
+
+    return literal.type_id;
 }
 
-void checker_check_symbol(ID node_id) {
+ID checker_check_symbol(ID node_id) {
     ASSERT1(ID_IS(node_id, ID_AST_SYMBOL));
-    a_symbol symbol = LOOKUP(node_id, a_symbol);
+    a_symbol * symbol = lookup(node_id);
 
-    // if (symbol.node == NULL) {
-    //     println("Must lookup symbol: {s}", symbol_expand_path(ast));
-    //
-    //     for (size_t i = 0; i < 
-    //
-    //     exit(0);
-    // }
+    println("Symbol: {s}", ast_to_string(node_id));
+    if (symbol->name_ids.size > 1) {
+        symbol->node_id = qualify_symbol(*symbol, ID_AST_DECLARATION);
+    } else {
+        symbol->node_id = context_lookup_declaration(symbol->name_id);
+    }
+
+    if (ID_IS_INVALID(symbol->node_id)) {
+        FATAL("Unable to find symbol: {s}", interner_lookup_str(symbol->name_id)._ptr);
+    }
+
+    return symbol->node_id;
 }
 
-void checker_check_op(ID node_id) {
+ID checker_check_op(ID node_id) {
     a_operator * op = lookup(node_id);
 
     if (op->op.key == CALL) {
         if (!ID_IS(op->left_id, ID_AST_SYMBOL)) {
             ERROR("Arbitrary address calls are not supported yet");
-            return;
+            return INVALID_ID;
         }
 
         a_symbol symbol = LOOKUP(op->left_id, a_symbol);
-        ID first_name_id = ARENA_GET(symbol.name_ids, 0, ID);
-        if (builtin_interner_id_is_inbounds(first_name_id)) {
+        if (builtin_interner_id_is_inbounds(symbol.name_id)) {
             if (symbol.name_ids.size != 1) {
                 ERROR("Invalid to use '::' operator when trying to call builtin function");
                 exit(1);
             }
 
-            op->type_id = VOID_TYPE;
-            return;
+            return op->type_id = VOID_TYPE;
         }
 
-        // if (!is_declared_function(var.name, ast->scope)) {
-        //     ERROR("Call to unknown function: '{s}'", var.name);
-        //     return UNKNOWN_TYPE;
-        // }
-
         checker_check_expr_node(op->right_id);
- 
         resolve_function_from_call(node_id);
 
-        println("Resolved function call");
-
+        return op->type_id;
     } else if (op->op.key == TERNARY) {
         ASSERT1(ID_IS(op->right_id, ID_AST_OP));
         if (LOOKUP(op->right_id, a_operator).op.key != TERNARY_BODY) {
             FATAL("Detected an error with the ternary operator. This was most likely caused by operator precedence or nested ternary operators. To remedy this try applying parenthesis around the seperate ternary body entries");
         }
     } else if (op->op.key == PARENTHESES) {
-        checker_check_expr_node(op->right_id);
-        return;
+        return op->type_id = checker_check_expr_node(op->right_id);
     } else if (op->op.key == ASSIGNMENT) {
         a_operator * addr_of_op = ast_allocate(ID_AST_OP, ast_get_scope_id(node_id));
 
@@ -100,32 +101,47 @@ void checker_check_op(ID node_id) {
         op->left_id = addr_of_op->info.node_id;
 
         checker_check_expr_node(op->left_id);
-        /* exit(0); */
     } else if (!ID_IS_INVALID(op->left_id)) {
         checker_check_expr_node(op->left_id);
     }
 
     checker_check_expr_node(op->right_id);
-
-
     resolve_function_from_operator(node_id);
-    // struct AST * func = get_function_for_operator(op->op, left, right, &self_type, ast->scope);
-    // ASSERT(func != NULL, "get_function_for_operator returned NULL");
-    // DEBUG("Found function: {s}", func->value.function.name);
-    //
-    // checker_check_function(func);
-    //
-    // op->definition = func;
-    // ASSERT1(func->value.function.return_type != NULL);
-    // if (get_base_type(*func->value.function.return_type).intrinsic == ITemplate) {
-    //     if (op->type == NULL) {
-    //         ALLOC(op->type);
-    //     }
-    //     *op->type = replace_self_in_type(*func->value.function.return_type, self_type);
-    // }
-    // 
-    // ASSERT1(op->type != NULL);
-    // return *op->type;
+
+    return op->type_id;
+}
+
+ID checker_check_expression(ID node_id) {
+    a_expression * expr = lookup(node_id);
+    ASSERT1(expr->children.size != 0);
+
+    if (expr->children.size == 1) {
+        ID child_node_id = ARENA_GET(expr->children, 0, ID);
+        ASSERT1(!ID_IS_INVALID(child_node_id));
+        return checker_check_expr_node(child_node_id);
+    }
+
+    Tuple_T * tuple_type = type_allocate(ID_TUPLE_TYPE, 0);
+
+    for (int i = 0; i < expr->children.size; ++i) {
+        ID child_node_id = ARENA_GET(expr->children, i, ID);
+        ASSERT1(!ID_IS_INVALID(child_node_id));
+        ARENA_APPEND(&tuple_type->types, checker_check_expr_node(child_node_id));
+    }
+
+    return tuple_type->info.type_id;
+}
+
+ID checker_check_variable(ID node_id) {
+    a_variable variable = LOOKUP(node_id, a_variable);
+
+    if (!variable.is_declared) {
+        ERROR("Variable '{s}' used before declaration", interner_lookup_str(variable.name_id));
+    }
+
+    ASSERT1(!ID_IS_INVALID(variable.type_id));
+
+    return variable.type_id;
 }
 
 void checker_check_if(ID node_id) {
@@ -172,30 +188,6 @@ void checker_check_return(ID node_id) {
     checker_check_expression(return_statement.expression_id);
 }
 
-void checker_check_expression(ID node_id) {
-    a_expression * expr = lookup(node_id);
-
-    ASSERT1(expr->children.size != 0);
-    for (int i = 0; i < expr->children.size; ++i) {
-        ID child_node_id = ARENA_GET(expr->children, i, ID);
-        ASSERT1(!ID_IS_INVALID(child_node_id));
-        checker_check_expr_node(child_node_id);
-    }
-
-    // expr->type = ast_to_type(node_id);
-}
-
-void checker_check_variable(ID node_id) {
-    // struct AST * var_ast = get_variable(ast);
-    //
-    // if (var_ast == NULL || !var_ast->value.variable.is_declared) {
-    //     a_variable variable = ast->value.variable;
-    //     // ERROR("Variable '{s}' used before having been declared", variable.name);
-    //     return UNKNOWN_TYPE;
-    // }
-
-    // ast->value = var_ast->value;
-}
 
 void checker_check_struct(ID node_id) {
     a_structure _struct = LOOKUP(node_id, a_structure);
@@ -315,6 +307,9 @@ void checker_check_scope(ID node_id) {
 
 void checker_check_declaration(ID node_id) {
     a_declaration declaration = LOOKUP(node_id, a_declaration);
+
+    checker_check_expression(declaration.expression_id);
+
     a_expression expr = LOOKUP(declaration.expression_id, a_expression);
 
     for (int i = 0; i < expr.children.size; ++i) {
@@ -327,40 +322,27 @@ void checker_check_declaration(ID node_id) {
                 FATAL("Declarations require a direct assignment");
             }
 
-            if (!ID_IS(assignment_op.left_id, ID_AST_VARIABLE)) {
-                FATAL("On declaration the LHS must always be a variable");
+            a_variable * variable;
+            switch (assignment_op.left_id.type) {
+                case ID_AST_SYMBOL:
+                    variable = lookup(LOOKUP(assignment_op.left_id, a_symbol).node_id); break;
+                case ID_AST_VARIABLE:
+                    variable = lookup(assignment_op.left_id); break;
+                default:
+                    FATAL("Invalid lhs with type '{s}'", id_type_to_string(assignment_op.left_id.type));
             }
 
-            checker_check_expr_node(assignment_op.right_id);
+            variable->is_declared = 1;
+            variable->type_id = checker_check_expr_node(assignment_op.right_id);
+
+            println("Variable {s} is declared", interner_lookup_str(variable->name_id)._ptr);
+
             child_node_id = assignment_op.left_id;
+        } else if (!ID_IS(child_node_id, ID_AST_VARIABLE)) {
+            FATAL("Empty variable declaration must include a type");
         }
 
-        if (!ID_IS(child_node_id, ID_AST_VARIABLE)) {
-            FATAL("Must be a variable in declaration");
-        }
-
-        a_variable * variable = lookup(child_node_id);
-        variable->is_declared = 1;
-
-        switch (variable->info.scope_id.type) {
-            case ID_AST_SCOPE:
-                {
-                    // list_push(ast->scope->value.scope.variables, node);
-                    break;
-                }
-            case ID_AST_MODULE:
-                {
-                    a_module * module = lookup(variable->info.scope_id);
-                    ARENA_APPEND(&module->members, node_id);
-                    break;
-                }
-            default:
-                {
-                    FATAL("Unsupported type '{s}' as variable holder", id_type_to_string(variable->info.scope_id.type));
-                }
-        }
-
-        checker_check_expr_node(child_node_id);
+        checker_check_variable(child_node_id);
     }
 }
 

@@ -1,8 +1,9 @@
 #pragma once
 #include "common/ID.h"
-#include "common/sourcespan.h"
 #include "parser/operators.h"
-#include "common/arena.h"
+#include "common/memory/arena.h"
+#include "common/memory/bufferstring.h"
+#include "tables/symbol_table.h"
 
 ID ast_get_scope_id(ID node_id);
 
@@ -33,6 +34,7 @@ typedef struct a_module {
     struct AST_info info;
     char * file_path;
     Arena members;
+    struct symbol_table sym_table;
 } a_module;
 
 typedef struct a_import {
@@ -66,7 +68,6 @@ typedef struct a_declaration {
     struct AST_info info;
     ID expression_id;
     ID name_id;
-    char is_const;
 } a_declaration;
 
 typedef struct a_expression {
@@ -92,11 +93,14 @@ typedef struct a_trait {
     struct AST_info info;
     ID name_id;
     Arena children;
+    Arena templates;
+    Arena implementations;
 } a_trait;
 
 typedef struct a_implementation {
     struct AST_info info;
-    ID name_id;
+    ID trait_symbol_id;
+    Arena templates;
     Arena members;
     ID type_id;
 } a_implementation;
@@ -109,13 +113,13 @@ typedef struct a_operator {
     ID type_id;
     struct function_definition {
         ID function_id;
-        Arena substitution;
     } definition;
 } a_operator;
 
 typedef struct a_symbol {
     struct AST_info info;
     ID node_id;
+    ID name_id;
     Arena name_ids;
 } a_symbol;
 
@@ -131,7 +135,7 @@ typedef struct a_variable {
 typedef struct a_literal {
     struct AST_info info;
     ID type_id;
-    SourceSpan value;
+    BString value;
     enum LITERAL_TYPE {
         LITERAL_NUMBER,
         LITERAL_STRING,

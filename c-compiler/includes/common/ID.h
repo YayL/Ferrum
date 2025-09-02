@@ -1,15 +1,15 @@
 #pragma once
 
-#include "common/hashmap.h"
+#include "common/data/hashmap.h"
 #include "common/logger.h"
 
 #define OTHER_REGISTRY_KINDS(f) \
 	f(ID_INTERNER,			"InternerID",		interner_entry,			INTERNER) \
-	f(ID_SYMBOL,			"SymbolID",			symbol_table_entry,		SYMBOL)
+	f(ID_SYMBOL,			"SymbolID",			symbol_map_entry,		SYMBOL)
 
 #define TYPE_REGISTRY_KINDS(f) \
 	f(ID_NUMERIC_TYPE,	"NumericT",		Numeric_T,	TYPE) \
-	f(ID_TYPE_TYPE,		"TypeT",		Type_T,		TYPE) \
+	f(ID_SYMBOL_TYPE,	"SymbolT",		Symbol_T,	TYPE) \
 	f(ID_REF_TYPE,		"RefT",			Ref_T,		TYPE) \
 	f(ID_ARRAY_TYPE,	"ArrayT",		Array_T,	TYPE) \
 	f(ID_TUPLE_TYPE,	"TupleT",		Tuple_T,	TYPE) \

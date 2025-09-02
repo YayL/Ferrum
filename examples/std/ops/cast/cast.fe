@@ -1,3 +1,10 @@
-fn inline #OP_CAST<T, U>(value: T) -> U {
-    #llvm_cast(#llvm_load(value), U)
+import "../../groups/numeric" as numeric
+trait Castable<T> {
+	fn inline #OP_CAST(value: Self) -> T
+}
+
+impl Castable<T: (impl numeric::Signed, impl numeric::Unsigned, impl numeric::Float, bool)> for (impl numeric::Signed, impl numeric::Unsigned, impl numeric::Float) {
+	fn inline #OP_CAST(value: Self) -> T {
+		#llvm_cast(#llvm_load(value), T)
+	}
 }

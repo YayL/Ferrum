@@ -2,6 +2,7 @@
 
 #include "common/io.h"
 #include "parser/parser.h"
+#include "checker/pre_checker.h"
 #include "checker/checker.h"
 // #include "codegen/gen.h"
 
@@ -30,6 +31,7 @@ void ferrum_compile(char * file_path) {
     
     char * abs_path = get_abs_path(file_path),
          * parser_time,
+         * pre_checker_time,
          * checker_time,
          * gen_time,
          * optimization_time;
@@ -42,9 +44,16 @@ void ferrum_compile(char * file_path) {
     asprintf(&parser_time, "Time for parser:\t%.3fms", (double)time / 1000);
 
     // print_ast_tree_from_root(root);
+    puts(parser_time);
 
-    printf("Time for parser:\t%.3fms\n", (double)time / 1000);
-    exit(0);
+    start_timer();
+    pre_checker();
+    time = stop_timer();
+    total += time;
+    asprintf(&pre_checker_time, "Time for pre-checker:\t%.3fms", (double)time / 1000);
+
+    puts(pre_checker_time);
+    return;
 
     start_timer();
     checker_check(root);
@@ -52,6 +61,10 @@ void ferrum_compile(char * file_path) {
     total += time;
     asprintf(&checker_time, "Time for checker:\t%.3fms", (double)time / 1000);
 
+    free(parser_time);
+
+    kh_free(map_string_to_id, &root.modules);
+    return;
     // print_ast_tree(ast);
 
 //     const char * OUTPUT_PATH = "./build/ferrum.ll";

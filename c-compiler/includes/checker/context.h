@@ -4,13 +4,13 @@
 #include "tables/symbol_table.h"
 
 typedef struct context {
-	struct symbol_table declarations;	// variables, function
-	struct symbol_table types;			// structs, enum
-	struct symbol_table traits;			// traits
-	struct symbol_table imports;		// module aliases
+	struct symbol_table symbol_table;
 } Context;
 
 void context_init();
+
+Arena context_lookup_all_declarations(ID name_id);
+ID context_lookup_declaration(ID name_id);
 
 /* Add module declared variables, functions and imports */
 void context_enter_module(a_module module);
