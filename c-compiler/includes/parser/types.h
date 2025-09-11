@@ -23,6 +23,7 @@ typedef struct Numeric_T {
 typedef struct Symbol_T { // any struct/enum types
     struct type_info info;
     ID symbol_id;
+    Arena templates;
 } Symbol_T;
 
 typedef struct Ref_T {
@@ -47,6 +48,11 @@ typedef struct Impl_T {
     ID symbol_id;
     ID implementees_id;
 } Impl_T;
+
+typedef struct Group_T {
+    struct type_info info;
+    ID symbol_id;
+} Group_T;
 
 void type_init_intrinsic_type(enum id_type type, void * type_ref);
 

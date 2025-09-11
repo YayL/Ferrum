@@ -1,3 +1,5 @@
 #pragma once
 
-void pre_checker();
+#include "parser/AST.h"
+
+void pre_checker(a_root * root);

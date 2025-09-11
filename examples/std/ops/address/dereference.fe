@@ -1,8 +1,8 @@
-trait Dereferenceable<T> {
+trait<T> Dereferenceable {
 	fn inline #OP_DEREFERENCE(ref: Self) -> T
 }
 
-impl Dereferenceable<T> for T {
+impl<T> Dereferenceable for T {
 	fn inline #OP_DEREFERENCE(ref: &T) -> T {
 		#llvm_load(ref)
 	}

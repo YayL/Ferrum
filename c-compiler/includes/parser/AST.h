@@ -80,7 +80,7 @@ typedef struct a_structure {
     struct AST_info info;
     ID name_id;
     Arena templates;
-    Arena definitions;
+    Arena declarations;
 } a_structure;
 
 typedef struct a_enumeration {
@@ -100,10 +100,17 @@ typedef struct a_trait {
 typedef struct a_implementation {
     struct AST_info info;
     ID trait_symbol_id;
-    Arena templates;
+    Arena impl_templates;
+    Arena trait_templates;
     Arena members;
-    ID type_id;
 } a_implementation;
+
+typedef struct a_group {
+    struct AST_info info;
+    ID name_id;
+    ID type_id;
+    Arena templates;
+} a_group;
 
 typedef struct a_operator {
     struct AST_info info;
@@ -128,8 +135,8 @@ typedef struct a_variable {
     ID type_id;
     ID name_id;
     unsigned int reg;
-    char is_const;
     char is_declared;
+    char is_mut;
 } a_variable;
 
 typedef struct a_literal {

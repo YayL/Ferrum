@@ -18,7 +18,7 @@ ID _parser_parse_numeric_type(struct Parser * parser, char is_mut) {
 
     SourceSpan span = parser->lexer.tok.span;
     char * end_ptr;
-    int width = strtol(&span.start[1], &end_ptr, 10);
+    long width = strtol(&span.start[1], &end_ptr, 10);
 
     if (!(0 < width && width <= UINT16_MAX) || end_ptr != &span.start[span.length]) {
         println("invalid: {u}, {u}", end_ptr - span.start, span.length);
@@ -29,6 +29,7 @@ ID _parser_parse_numeric_type(struct Parser * parser, char is_mut) {
     Numeric_T * numeric = type_allocate(ID_NUMERIC_TYPE, is_mut);
     numeric->type = numeric_type;
     numeric->width = (unsigned short) width;
+
     return numeric->info.type_id;
 }
 
@@ -41,7 +42,7 @@ ID parser_parse_type(struct Parser * parser) {
     }
 
     switch (parser->lexer.tok.type) {
-    case TOKEN_ID:
+    case TOKEN_ID: {
         if (id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_IMPL))) {
             parser_eat(parser, TOKEN_ID);
 
@@ -66,15 +67,22 @@ ID parser_parse_type(struct Parser * parser) {
 
             Symbol_T * type = type_allocate(ID_SYMBOL_TYPE, is_mut);
             type->symbol_id = parser_parse_symbol(parser);
+            type->templates = arena_init(sizeof(ID));
 
-            if (parser->lexer.tok.type == TOKEN_LT) {
-                FATAL("Template type parsing is not implemented yet");
+            // If there are no templates or empty template list
+            if (parser->lexer.tok.type != TOKEN_LT || (parser_eat(parser, TOKEN_LT), parser->lexer.tok.type == TOKEN_GT && (parser_eat(parser, TOKEN_GT), 1))) {
+                return type->info.type_id;
             }
+
+            do {
+                ARENA_APPEND(&type->templates, parser_parse_type(parser));
+            } while (parser->lexer.tok.type == TOKEN_COMMA && (parser_eat(parser, TOKEN_COMMA), 1));
+            parser_eat(parser, TOKEN_GT);
 
             return type->info.type_id;
         }
 
-        break;
+    } break;
     case TOKEN_AMPERSAND: {
         Ref_T * ref = type_allocate(ID_REF_TYPE, is_mut);
         ref->depth = 0;
@@ -264,15 +272,29 @@ const char * get_base_type_str(ID type_id) {
 
 char * type_to_str(ID type_id) {
     switch (type_id.type) {
-        case ID_SYMBOL_TYPE:
-        {
+        case ID_SYMBOL_TYPE: {
             Symbol_T symbol_type = LOOKUP(type_id, Symbol_T);
             a_symbol symbol = LOOKUP(symbol_type.symbol_id, a_symbol);
+
+            char * str;
+
             if (symbol_type.info.is_mut) {
-                return format("mut {s}", interner_lookup_str(symbol.name_id)._ptr);
+                str = format("mut {s}", interner_lookup_str(symbol.name_id)._ptr);
             } else {
-                return interner_lookup_str(symbol.name_id)._ptr;
+                str = interner_lookup_str(symbol.name_id)._ptr;
             }
+
+            if (symbol_type.templates.size > 0) {
+                str = format("{s}<{s}", str, type_to_str(ARENA_GET(symbol_type.templates, 0, ID)));
+
+                for (size_t i = 1; i < symbol_type.templates.size; ++i) {
+                    str = format("{s}, {s}", str, type_to_str(ARENA_GET(symbol_type.templates, i, ID)));
+                }
+                str = format("{s}>", str);
+            }
+
+
+            return str;
         }
         case ID_NUMERIC_TYPE:
         {

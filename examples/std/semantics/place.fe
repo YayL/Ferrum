@@ -1,0 +1,61 @@
+import "../ops/address/address_of" as address_of
+import "../ops/cast/cast" as cast
+import "implicit_cast" as implicit_cast
+
+struct Place<T> { let ref: &T }
+struct MutPlace<T> { let ref: &mut T }
+
+/* |===========================| */
+/*   CAST OPERATOR DEFINITIONS   */
+/* |===========================| */
+
+group PlaceTypes<T> as (Place<T>, MutPlace<T>)
+impl<T> cast::Castable<From: PlaceTypes<T>, To: T> {
+    fn inline #OP_CAST(value: From) -> To {
+        *value.ref
+    }
+}
+
+impl<T> cast::Castable<From: Place<T>, To: &T> {
+	fn inline #OP_CAST(value: From) -> To {
+		value.ref
+    }
+}
+
+impl<T> cast::Castable<From: MutPlace<T>, To: &mut T> {
+	fn inline #OP_CAST(value: Self) -> To {
+		value.ref
+    }
+}
+
+/* |===========================| */
+/*   IMPLICIT CAST DEFINITIONS   */
+/* |===========================| */
+
+impl<T> implicit_cast::ImplicitCast<From: Place<T>, To: T> {
+    fn inline #IMPLICIT_CAST(from: From) -> To {}
+}
+
+impl<T> implicit_cast::ImplicitCast<From: Place<T>, To: &T> {
+	fn inline #IMPLICIT_CAST(from: From) -> To {}
+}
+
+impl<T> implicit_cast::ImplicitCast<From: MutPlace<T>, To: &mut T> {
+	fn inline #IMPLICIT_CAST(from: From) -> To {}
+}
+
+/* |=================================| */
+/*   ADDRESS_OF OPERATOR DEFINITIONS   */
+/* |=================================| */
+
+impl<T> address_of::Address_Of<ValueType: Place<T>, RetType: &T> {
+    fn inline #OP_ADDRESS_OF(value: ValueType) -> RetType {
+        value.ref
+    }
+}
+
+impl<T> address_of::Address_Of<ValueType: MutPlace<T>, RetType: &mut T> {
+    fn inline #OP_ADDRESS_OF(value: ValueType) -> RetType {
+        value.ref
+    }
+}

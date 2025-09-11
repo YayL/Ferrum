@@ -43,17 +43,16 @@ void ferrum_compile(char * file_path) {
     total += time;
     asprintf(&parser_time, "Time for parser:\t%.3fms", (double)time / 1000);
 
-    // print_ast_tree_from_root(root);
+    print_ast_tree_from_root(root);
     puts(parser_time);
 
     start_timer();
-    pre_checker();
+    pre_checker(&root);
     time = stop_timer();
     total += time;
     asprintf(&pre_checker_time, "Time for pre-checker:\t%.3fms", (double)time / 1000);
 
     puts(pre_checker_time);
-    return;
 
     start_timer();
     checker_check(root);

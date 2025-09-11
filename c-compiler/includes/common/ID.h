@@ -13,7 +13,8 @@
 	f(ID_REF_TYPE,		"RefT",			Ref_T,		TYPE) \
 	f(ID_ARRAY_TYPE,	"ArrayT",		Array_T,	TYPE) \
 	f(ID_TUPLE_TYPE,	"TupleT",		Tuple_T,	TYPE) \
-	f(ID_IMPL_TYPE,		"ImplT",		Impl_T,		TYPE)
+	f(ID_IMPL_TYPE,		"ImplT",		Impl_T,		TYPE) \
+	f(ID_GROUP_TYPE,	"GroupT",		Group_T,	TYPE)
 
 #define AST_REGISTRY_KINDS(f) \
     f(ID_AST_MODULE,		"Module",			a_module,				AST) \
@@ -39,7 +40,8 @@
     f(ID_AST_STRUCT,		"Struct",			a_structure,			AST) \
     f(ID_AST_ENUM,			"Enum",				a_enumeration,			AST) \
     f(ID_AST_TRAIT,			"Trait",			a_trait,				AST) \
-    f(ID_AST_IMPL,			"Implementation",	a_implementation,		AST) 
+    f(ID_AST_IMPL,			"Implementation",	a_implementation,		AST) \
+	f(ID_AST_GROUP,			"Group",			a_group,				AST)
 
 #define REGISTRY_KINDS(f) \
 	OTHER_REGISTRY_KINDS(f) \

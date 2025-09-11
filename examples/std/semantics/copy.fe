@@ -1,0 +1,3 @@
+trait Copy {
+	fn inline copy(value: Self) -> Self
+}

@@ -1,17 +1,18 @@
 import "../../groups/numeric" as numeric
+import "../../semantics/place" as place
 
-trait Indexable<T, U> {
-    fn inline #OP_SUBSCRIPT(ref: &Self, offset: U) -> T
+trait<T, U> Indexable<T, U> {
+    fn inline #OP_SUBSCRIPT(ref: &Self, index: U) -> T
 }
 
-impl Indexable<T, U: (impl numeric::Signed)> for T {
-    fn inline #OP_SUBSCRIPT(ref: &[]T, offset: U) -> T {
+impl<T> Indexable<T, U: (impl numeric::Signed)> for []T {
+    fn inline #OP_SUBSCRIPT(ref: &Self, index: U) -> &T {
         #llvm_getelementptr(ref, offset)
     }
 }
 
-impl Indexable<T, U: (impl numeric::Signed)> for T {
-    fn inline #OP_SUBSCRIPT(ref: &mut []T, offset: U) -> &mut T {
+impl Indexable<T, U: (impl numeric::Signed)> for []T {
+    fn inline #OP_SUBSCRIPT(ref: &mut Self, index: U) -> &mut T {
         #llvm_getelementptr(ref, offset)
     }
 }

@@ -1,0 +1,5 @@
+import "../ops/cast/cast" as cast
+
+trait ImplicitCast<From, To> where cast::Castable<From, To> {
+	fn inline #IMPLICIT_CAST(from: From) -> To
+}

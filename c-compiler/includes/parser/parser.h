@@ -30,6 +30,7 @@ void parser_eat_keyword(struct Parser * parser, enum Keywords keyword);
 void parser_parse(a_root * root, char * path);
 
 ID parser_parse_type(struct Parser * parser);
+Arena parser_parse_template_list(struct Parser * parser);
 
 ID parser_parse_if(struct Parser * parser);
 ID parser_parse_for(struct Parser * parser);
@@ -37,7 +38,7 @@ ID parser_parse_while(struct Parser * parser);
 ID parser_parse_do(struct Parser * parser);
 ID parser_parse_match(struct Parser * parser);
 ID parser_parse_return(struct Parser * parser);
-ID parser_parse_declaration(struct Parser * parser, enum Keywords keyword);
+ID parser_parse_declaration(struct Parser * parser);
 
 ID parser_parse_function(struct Parser * parser);
 ID parser_parse_import(struct Parser * parser);

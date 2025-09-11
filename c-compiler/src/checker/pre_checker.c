@@ -28,6 +28,26 @@ void resolve_impls() {
 	}
 }
 
-void pre_checker() {
+void resolve_variable(a_variable * variable) {
+	ASSERT1(ID_IS(variable->info.node_id, ID_AST_VARIABLE));
+
+	// Symbol_T * place_
+	// variable->type_id
+}
+
+void resolve_variables(a_root * root) {
+	const struct registry_manager manager = registry_manager_get();
+
+	size_t i = 0;
+	for (size_t block = 0; block < manager.a_variable.entries.block_count; ++block) {
+		for (size_t bi = 0; bi < manager.a_variable.entries.block_max_item_count && i < manager.a_variable.entries.item_count; ++bi) {
+			resolve_variable(block_arena_get_ref(manager.a_variable.entries, i));
+			i += 1;
+		}
+	}
+}
+
+void pre_checker(a_root * root) {
 	resolve_impls();
+	resolve_variables(root);
 }

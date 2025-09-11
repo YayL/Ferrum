@@ -23,6 +23,7 @@ enum Keywords_usage {
     f(KEYWORD_IMPL, GLOBAL_ONLY, "impl") \
     f(KEYWORD_INLINE, GLOBAL_ONLY, "inline") \
     f(KEYWORD_AS, GLOBAL_ONLY, "as") \
+    f(KEYWORD_GROUP, GLOBAL_ONLY, "group") \
     \
     f(KEYWORD_ELSE, FUNCTION_ONLY, "else") \
     f(KEYWORD_IF, FUNCTION_ONLY, "if") \
@@ -30,8 +31,7 @@ enum Keywords_usage {
     f(KEYWORD_WHILE, FUNCTION_ONLY, "while") \
     f(KEYWORD_DO, FUNCTION_ONLY, "do") \
     f(KEYWORD_MATCH, FUNCTION_ONLY, "match") \
-    f(KEYWORD_RETURN, FUNCTION_ONLY, "return") \
-    f(KEYWORD_TYPENAME, FUNCTION_ONLY, "typename")
+    f(KEYWORD_RETURN, FUNCTION_ONLY, "return")
 
 #define KEYWORDS_LIST_FULL(f) \
     f(KEYWORD_NOT_FOUND, NONE, "KEYWORD_NOT_FOUND") \
