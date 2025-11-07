@@ -85,7 +85,7 @@ Arena parser_parse_template_list(struct Parser * parser) {
 ID parser_parse_int(struct Parser * parser) {
     a_literal * number = ast_allocate(ID_AST_LITERAL, parser->current_scope_id);
 
-    Numeric_T * num = type_allocate(ID_NUMERIC_TYPE, 0);
+    Numeric_T * num = type_allocate(ID_NUMERIC_TYPE);
     num->width = 32;
     num->type = NUMERIC_SIGNED;
     number->type_id = num->info.type_id;
@@ -100,8 +100,8 @@ ID parser_parse_int(struct Parser * parser) {
 ID parser_parse_string(struct Parser * parser) {
     a_literal * string = ast_allocate(ID_AST_LITERAL, parser->current_scope_id);
 
-    Array_T * array = type_allocate(ID_ARRAY_TYPE, 0);
-    Numeric_T * numeric = type_allocate(ID_NUMERIC_TYPE, 0);
+    Array_T * array = type_allocate(ID_ARRAY_TYPE);
+    Numeric_T * numeric = type_allocate(ID_NUMERIC_TYPE);
     numeric->type = NUMERIC_UNSIGNED;
     numeric->width = 8;
 
@@ -138,6 +138,7 @@ ID parser_parse_id(struct Parser * parser) {
         return symbol->info.node_id;
     }
 
+    // If more than one colon
     if (parser->lexer.tok.type ==  TOKEN_COLON) {
         parser_eat(parser, TOKEN_COLON);
         ARENA_APPEND(&symbol->name_ids, parser->lexer.tok.interner_id);
@@ -339,6 +340,14 @@ ID parser_parse_trait(struct Parser * parser) {
     parser_eat(parser, TOKEN_ID); // [name]
     trait->templates = parser_parse_template_list(parser);
 
+    if (parser->lexer.tok.type == TOKEN_ID) {
+        parser_eat_keyword(parser, KEYWORD_WHERE);
+
+        do {
+            ARENA_APPEND(&trait->where, parser_parse_type(parser));
+        } while (parser->lexer.tok.type == TOKEN_COMMA && (parser_eat(parser, TOKEN_COMMA), 1));
+    }
+
     parser_eat(parser, TOKEN_LBRACE);
 
     while (1) {
@@ -367,9 +376,17 @@ ID parser_parse_impl(struct Parser * parser) {
     parser->current_scope_id = impl->info.node_id;
 
     parser_eat_keyword(parser, KEYWORD_IMPL);
-    impl->impl_templates = parser_parse_template_list(parser);
+    impl->generic_templates = parser_parse_template_list(parser);
     impl->trait_symbol_id = parser_parse_symbol(parser);
     impl->trait_templates = parser_parse_template_list(parser);
+
+    if (parser->lexer.tok.type == TOKEN_ID) {
+        parser_eat_keyword(parser, KEYWORD_WHERE);
+
+        do {
+            ARENA_APPEND(&impl->where, parser_parse_type(parser));
+        } while (parser->lexer.tok.type == TOKEN_COMMA && (parser_eat(parser, TOKEN_COMMA), 1));
+    }
 
     parser_eat(parser, TOKEN_LBRACE);
 
@@ -406,8 +423,6 @@ ID parser_parse_group(struct Parser * parser) {
 
     group->type_id = parser_parse_type(parser);
 
-    println("{s}", ast_to_string(group->info.node_id));
-
     return group->info.node_id;
 }
 
@@ -415,11 +430,11 @@ ID parser_parse_declaration(struct Parser * parser) {
     a_declaration * declaration = ast_allocate(ID_AST_DECLARATION, parser->current_scope_id);
 
     parser_eat_keyword(parser, KEYWORD_LET);
-    char is_mut = 0;
+    declaration->is_mut = 0;
 
     if (id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUT))) {
         parser_eat_keyword(parser, KEYWORD_MUT);
-        is_mut = 1;
+        declaration->is_mut = 1;
     }
 
     declaration->expression_id = parser_parse_expr(parser);
@@ -437,7 +452,9 @@ ID parser_parse_declaration(struct Parser * parser) {
     }
 
     if (!ID_IS(child_node_id, ID_AST_SYMBOL)) {
-        FATAL("{2i::} LHS of declaration must be a symbol", parser->lexer.tok.line, parser->lexer.tok.pos);
+        ERROR("{2i::} LHS of declaration must be a symbol", parser->lexer.tok.line, parser->lexer.tok.pos);
+        print_trace();
+        exit(1);
     }
 
     a_symbol * symbol = lookup(child_node_id);
@@ -447,12 +464,15 @@ ID parser_parse_declaration(struct Parser * parser) {
         ERROR("Variable declaration does not allow names with '::'");
     }
 
+    if (ID_IS_INVALID(symbol->node_id) && symbol->name_ids.size == 1) {
+        a_variable * variable = ast_allocate(ID_AST_VARIABLE, parser->current_scope_id);
+        variable->name_id = symbol->name_id;
+
+        symbol->node_id = variable->info.node_id;
+    }
+
     ASSERT1(ID_IS(symbol->node_id, ID_AST_VARIABLE));
     a_variable * variable = lookup(symbol->node_id);
-
-    if (is_mut) {
-        variable->is_mut = 1;
-    }
 
     switch (declaration->info.scope_id.type) {
         case ID_AST_SCOPE: {

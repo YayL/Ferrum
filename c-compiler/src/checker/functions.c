@@ -37,8 +37,6 @@ void resolve_function_from_operator(ID node_id) {
 
     Arena tuple_types = arena_init(sizeof(ID));
 
-    println("resolving op: {s}", operator_to_str(op->op));
-
     if (op->op.mode == BINARY) {
         ARENA_APPEND(&tuple_types, ast_get_type_of(left_id));
     }

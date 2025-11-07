@@ -5,9 +5,12 @@
 
 typedef struct context {
 	struct symbol_table symbol_table;
+	ID implicit_cast_trait;
 } Context;
 
-void context_init();
+void context_init(ID implicit_cast_trait);
+
+ID context_get_implicit_cast_trait();
 
 Arena context_lookup_all_declarations(ID name_id);
 ID context_lookup_declaration(ID name_id);

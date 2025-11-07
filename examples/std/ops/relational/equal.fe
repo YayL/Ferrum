@@ -1,4 +1,17 @@
-fn inline #OP_EQUAL<T>(left: T, right: T) -> bool {
-    #llvm_op("icmp eq", #llvm_type_of(left), #llvm_load(left), #llvm_load(right))
+import "../../groups/numeric" as numeric
+
+trait #Equal<LeftType, RightType, ResultType> {
+	fn inline #OP_EQUAL(left: LeftType, right: RightType) -> ResultType
 }
 
+impl<T: numeric::Integer> #Equal<LeftType: T, RightType: T, ResultType: bool> {
+	fn inline #OP_EQUAL(left: LeftType, right: RightType) -> ResultType {
+		#llvm_op("icmp eq", left, right)
+	}
+}
+
+impl<T: numeric::Float> #Equal<LeftType: T, RightType: T, ResultType: bool> {
+	fn inline #OP_EQUAL(left: LeftType, right: RightType) -> ResultType {
+		#llvm_op("fcmp ueq", left, right)
+	}
+}

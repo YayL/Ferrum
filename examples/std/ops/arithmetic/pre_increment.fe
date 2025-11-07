@@ -1,14 +1,12 @@
 import "../../groups/numeric" as numeric
 import "addition" as addition
 
-trait Pre_Increment {
-	fn inline #OP_PRE_INCREMENT(ref: &mut Self) -> Self
+trait #Pre_Increment<ValueType, RetType> {
+	fn inline #OP_PRE_INCREMENT(ref: ValueType) -> RetType
 }
 
-impl Pre_Increment for (impl addition::Addition) {
-	fn inline #OP_PRE_INCREMENT(ref: &mut Self) -> Self {
-        *ref = *ref + 1
+impl<T> #Pre_Increment<ValueType: MutPlace<T>, RetType: T> where addition::#Addition<T, T, T> {
+	fn inline #OP_PRE_INCREMENT(value: ValueType) -> RetType {
+		value = value + 1 to T
 	}
 }
-
-

@@ -7,7 +7,6 @@
 
 struct type_info {
     ID type_id;
-    char is_mut;
 };
 
 typedef struct Numeric_T {
@@ -20,7 +19,7 @@ typedef struct Numeric_T {
     } type;
 } Numeric_T;
 
-typedef struct Symbol_T { // any struct/enum types
+typedef struct Symbol_T { // struct/enum/impl/group
     struct type_info info;
     ID symbol_id;
     Arena templates;
@@ -30,6 +29,7 @@ typedef struct Ref_T {
     struct type_info info;
     ID basetype_id;
     char depth;
+    char is_mut;
 } Ref_T;
 
 typedef struct Array_T {
@@ -43,16 +43,11 @@ typedef struct Tuple_T {
     Arena types;
 } Tuple_T;
 
-typedef struct Impl_T {
+typedef struct Place_T {
     struct type_info info;
-    ID symbol_id;
-    ID implementees_id;
-} Impl_T;
-
-typedef struct Group_T {
-    struct type_info info;
-    ID symbol_id;
-} Group_T;
+    char is_mut;
+    ID basetype_id;
+} Place_T;
 
 void type_init_intrinsic_type(enum id_type type, void * type_ref);
 

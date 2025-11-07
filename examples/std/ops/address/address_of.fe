@@ -1,5 +1,21 @@
-import "../../semantics/place" as place
+trait #Address_Of<AddrOf, RetType> {
+    fn inline #OP_ADDRESS_OF(place: AddrOf) -> RetType
+}
 
-trait Address_Of<ValueType, RetType> {
-    fn inline #OP_ADDRESS_OF(value: ValueType) -> RetType
+trait #Mut_Address_Of<AddrOf, RetType> {
+    fn inline #OP_MUT_ADDRESS_OF(place: AddrOf) -> RetType
+}
+
+// There is no need for definition of Address_Of<MutPlace<T>, &T> since
+// that is handled by implicit casting from MutPlace<T> to Place<T>
+impl<T> #Address_Of<AddrOf: Place<T>, RetType: &T> {
+    fn inline #OP_ADDRESS_OF(place: AddrOf) -> RetType {
+        #llvm_place_to_address(place)
+    }
+}
+
+impl<T> #Mut_Address_Of<AddrOf: MutPlace<T>, RetType: &mut T> {
+    fn inline #OP_MUT_ADDRESS_OF(place: AddrOf) -> RetType {
+        #llvm_place_to_address(place)
+    }
 }

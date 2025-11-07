@@ -1,37 +1,10 @@
-import "../../semantics/place" as place
-import "../../semantics/move" as move
-import "../../semantics/copy" as copy
-
-trait Assignable<T> {
-    fn inline #OP_ASSIGNMENT(dest: place::MutPlace<T>, value: T) -> T
+trait #Assignable<Dest, Src> {
+    fn inline #OP_ASSIGNMENT(dest: Dest, value: Src) -> Src
 }
 
-/* This means that a type can not really be copiable and moveable */
-
-impl Assignable<T: move::Move> for place::MutPlace<T> {
-    fn inline #OP_ASSIGNMENT(dest: Self, value: T) -> T {
-        #llvm_store(dest.ref, value)
-        value
-    }
-}
-
-impl Assignable<T: move::Move> for &mut T {
-    fn inline #OP_ASSIGNMENT(dest: Self, value: T) -> T {
+impl<T> #Assignable<Dest: &mut T, Src: T> {
+    fn inline #OP_ASSIGNMENT(dest: Dest, value: Src) -> Src {
         #llvm_store(dest, value)
         value
-    }
-}
-
-impl Assignable<T: copy::Copy> for place::MutPlace<T> {
-    fn inline #OP_ASSIGNMENT(dest: Self, value: T) -> T {
-        #llvm_store(dest.ref, value.copy())
-        #llvm_load(dest.ref)
-    }
-}
-
-impl Assignable<T: copy::Copy> for &mut T {
-    fn inline #OP_ASSIGNMENT(dest: Self, value: T) -> T {
-        #llvm_store(dest, value.copy())
-        #llvm_load(dest)
     }
 }

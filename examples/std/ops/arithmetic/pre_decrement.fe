@@ -1,13 +1,13 @@
 import "../../groups/numeric" as numeric
-import "addition" as addition
+import "subtraction" as subtraction
 
-trait Pre_Decrement {
-	fn inline #OP_PRE_DECREMENT(ref: &mut Self) -> mut Self
+trait #Pre_Decrement<ValueType, RetType> {
+	fn inline #OP_PRE_DECREMENT(ref: ValueType) -> RetType
 }
 
-impl Pre_Decrement for (impl addition::Addition) {
-	fn inline #OP_PRE_DECREMENT(ref: &mut Self) -> mut Self {
-        *ref = *ref - 1
+impl<T> #Pre_Decrement<ValueType: MutPlace<T>, RetType: T> where subtraction::#Subtraction<T, T, T> {
+	fn inline #OP_PRE_DECREMENT(value: ValueType) -> RetType {
+		value = value - 1 to T
 	}
 }
 

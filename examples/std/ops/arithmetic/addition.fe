@@ -1,23 +1,23 @@
 import "../../groups/numeric" as numeric
 
-trait Addition {
-    fn inline #OP_ADDITION(first: Self, second: Self) -> Self
+trait #Addition<Term1Type, Term2Type, SumType> {
+    fn inline #OP_ADDITION(first: Term1Type, second: Term2Type) -> SumType
 }
 
-impl Addition for (impl numeric::Signed) {
-    fn inline #OP_ADDITION(first: Self, second: Self) -> Self {
-        #llvm_op("add nsw", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))
+impl<T: numeric::Signed> #Addition<Term1Type: T, Term2Type: T, SumType: T> {
+    fn inline #OP_ADDITION(first: Term1Type, second: Term2Type) -> SumType {
+        #llvm_op("add nsw", first, second)
     }
 }
 
-impl Addition for (impl numeric::Unsigned) {
-    fn inline #OP_ADDITION(first: Self, second: Self) -> Self {
-        #llvm_op("add nuw", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))
+impl<T: numeric::Unsigned> #Addition<Term1Type: T, Term2Type: T, SumType: T> {
+    fn inline #OP_ADDITION(first: Term1Type, second: Term2Type) -> SumType {
+        #llvm_op("add nuw", first, second)
     }
 }
 
-impl Addition for (impl numeric::Float) {
-    fn inline #OP_ADDITION(first: Self, second: Self) -> Self {
-        #llvm_op("fadd", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))
+impl<T: numeric::Float> #Addition<Term1Type: T, Term2Type: T, SumType: T> {
+    fn inline #OP_ADDITION(first: Term1Type, second: Term2Type) -> SumType {
+        #llvm_op("fadd", first, second)
     }
 }

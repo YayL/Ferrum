@@ -1,9 +1,15 @@
-trait<T> Dereferenceable {
-	fn inline #OP_DEREFERENCE(ref: Self) -> T
+trait #Dereferenceable<RefType, BaseType> {
+	fn inline #OP_DEREFERENCE(ref: RefType) -> BaseType
 }
 
-impl<T> Dereferenceable for T {
-	fn inline #OP_DEREFERENCE(ref: &T) -> T {
-		#llvm_load(ref)
+impl<T> #Dereferenceable<RefType: &T, BaseType: Place<T>> {
+	fn inline #OP_DEREFERENCE(ref: RefType) -> BaseType {
+		#llvm_address_to_place(ref)
+	}
+}
+
+impl<T> #Dereferenceable<RefType: &mut T, BaseType: MutPlace<T>> {
+	fn inline #OP_DEREFERENCE(ref: RefType) -> BaseType {
+		#llvm_address_to_place(ref)
 	}
 }

@@ -11,6 +11,8 @@ enum Keywords_usage {
 
 #define KEYWORDS_LIST(f) \
     f(KEYWORD_BOOL, NONE, "bool") \
+    f(KEYWORD_PLACE, NONE, "Place") \
+    f(KEYWORD_MUTPLACE, NONE, "MutPlace") \
     \
     f(KEYWORD_LET, ANY, "let") \
     f(KEYWORD_MUT, ANY, "mut") \
@@ -24,6 +26,7 @@ enum Keywords_usage {
     f(KEYWORD_INLINE, GLOBAL_ONLY, "inline") \
     f(KEYWORD_AS, GLOBAL_ONLY, "as") \
     f(KEYWORD_GROUP, GLOBAL_ONLY, "group") \
+    f(KEYWORD_WHERE, GLOBAL_ONLY, "where") \
     \
     f(KEYWORD_ELSE, FUNCTION_ONLY, "else") \
     f(KEYWORD_IF, FUNCTION_ONLY, "if") \

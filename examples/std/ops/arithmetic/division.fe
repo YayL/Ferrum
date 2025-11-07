@@ -1,21 +1,23 @@
-trait Division {
-    fn inline #OP_DIVISION(first: Self, second: Self) -> Self
+import "../../groups/numeric" as numeric
+
+trait #Division<NumeratorType, Denominator, QuotientType> {
+    fn inline #OP_DIVISION(first: NumeratorType, second: Denominator) -> QuotientType
 }
 
-impl Division for (i8, i16, i32, i64, i128) {
-    fn inline #OP_DIVISION(first: Self, second: Self) -> Self {
-        #llvm_op("sdiv", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))
+impl<T: numeric::Signed> #Division<NumeratorType: T, Denominator: T, QuotientType: T> {
+    fn inline #OP_DIVISION(first: NumeratorType, second: Denominator) -> QuotientType {
+        #llvm_op("sdiv", first, second)
     }
 }
 
-impl Division for (u8, u16, u32, u64, u128) {
-    fn inline #OP_DIVISION(first: Self, second: Self) -> Self {
-        #llvm_op("udiv", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))
+impl<T: numeric::Unsigned> #Division<NumeratorType: T, Denominator: T, QuotientType: T> {
+    fn inline #OP_DIVISION(first: NumeratorType, second: Denominator) -> QuotientType {
+        #llvm_op("udiv", first, second)
     }
 }
 
-impl Division for (f8, f16, f32, f64, f128) {
-    fn inline #OP_DIVISION(first: Self, second: Self) -> Self {
-        #llvm_op("fdiv", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))
+impl<T: numeric::Float> #Division<NumeratorType: T, Denominator: T, QuotientType: T> {
+    fn inline #OP_DIVISION(first: NumeratorType, second: Denominator) -> QuotientType {
+        #llvm_op("fdiv", first, second)
     }
 }

@@ -28,10 +28,12 @@ void ast_init_node(enum id_type type, void * node_ref) {
         case ID_AST_TRAIT:
             ((a_trait *) node_ref)->children = arena_init(sizeof(ID));
             ((a_trait *) node_ref)->implementations = arena_init(sizeof(ID));
+            ((a_trait *) node_ref)->where = arena_init(sizeof(ID));
             ((a_trait *) node_ref)->name_id = INVALID_ID;
             break;
         case ID_AST_IMPL:
             ((a_implementation *) node_ref)->members = arena_init(sizeof(ID));
+            ((a_implementation *) node_ref)->where = arena_init(sizeof(ID));
             ((a_implementation *) node_ref)->trait_symbol_id = INVALID_ID;
             break;
         case ID_AST_SYMBOL:
@@ -292,6 +294,12 @@ char * ast_to_string(ID node_id) {
             ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}" GREY ">" RESET, ast_str, impl_name);
         } break;
 
+        case ID_AST_TRAIT: {
+            a_trait trait = LOOKUP(node_id, a_trait);
+            ASSERT1(!ID_IS_INVALID(trait.name_id));
+            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Templates" RESET ": {u}" GREY ">" RESET, ast_str, interner_lookup_str(trait.name_id)._ptr, trait.templates.size);
+        } break;
+
         case ID_AST_OP: {
             a_operator op = LOOKUP(node_id, a_operator);
             ast_str = format("{s} " GREY "<" BLUE "Op" RESET ": '{s}', " BLUE "Mode" RESET ": {s}, " BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, op.op.str, op.op.mode == BINARY ? "Binary" : "Unary", type_to_str(op.type_id));
@@ -300,7 +308,7 @@ char * ast_to_string(ID node_id) {
         case ID_AST_VARIABLE: {
             a_variable var = LOOKUP(node_id, a_variable);
             const char * var_name = interner_lookup_str(var.name_id)._ptr;
-            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {s}, " BLUE "Mut" RESET ": {b}" GREY ">" RESET, ast_str, var_name, type_to_str(var.type_id), var.is_mut);
+            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, var_name, type_to_str(var.type_id));
         } break;
 
         case ID_AST_GROUP: {

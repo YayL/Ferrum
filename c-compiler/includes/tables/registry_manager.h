@@ -66,7 +66,7 @@ const struct registry_manager registry_manager_get();
 struct symbol_map_entry * symbol_allocate();
 struct interner_entry * interner_allocate();
 void * ast_allocate(enum id_type type, ID scope_id);
-void * type_allocate(enum id_type type, char is_mut);
+void * type_allocate(enum id_type type);
 
 #define LOOKUP(node_id, type) (*(type *) lookup(node_id))
 

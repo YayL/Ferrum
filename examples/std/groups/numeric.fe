@@ -7,7 +7,7 @@ group Numeric as (Integer, Float)
 
 import "../ops/cast/cast" as cast
 
-impl<T: impl Numeric> cast::Castable<From: T, To: T> for T {
+impl<T: Numeric, U: Numeric> cast::#Castable<From: T, To: U> {
 	fn inline #OP_CAST(value: From) -> To {
 		#llvm_cast(#llvm_load(value), To)
 	}

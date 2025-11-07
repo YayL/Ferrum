@@ -49,9 +49,8 @@ ID checker_check_symbol(ID node_id) {
     ASSERT1(ID_IS(node_id, ID_AST_SYMBOL));
     a_symbol * symbol = lookup(node_id);
 
-    println("Symbol: {s}", ast_to_string(node_id));
     if (symbol->name_ids.size > 1) {
-        symbol->node_id = qualify_symbol(*symbol, ID_AST_DECLARATION);
+        symbol->node_id = qualify_symbol(symbol, ID_AST_DECLARATION);
     } else {
         symbol->node_id = context_lookup_declaration(symbol->name_id);
     }
@@ -93,14 +92,6 @@ ID checker_check_op(ID node_id) {
         }
     } else if (op->op.key == PARENTHESES) {
         return op->type_id = checker_check_expr_node(op->right_id);
-    } else if (op->op.key == ASSIGNMENT) {
-        a_operator * addr_of_op = ast_allocate(ID_AST_OP, ast_get_scope_id(node_id));
-
-        addr_of_op->right_id = op->left_id;
-        addr_of_op->op = operator_get(ADDRESS_OF);
-        op->left_id = addr_of_op->info.node_id;
-
-        checker_check_expr_node(op->left_id);
     } else if (!ID_IS_INVALID(op->left_id)) {
         checker_check_expr_node(op->left_id);
     }
@@ -121,7 +112,7 @@ ID checker_check_expression(ID node_id) {
         return checker_check_expr_node(child_node_id);
     }
 
-    Tuple_T * tuple_type = type_allocate(ID_TUPLE_TYPE, 0);
+    Tuple_T * tuple_type = type_allocate(ID_TUPLE_TYPE);
 
     for (int i = 0; i < expr->children.size; ++i) {
         ID child_node_id = ARENA_GET(expr->children, i, ID);
@@ -308,13 +299,10 @@ void checker_check_scope(ID node_id) {
 void checker_check_declaration(ID node_id) {
     a_declaration declaration = LOOKUP(node_id, a_declaration);
 
-    checker_check_expression(declaration.expression_id);
+    a_expression * expr = lookup(declaration.expression_id);
 
-    a_expression expr = LOOKUP(declaration.expression_id, a_expression);
-
-    for (int i = 0; i < expr.children.size; ++i) {
-        ID child_node_id = ARENA_GET(expr.children, i, ID);
-
+    for (size_t i = 0; i < expr->children.size; ++i) {
+        ID child_node_id = ARENA_GET(expr->children, i, ID);
         if (ID_IS(child_node_id, ID_AST_OP)) {
             a_operator assignment_op = LOOKUP(child_node_id, a_operator);
 
@@ -322,20 +310,28 @@ void checker_check_declaration(ID node_id) {
                 FATAL("Declarations require a direct assignment");
             }
 
-            a_variable * variable;
-            switch (assignment_op.left_id.type) {
-                case ID_AST_SYMBOL:
-                    variable = lookup(LOOKUP(assignment_op.left_id, a_symbol).node_id); break;
-                case ID_AST_VARIABLE:
-                    variable = lookup(assignment_op.left_id); break;
-                default:
-                    FATAL("Invalid lhs with type '{s}'", id_type_to_string(assignment_op.left_id.type));
-            }
+            a_variable * variable = lookup(LOOKUP(assignment_op.left_id, a_symbol).node_id);
+            Place_T * place_type = type_allocate(ID_PLACE_TYPE);
+            place_type->basetype_id = variable->type_id;
+            place_type->is_mut = 1; // This is just temporary and the actual mutability is set after checker_check_expression
 
+            variable->type_id = place_type->info.type_id;
+        }
+    }
+
+    checker_check_expression(declaration.expression_id);
+
+    for (int i = 0; i < expr->children.size; ++i) {
+        ID child_node_id = ARENA_GET(expr->children, i, ID);
+
+        if (ID_IS(child_node_id, ID_AST_OP)) {
+            a_operator assignment_op = LOOKUP(child_node_id, a_operator);
+
+            a_variable * variable = lookup(LOOKUP(assignment_op.left_id, a_symbol).node_id);
             variable->is_declared = 1;
-            variable->type_id = checker_check_expr_node(assignment_op.right_id);
 
-            println("Variable {s} is declared", interner_lookup_str(variable->name_id)._ptr);
+            Place_T * place_type = lookup(variable->type_id);
+            place_type->is_mut = declaration.is_mut;
 
             child_node_id = assignment_op.left_id;
         } else if (!ID_IS(child_node_id, ID_AST_VARIABLE)) {
@@ -387,6 +383,7 @@ void checker_check_definitions(ID node_id) {
             checker_check_impl(node_id); break;
         case ID_AST_IMPORT:
             checker_check_import(node_id); break;
+        case ID_AST_GROUP: break;
         default:
             FATAL("Invalid AST type: {s}", id_type_to_string(node_id.type));
     }
@@ -405,8 +402,6 @@ void checker_check_module(ID node_id) {
 }
 
 void checker_check(a_root root) {
-    context_init();
-
     ID module_id;
     kh_foreach_value(&root.modules, module_id, {
         checker_check_module(module_id);

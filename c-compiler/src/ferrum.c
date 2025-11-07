@@ -43,28 +43,17 @@ void ferrum_compile(char * file_path) {
     total += time;
     asprintf(&parser_time, "Time for parser:\t%.3fms", (double)time / 1000);
 
-    print_ast_tree_from_root(root);
-    puts(parser_time);
-
     start_timer();
     pre_checker(&root);
     time = stop_timer();
     total += time;
     asprintf(&pre_checker_time, "Time for pre-checker:\t%.3fms", (double)time / 1000);
 
-    puts(pre_checker_time);
-
     start_timer();
     checker_check(root);
     time = stop_timer();
     total += time;
     asprintf(&checker_time, "Time for checker:\t%.3fms", (double)time / 1000);
-
-    free(parser_time);
-
-    kh_free(map_string_to_id, &root.modules);
-    return;
-    // print_ast_tree(ast);
 
 //     const char * OUTPUT_PATH = "./build/ferrum.ll";
 //     FILE * fp = open_file(get_abs_path(OUTPUT_PATH), "w");
@@ -85,8 +74,12 @@ void ferrum_compile(char * file_path) {
 //     total += time;
 //     asprintf(&optimization_time, "Time for optimizer:\t%.3fms", (double)time / 1000);
 
-    puts(LINE_BREAKER);
+    print_ast_tree_from_root(root);
+
+    kh_free(map_string_to_id, &root.modules);
+    puts("\n" LINE_BREAKER);
     puts(parser_time);
+    puts(pre_checker_time);
     puts(checker_time);
     // puts(gen_time);
     // puts(optimization_time);

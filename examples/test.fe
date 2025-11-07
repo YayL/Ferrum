@@ -1,18 +1,19 @@
 import "std/lib" as std
-import "std/semantics/place" as place
 
 fn main(argc: i32) -> i32 {
     func_1(argc)
 }
 
 fn func_1(foo: i32) -> i32 {
-    let a: place::Place<i32> = (2 + 222) * argc
+    let a: i32 = (2 + 222) * foo
 
-    let b: place::Place<i32> = a - argc
+    let b: i32 = a - foo
 
-    let i: place::MutPlace<i32> = 0
+    let mut i: i32 = 0
 
     for i < b, i++ {
         i = i + 1
    }
+
+    func_1(foo + 1)
 }

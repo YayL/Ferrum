@@ -5,10 +5,10 @@
 #define BUILTIN_FOR_EACH(f) \
 	f(LLVM_STORE, "#llvm_store") \
 	f(LLVM_LOAD, "#llvm_load") \
-	f(LLVM_REGISTER_OF, "#llvm_register_of") \
 	f(LLVM_TYPE_OF, "#llvm_type_of") \
 	f(LLVM_OP, "#llvm_op") \
-	f(LLVM_GET_TYPE, "#llvm_get_type")
+	f(LLVM_ADDRESS_TO_PLACE, "#llvm_address_to_place") \
+	f(LLVM_PLACE_TO_ADDRESS, "#llvm_place_to_address")
 
 #define BUILTIN_ENUM_MEMBER(ENUM, ...) ENUM,
 enum builtins {

@@ -22,9 +22,8 @@ void * ast_allocate(enum id_type type, ID scope_id) {
 	return registry_manager_allocate(&manager, type, scope_id);
 }
 
-void * type_allocate(enum id_type type, char is_mut) {
+void * type_allocate(enum id_type type) {
 	struct type_info * type_info = registry_manager_allocate(&manager, type, INVALID_ID);
-	type_info->is_mut = is_mut;
 	return (void *) type_info;
 }
 

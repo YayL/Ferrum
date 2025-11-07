@@ -1,23 +1,23 @@
 import "../../groups/numeric" as numeric
 
-trait Multiplication {
-    fn inline #OP_MULTIPLICATION(first: Self, second: Self) -> Self
+trait #Multiplication<Factor1Type, Factor2Type, ProductType> {
+    fn inline #OP_MULTIPLICATION(first: Factor1Type, second: Factor2Type) -> ProductType
 }
 
-impl Multiplication for (impl numeric::Signed) {
-    fn inline #OP_MULTIPLICATION(first: Self, second: Self) -> Self {
-        #llvm_op("mul nsw", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))
+impl<T: numeric::Signed> #Multiplication<Factor1Type: T, Factor2Type: T, ProductType: T> {
+    fn inline #OP_MULTIPLICATION(first: Factor1Type, second: Factor2Type) -> ProductType {
+        #llvm_op("mul nsw", first, second)
     }
 }
 
-impl Multiplication for (impl numeric::Unsigned) {
-    fn inline #OP_MULTIPLICATION(first: Self, second: Self) -> Self {
-        #llvm_op("mul nuw", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))
+impl<T: numeric::Unsigned> #Multiplication<Factor1Type: T, Factor2Type: T, ProductType: T> {
+    fn inline #OP_MULTIPLICATION(first: Factor1Type, second: Factor2Type) -> ProductType {
+        #llvm_op("mul nuw", first, second)
     }
 }
 
-impl Multiplication for (impl numeric::Float) {
-    fn inline #OP_MULTIPLICATION(first: Self, second: Self) -> Self {
-        #llvm_op("fmul", #llvm_type_of(first), #llvm_load(first), #llvm_load(second))
+impl<T: numeric::Float> #Multiplication<Factor1Type: T, Factor2Type: T, ProductType: T> {
+    fn inline #OP_MULTIPLICATION(first: Factor1Type, second: Factor2Type) -> ProductType {
+        #llvm_op("fmul", first, second)
     }
 }

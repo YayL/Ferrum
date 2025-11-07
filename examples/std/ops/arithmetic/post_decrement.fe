@@ -1,14 +1,14 @@
 import "../../groups/numeric" as numeric
-import "addition" as addition
+import "subtraction" as subtraction
 
-trait Post_Decrement {
-	fn inline #OP_POST_DECREMENT(ref: &mut Self) -> mut Self
+trait #Post_Decrement<ValueType, RetType> {
+	fn inline #OP_POST_DECREMENT(ref: ValueType) -> RetType
 }
 
-impl Post_Decrement for (impl addition::Addition) {
-	fn inline #OP_POST_DECREMENT(ref: &mut Self) -> mut Self {
-		let old: mut Self = *ref
-		*ref = *ref - 1
+impl<T> #Post_Decrement<ValueType: MutPlace<T>, RetType: T> where subtraction::#Subtraction<T, T, T> {
+	fn inline #OP_POST_DECREMENT(value: ValueType) -> RetType {
+		let old = value
+		value = value - 1 to T
 		old
 	}
 }

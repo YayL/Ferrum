@@ -5,10 +5,15 @@
 
 Context context;
 
-void context_init() {
+void context_init(ID implicit_cast_trait) {
 	context = (Context) {
-		.symbol_table = symbol_table_init()
+		.symbol_table = symbol_table_init(),
+		.implicit_cast_trait = implicit_cast_trait 
 	};
+}
+
+ID context_get_implicit_cast_trait() {
+	return context.implicit_cast_trait;
 }
 
 ID context_lookup_declaration(ID name_id) {
@@ -44,7 +49,7 @@ void context_exit_module(a_module module) {
 }
 
 void context_enter_function(a_function function) {
-	println("Entering: '{s}'", interner_lookup_str(function.name_id)._ptr);
+	// println("Entering: '{s}'", interner_lookup_str(function.name_id)._ptr);
 	for (size_t i = 0; i < function.templates.size; ++i) {
 		ID child_node_id = ARENA_GET(function.templates, i, ID);
 		ASSERT1(ID_IS(child_node_id, ID_AST_SYMBOL)); // should be handled in the parser
@@ -67,13 +72,13 @@ void context_enter_function(a_function function) {
 		ASSERT1(!ID_IS_INVALID(symbol.node_id)); // Should be handled in the parser
 		ASSERT1(symbol.name_ids.size == 1); // Should be handled in the parser
 
+		// println("Trying to add symbol: {s}", interner_lookup_str(symbol.name_id)._ptr);
 		symbol_map_insert(&context.symbol_table.declarations, symbol.name_id, symbol.node_id);
-		println("Added symbol: {s}", interner_lookup_str(symbol.name_id)._ptr);
 	}
 }
 
 void context_exit_function(a_function function) {
-	println("Leaving: '{s}'", interner_lookup_str(function.name_id)._ptr);
+	// println("Leaving: '{s}'", interner_lookup_str(function.name_id)._ptr);
 	ASSERT1(ID_IS(function.arguments_id, ID_AST_EXPR));
 	a_expression arguments = LOOKUP(function.arguments_id, a_expression);
 
@@ -85,6 +90,7 @@ void context_exit_function(a_function function) {
 		ASSERT1(!ID_IS_INVALID(symbol.node_id)); // Should be handled in the parser
 		ASSERT1(symbol.name_ids.size == 1); // Should be handled in the parser
 
+		// println("Trying to remove symbol: {s}", interner_lookup_str(symbol.name_id)._ptr);
 		symbol_map_remove(&context.symbol_table.declarations, symbol.name_id);
 	}
 
@@ -101,12 +107,13 @@ void context_exit_function(a_function function) {
 }
 
 void context_enter_scope(a_scope scope) {
-	println("Scope declarations: {u}", scope.declarations.size);
+	// println("Scope declarations: {u}", scope.declarations.size);
 	for (size_t i = 0; i < scope.declarations.size; ++i) {
 		ID node_id = ARENA_GET(scope.declarations, i, ID);
 		ASSERT1(ID_IS(node_id, ID_AST_VARIABLE));
 
 		a_variable variable = LOOKUP(node_id, a_variable);
+		// println("Trying to add symbol: {s}", interner_lookup_str(variable.name_id)._ptr);
 		symbol_map_insert(&context.symbol_table.declarations, variable.name_id, node_id);
 	}
 }
@@ -117,6 +124,8 @@ void context_exit_scope(a_scope scope) {
 		ASSERT1(ID_IS(node_id, ID_AST_VARIABLE));
 
 		a_variable variable = LOOKUP(node_id, a_variable);
-		symbol_map_insert(&context.symbol_table.declarations, variable.name_id, node_id);
+		// println("Trying to remove symbol: {s}", interner_lookup_str(variable.name_id)._ptr);
+		symbol_map_remove(&context.symbol_table.declarations, variable.name_id);
+		// symbol_map_insert(&context.symbol_table.declarations, variable.name_id, node_id);
 	}
 }

@@ -68,6 +68,7 @@ typedef struct a_declaration {
     struct AST_info info;
     ID expression_id;
     ID name_id;
+    char is_mut;
 } a_declaration;
 
 typedef struct a_expression {
@@ -95,13 +96,15 @@ typedef struct a_trait {
     Arena children;
     Arena templates;
     Arena implementations;
+    Arena where;
 } a_trait;
 
 typedef struct a_implementation {
     struct AST_info info;
     ID trait_symbol_id;
-    Arena impl_templates;
+    Arena generic_templates;
     Arena trait_templates;
+    Arena where;
     Arena members;
 } a_implementation;
 
@@ -136,7 +139,6 @@ typedef struct a_variable {
     ID name_id;
     unsigned int reg;
     char is_declared;
-    char is_mut;
 } a_variable;
 
 typedef struct a_literal {
