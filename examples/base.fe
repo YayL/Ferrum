@@ -2,5 +2,8 @@ import "std/lib" as std
 
 fn main(argc: i32) -> i8 {
 	let mut a: i32 = 3
-	a = 3
+	let ref: &mut i32 = &a
+	*ref = 2
+
+	a
 }

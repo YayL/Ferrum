@@ -131,7 +131,7 @@ FRResult frsolver_solve(FRSolver solver) {
 }
 
 char is_equal_types_and_template_resolution(ID caller_type, ID func_type, khash_t(map_id_to_id) * caller_templates, khash_t(map_id_to_id) * func_templates) {
-	// println("Check: {2s: == }", type_to_str(caller_type), type_to_str(func_type));
+	println("Check: {2s: == }", type_to_str(caller_type), type_to_str(func_type));
 
 	if (ID_IS(caller_type, ID_PLACE_TYPE) && !ID_IS(func_type, ID_PLACE_TYPE) && !ID_IS(func_type, ID_SYMBOL_TYPE)) {
 		Place_T caller_place = LOOKUP(caller_type, Place_T);
@@ -317,7 +317,7 @@ char is_valid_equal_type(ID caller_type, ID func_type, khash_t(map_id_to_id) * c
 		}
 	}
 
-	// println("Is #ImplicitCast<{s}, {s}>", type_to_str(caller_type), type_to_str(func_type));
+	println("Is #ImplicitCast<{s}, {s}>", type_to_str(caller_type), type_to_str(func_type));
 
 	khash_t(map_id_to_id) temp_templates = kh_init(map_id_to_id);
 
@@ -392,6 +392,7 @@ char check_template_def_matches_type(ID template_id, ID type_id) {
 }
 
 ID resolve_type_templates_in_type(ID type_id, khash_t(map_id_to_id) * templates) {
+	println("resolve type templates in: {s}", type_to_str(type_id));
 	switch (type_id.type) {
 		case ID_NUMERIC_TYPE:
 			return type_id;
@@ -417,7 +418,7 @@ ID resolve_type_templates_in_type(ID type_id, khash_t(map_id_to_id) * templates)
 				return type_id;
 			}
 
-			Ref_T * new_ref = type_allocate(ID_ARRAY_TYPE);
+			Ref_T * new_ref = type_allocate(ID_REF_TYPE);
 			new_ref->basetype_id = resolved_type;
 			new_ref->depth = ref.depth;
 			new_ref->is_mut = ref.is_mut;

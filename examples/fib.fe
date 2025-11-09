@@ -18,8 +18,8 @@ fn fib(n: i32) -> i32 {
 	let mut curr: i32 = 2
 
 	for i < n, ++i {
-		temp = curr
-		curr = temp + prev
+		temp = curr_ref
+		curr_ref = temp + prev
 		prev = temp
 	}
 

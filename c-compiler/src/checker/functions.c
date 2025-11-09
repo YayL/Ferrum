@@ -56,6 +56,15 @@ void resolve_function_from_operator(ID node_id) {
 
     op->definition.function_id = result.function_id;
     op->type_id = result.function_return_type_id;
+
+    println("type: {s}, {s}", type_to_str(op->type_id), id_type_to_string(op->type_id.type));
+    println("args: {s}", type_to_str(result.args_type_id));
+    print_ast_tree(result.function_id);
+    print_ast_tree(node_id);
+
+    if (ID_IS(op->type_id, ID_ARRAY_TYPE)) {
+        exit(0);
+    }
 }
 
 ID get_member_function(const char * member_name, ID args_type_id, ID return_type_id, ID scope_id) {
