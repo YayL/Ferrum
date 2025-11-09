@@ -206,12 +206,12 @@ ID parser_parse_if(struct Parser * parser) {
         }
 
         switch (if_type) {
-            case _NONE: ASSERT1(0);
+            case _NONE: FATAL("If error?");
             case _IF:
             case _ELSE_IF:
                 if_statement->expression_id = parser_parse_expr(parser);
             case _ELSE:
-                if_statement->body_id = parser_parse_expr(parser);
+                if_statement->body_id = parser_parse_scope(parser);
         }
 
         if (!id_is_equal(parser->lexer.tok.interner_id, keyword_else_id)) {

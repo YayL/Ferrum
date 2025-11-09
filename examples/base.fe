@@ -1,0 +1,6 @@
+import "std/lib" as std
+
+fn main(argc: i32) -> i8 {
+	let a = 3
+	a = 3
+}

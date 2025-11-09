@@ -137,16 +137,14 @@ ID checker_check_variable(ID node_id) {
 
 void checker_check_if(ID node_id) {
     ID next_id = node_id;
-    a_if_statement if_statement;
     
     do {
-        if_statement = LOOKUP(node_id, a_if_statement);
+        a_if_statement if_statement = LOOKUP(next_id, a_if_statement);
 
         if (!ID_IS_INVALID(if_statement.expression_id)) {
             checker_check_expression(if_statement.expression_id);
         } else if (!ID_IS_INVALID(if_statement.next_id)) {
-            ERROR("Else is only allowed at the end of an if chain");
-            exit(1);
+            FATAL("Else is not at the end of an if chain?");
         }
 
         checker_check_scope(if_statement.body_id);

@@ -11,6 +11,8 @@ fn func_1(foo: i32) -> i32 {
 
     let mut i: i32 = 0
 
+    b = 3
+
     for i < b, i++ {
         i = i + 1
    }

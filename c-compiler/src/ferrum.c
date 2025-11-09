@@ -42,18 +42,21 @@ void ferrum_compile(char * file_path) {
     time = stop_timer();
     total += time;
     asprintf(&parser_time, "Time for parser:\t%.3fms", (double)time / 1000);
+    puts("parser done");
 
     start_timer();
     pre_checker(&root);
     time = stop_timer();
     total += time;
     asprintf(&pre_checker_time, "Time for pre-checker:\t%.3fms", (double)time / 1000);
+    puts("pre-checker done");
 
     start_timer();
     checker_check(root);
     time = stop_timer();
     total += time;
     asprintf(&checker_time, "Time for checker:\t%.3fms", (double)time / 1000);
+    puts("checker done");
 
 //     const char * OUTPUT_PATH = "./build/ferrum.ll";
 //     FILE * fp = open_file(get_abs_path(OUTPUT_PATH), "w");
