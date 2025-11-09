@@ -247,7 +247,7 @@ char is_equal_types_and_template_resolution(ID caller_type, ID func_type, khash_
 			}
 
 			if (caller->depth == func.depth) {
-				return is_valid_equal_type(caller->basetype_id, func.basetype_id, caller_templates, func_templates);
+				return caller->is_mut == func.is_mut && is_valid_equal_type(caller->basetype_id, func.basetype_id, caller_templates, func_templates);
 			}
 
 			FATAL("Unsure about this");
@@ -337,9 +337,12 @@ char is_valid_equal_type(ID caller_type, ID func_type, khash_t(map_id_to_id) * c
 			continue;
 		}
 
+		// println("Found from: {s} | {s}", type_to_str(caller_type), type_to_str(id1));
+
 		ID id2 = ARENA_GET(impl.trait_templates, 1, ID);
 		// println("0 impl: #ImplicitCast<{s}, {s}>", type_to_str(id1), type_to_str(id2));
 		if (is_equal_types_and_template_resolution(func_type, id2, func_templates, &temp_templates)) {
+			// println("Found to: {s} | {s}", type_to_str(func_type), type_to_str(id2));
 			return 1;
 		}
 	}

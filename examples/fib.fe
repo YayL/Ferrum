@@ -13,9 +13,9 @@ fn fib(n: i32) -> i32 {
 
 	// start at fib(3)
 	let mut i: i32 = 3
-	let temp: i32 = 0
-	let prev: i32 = 1
-	let curr: i32 = 2
+	let mut temp: i32 = 0
+	let mut prev: i32 = 1
+	let mut curr: i32 = 2
 
 	for i < n, ++i {
 		temp = curr
