@@ -138,7 +138,6 @@ typedef struct a_variable {
     ID type_id;
     ID name_id;
     unsigned int reg;
-    char is_declared;
 } a_variable;
 
 typedef struct a_literal {

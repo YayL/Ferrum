@@ -125,13 +125,7 @@ ID checker_check_expression(ID node_id) {
 
 ID checker_check_variable(ID node_id) {
     a_variable variable = LOOKUP(node_id, a_variable);
-
-    if (!variable.is_declared) {
-        ERROR("Variable '{s}' used before declaration", interner_lookup_str(variable.name_id));
-    }
-
     ASSERT1(!ID_IS_INVALID(variable.type_id));
-
     return variable.type_id;
 }
 
@@ -326,7 +320,6 @@ void checker_check_declaration(ID node_id) {
             a_operator assignment_op = LOOKUP(child_node_id, a_operator);
 
             a_variable * variable = lookup(LOOKUP(assignment_op.left_id, a_symbol).node_id);
-            variable->is_declared = 1;
 
             Place_T * place_type = lookup(variable->type_id);
             place_type->is_mut = declaration.is_mut;
@@ -350,9 +343,6 @@ void checker_check_function(ID node_id) {
         ID child_node_id = ARENA_GET(arguments.children, i, ID);
         ASSERT(ID_IS(child_node_id, ID_AST_SYMBOL), "Function arguments currently only support declarations");
         a_symbol symbol = LOOKUP(child_node_id, a_symbol);
-        a_variable * variable = lookup(symbol.node_id);
-
-        variable->is_declared = 1;
         checker_check_variable(symbol.node_id);
     }
 

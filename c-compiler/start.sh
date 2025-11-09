@@ -21,10 +21,12 @@ set -e
 
 if [ "$1" = "perf" ] ; then  # perf test
     shift 1
+    perf record ./build/compiler "$@"
+    perf report
+elif [ "$1" = "callgrind" ] ; then
+    shift 1
     rm -f callgrind.* &> /dev/null # rm callgrind.* > /dev/null 2>&1
-    echo "1"
     valgrind --tool=callgrind --collect-systime=usec --dump-instr=yes ./build/compiler "$@"
-    echo "2"
     qcachegrind
 elif [ "$1" = "mem" ] ; then # memory test
     shift 1

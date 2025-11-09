@@ -77,7 +77,7 @@ void ferrum_compile(char * file_path) {
 //     total += time;
 //     asprintf(&optimization_time, "Time for optimizer:\t%.3fms", (double)time / 1000);
 
-    print_ast_tree_from_root(root);
+    // print_ast_tree_from_root(root);
 
     kh_free(map_string_to_id, &root.modules);
     puts("\n" LINE_BREAKER);

@@ -21,7 +21,7 @@ void symbol_map_insert(struct symbol_map * symbol_map, ID name_id, ID node_id) {
 		entry->shadowed_symbol_id = kh_value(&symbol_map->map, k);
 	}
 
-	ASSERT(ret_code == KH_PUT_SUCCESS, "Some error occured while retrieving from hashmap. Error code {i}", ret_code);
+	ASSERT(ret_code != KH_PUT_ERROR, "Some error occured while retrieving from hashmap. Error code {i}", ret_code);
 	kh_value(&symbol_map->map, k) = entry->symbol_id;
 }
 

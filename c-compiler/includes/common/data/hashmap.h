@@ -161,8 +161,10 @@ typedef unsigned long long khint64_t;
 #endif
 #endif /* klib_unused */
 
+#define KH_PUT_ERROR -1
 #define KH_PUT_ALREADY_PRESENT 0
 #define KH_PUT_SUCCESS 1
+#define KH_PUT_PREVIOUSLY_DELTED 2
 
 typedef khint32_t khint_t;
 typedef khint_t khiter_t;
