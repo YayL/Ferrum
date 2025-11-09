@@ -43,6 +43,7 @@ enum OP_speciality {
     f(BITWISE_NOT, UNARY_PRE, 4, RIGHT, NORMAL, "~") \
     f(DEREFERENCE, UNARY_PRE, 4, RIGHT, NORMAL, "*") \
     f(ADDRESS_OF, UNARY_PRE, 4, RIGHT, NORMAL, "&") \
+    f(MUT_ADDRESS_OF, UNARY_PRE, 4, RIGHT, NORMAL, "&mut") \
     \
     f(MULTIPLICATION, BINARY, 5, LEFT, NORMAL, "*") \
     f(DIVISION, BINARY, 5, LEFT, NORMAL, "/") \

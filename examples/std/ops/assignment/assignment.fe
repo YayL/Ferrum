@@ -2,6 +2,13 @@ trait #Assignable<Dest, Src> {
     fn inline #OP_ASSIGNMENT(dest: Dest, value: Src) -> Src
 }
 
+impl<T> #Assignable<Dest: MutPlace<T>, Src: T> {
+    fn inline #OP_ASSIGNMENT(dest: Dest, value: Src) -> Src {
+        #llvm_store(dest, value)
+        value
+    }
+}
+
 impl<T> #Assignable<Dest: &mut T, Src: T> {
     fn inline #OP_ASSIGNMENT(dest: Dest, value: Src) -> Src {
         #llvm_store(dest, value)

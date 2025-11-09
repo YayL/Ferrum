@@ -54,8 +54,7 @@ Arena _parser_parse_expr(struct Parser * parser, Arena * output, DEQUE_T(Operato
 
     while (1) {
         switch (parser->lexer.tok.type) {
-            case TOKEN_ID:
-            {
+            case TOKEN_ID: {
                 if (mode == BINARY) {
                     println("[Parser] Invalid expression token: {s}\n", token_to_str(parser->lexer.tok));
                     exit(1);
@@ -74,18 +73,15 @@ Arena _parser_parse_expr(struct Parser * parser, Arena * output, DEQUE_T(Operato
                 ARENA_APPEND(output, node_id);
                 mode = BINARY;
             } break;
-            case TOKEN_INT:
-            {
+            case TOKEN_INT: {
                 ARENA_APPEND(output, parser_parse_int(parser));
                 mode = BINARY;
             } break;
-            case TOKEN_STRING_LITERAL:
-            {
+            case TOKEN_STRING_LITERAL: {
                 ARENA_APPEND(output, parser_parse_string(parser));
                 mode = BINARY;
             } break;
-            case TOKEN_OP:
-            {
+            case TOKEN_OP: {
                 // enclosed flag is true if enclosed operator is the closing enclosing operator
                 op1 = get_operator(parser->lexer.tok.span, parser->lexer.tok, mode, &flag);
 
@@ -126,6 +122,7 @@ Arena _parser_parse_expr(struct Parser * parser, Arena * output, DEQUE_T(Operato
                         goto exit;
                     }
                 }
+
                 op2 = DEQUE_BACK(Operator, operators);
                 while (operators->size && (op2.enclosed != ENCLOSED &&
                         (op2.precedence < op1.precedence || (op1.precedence == op2.precedence && op2.associativity == LEFT))))
@@ -149,6 +146,14 @@ Arena _parser_parse_expr(struct Parser * parser, Arena * output, DEQUE_T(Operato
                         ? BINARY 
                         : UNARY_PRE;
                 parser_eat(parser, parser->lexer.tok.type);
+
+                if (op1.key == ADDRESS_OF
+                    && parser->lexer.tok.type == TOKEN_ID 
+                    && id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUT)))
+                {
+                    parser_eat(parser, TOKEN_ID);
+                    op1 = operator_get(MUT_ADDRESS_OF);
+                }
 
                 if (op1.key == CAST) {
                     consume_add_operator(op1, output, parser);

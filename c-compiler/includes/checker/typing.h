@@ -29,5 +29,5 @@ struct substitution subst_lookup(FRResult fr, ID id);
 
 ID * create_type_variable();
 
-char is_equal_types_and_template_resolution(ID caller_type, ID func_type, khash_t(map_id_to_id) * caller_templates, khash_t(map_id_to_id) * func_templates);
+char is_equal_types_and_template_resolution(ID caller_type, ID func_type, khash_t(map_id_to_id) * caller_templates, khash_t(map_id_to_id) * func_templates, unsigned int * specificity_cost);
 ID get_template_from_templates(a_symbol symbol, khash_t(map_id_to_id) * templates, khint_t * found);
