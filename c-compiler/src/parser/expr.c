@@ -56,7 +56,7 @@ Arena _parser_parse_expr(struct Parser * parser, Arena * output, DEQUE_T(Operato
         switch (parser->lexer.tok.type) {
             case TOKEN_ID: {
                 if (mode == BINARY) {
-                    println("[Parser] Invalid expression token: {s}\n", token_to_str(parser->lexer.tok));
+                    FATAL("Invalid expression token: {s}\n", token_to_str(parser->lexer.tok));
                     exit(1);
                 }
 

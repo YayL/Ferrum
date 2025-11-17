@@ -142,7 +142,9 @@ void lexer_parse_multi_line_comment(struct Lexer * lexer) {
         prev = lexer->c;
         lexer_advance(lexer);
     }
-    lexer_advance(lexer);
+
+    lexer_advance(lexer); // Skip last '/'
+    lexer_next_token(lexer);
 }
 
 
@@ -150,10 +152,11 @@ void lexer_parse_single_line_comment(struct Lexer * lexer) {
     unsigned int offset = 0;    
     char c;
     
-    while(lexer->c != '\n' && lexer->c != EOF) 
+    while(lexer->c != '\n' && lexer->c != EOF) {
         lexer_advance(lexer);
+    }
 
-    lexer_advance(lexer);
+    lexer_next_token(lexer); // Keep linebreak
 }
 
 
@@ -198,11 +201,9 @@ void lexer_next_token(struct Lexer * lexer) {
             peek = lexer_peek(lexer, 1);
             if (peek == '/') {
                 lexer_parse_single_line_comment(lexer);
-                lexer_next_token(lexer);
                 break;
             } else if (peek == '*') {
                 lexer_parse_multi_line_comment(lexer);
-                lexer_next_token(lexer);
                 break;
             }
 
