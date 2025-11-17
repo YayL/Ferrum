@@ -1,0 +1,9 @@
+trait Countable<Type> {
+	fn count(value: Type) -> u64
+}
+
+impl<T> Countable<Type: [_]T> {
+	fn count(value: Type) -> u64 {
+		#array_count(value)
+	}
+}

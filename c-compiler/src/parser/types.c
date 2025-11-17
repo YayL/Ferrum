@@ -37,105 +37,108 @@ ID _parser_parse_numeric_type(struct Parser * parser) {
 
 ID parser_parse_type(struct Parser * parser) {
     switch (parser->lexer.tok.type) {
-    case TOKEN_ID: {
-        if (id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_BOOL))) {
-            parser_eat(parser, TOKEN_ID);
+        case TOKEN_ID: {
+            if (id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_BOOL))) {
+                parser_eat(parser, TOKEN_ID);
 
-            Numeric_T * numeric = type_allocate(ID_NUMERIC_TYPE);
-            numeric->type = NUMERIC_UNSIGNED;
-            numeric->width = 1;
+                Numeric_T * numeric = type_allocate(ID_NUMERIC_TYPE);
+                numeric->type = NUMERIC_UNSIGNED;
+                numeric->width = 1;
 
-            return numeric->info.type_id;
-        } else if (id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_PLACE))
-                || id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUTPLACE))) {
-            char is_mut = id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUTPLACE));
-            parser_eat(parser, TOKEN_ID);
+                return numeric->info.type_id;
+            } else if (id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_PLACE))
+                    || id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUTPLACE))) {
+                char is_mut = id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUTPLACE));
+                parser_eat(parser, TOKEN_ID);
 
-            Place_T * place = type_allocate(ID_PLACE_TYPE);
-            place->is_mut = is_mut;
+                Place_T * place = type_allocate(ID_PLACE_TYPE);
+                place->is_mut = is_mut;
 
-            parser_eat(parser, TOKEN_LT);
-            place->basetype_id = parser_parse_type(parser);
-            parser_eat(parser, TOKEN_GT);
+                parser_eat(parser, TOKEN_LT);
+                place->basetype_id = parser_parse_type(parser);
+                parser_eat(parser, TOKEN_GT);
 
-            return place->info.type_id;
-        } else {
-            ID numeric_type_id = _parser_parse_numeric_type(parser);
+                return place->info.type_id;
+            } else {
+                ID numeric_type_id = _parser_parse_numeric_type(parser);
 
-            if (!ID_IS_INVALID(numeric_type_id)) {
-                return numeric_type_id;
-            }
+                if (!ID_IS_INVALID(numeric_type_id)) {
+                    return numeric_type_id;
+                }
 
-            Symbol_T * type = type_allocate(ID_SYMBOL_TYPE);
-            type->symbol_id = parser_parse_symbol(parser);
-            type->templates = arena_init(sizeof(ID));
+                Symbol_T * type = type_allocate(ID_SYMBOL_TYPE);
+                type->symbol_id = parser_parse_symbol(parser);
+                type->templates = arena_init(sizeof(ID));
 
-            // If there are no templates or empty template list
-            if (parser->lexer.tok.type != TOKEN_LT || (parser_eat(parser, TOKEN_LT), parser->lexer.tok.type == TOKEN_GT && (parser_eat(parser, TOKEN_GT), 1))) {
+                // If there are no templates or empty template list
+                if (parser->lexer.tok.type != TOKEN_LT || (parser_eat(parser, TOKEN_LT), parser->lexer.tok.type == TOKEN_GT && (parser_eat(parser, TOKEN_GT), 1))) {
+                    return type->info.type_id;
+                }
+
+                do {
+                    ARENA_APPEND(&type->templates, parser_parse_type(parser));
+                } while (parser->lexer.tok.type == TOKEN_COMMA && (parser_eat(parser, TOKEN_COMMA), 1));
+                parser_eat(parser, TOKEN_GT);
+
                 return type->info.type_id;
             }
 
+        } break;
+        case TOKEN_AMPERSAND: {
+            Ref_T * ref = type_allocate(ID_REF_TYPE);
+            ref->is_mut = 0;
+            ref->depth = 0;
+
+            while (parser->lexer.tok.type == TOKEN_AMPERSAND) {
+                parser_eat(parser, TOKEN_AMPERSAND);
+                ref->depth += 1;
+            }
+
+            if (parser->lexer.tok.type == TOKEN_ID && id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUT))) {
+                parser_eat(parser, TOKEN_ID);
+                ref->is_mut = 1;
+            }
+
+            ref->basetype_id = parser_parse_type(parser);
+            return ref->info.type_id;
+        }
+        case TOKEN_LBRACKET:
+            parser_eat(parser, TOKEN_LBRACKET);
+
+            Array_T * array = type_allocate(ID_ARRAY_TYPE);
+
+            switch (parser->lexer.tok.type) {
+                case TOKEN_INT:
+                    array->size = atoi(parser->lexer.tok.span.start);
+                    ASSERT1(array->size != -1);
+                    parser_eat(parser, TOKEN_INT);
+                    break;
+                case TOKEN_UNDERSCORE:
+                    parser_eat(parser, TOKEN_UNDERSCORE);
+                    array->size = -1;
+                    break;
+                default:
+                    FATAL("Slices are not yet implemented");
+            }
+
+            parser_eat(parser, TOKEN_RBRACKET);
+
+            array->basetype_id = parser_parse_type(parser);
+
+            return array->info.type_id;
+        case TOKEN_LPAREN:
+            parser_eat(parser, TOKEN_LPAREN);
+
+            Tuple_T * tuple = type_allocate(ID_TUPLE_TYPE);
+
             do {
-                ARENA_APPEND(&type->templates, parser_parse_type(parser));
+                ARENA_APPEND(&tuple->types, parser_parse_type(parser));
             } while (parser->lexer.tok.type == TOKEN_COMMA && (parser_eat(parser, TOKEN_COMMA), 1));
-            parser_eat(parser, TOKEN_GT);
+            parser_eat(parser, TOKEN_RPAREN);
 
-            return type->info.type_id;
-        }
-
-    } break;
-    case TOKEN_AMPERSAND: {
-        Ref_T * ref = type_allocate(ID_REF_TYPE);
-        ref->is_mut = 0;
-        ref->depth = 0;
-
-        while (parser->lexer.tok.type == TOKEN_AMPERSAND) {
-            parser_eat(parser, TOKEN_AMPERSAND);
-            ref->depth += 1;
-        }
-
-        if (parser->lexer.tok.type == TOKEN_ID && id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUT))) {
-            parser_eat(parser, TOKEN_ID);
-            ref->is_mut = 1;
-        }
-
-        ref->basetype_id = parser_parse_type(parser);
-        return ref->info.type_id;
-    }
-    case TOKEN_LBRACKET:
-        parser_eat(parser, TOKEN_LBRACKET);
-
-        Array_T * array = type_allocate(ID_ARRAY_TYPE);
-
-        switch (parser->lexer.tok.type) {
-        case TOKEN_INT:
-            array->size = atoi(parser->lexer.tok.span.start);
-            parser_eat(parser, TOKEN_INT);
-            break;
-        case TOKEN_UNDERSCORE:
-            FATAL("Slices are not yet implemented");
+            return tuple->info.type_id;
         default:
-            array->size = -1;
-        }
-
-        parser_eat(parser, TOKEN_RBRACKET);
-
-        array->basetype_id = parser_parse_type(parser);
-
-        return array->info.type_id;
-    case TOKEN_LPAREN:
-        parser_eat(parser, TOKEN_LPAREN);
-
-        Tuple_T * tuple = type_allocate(ID_TUPLE_TYPE);
-
-        do {
-            ARENA_APPEND(&tuple->types, parser_parse_type(parser));
-        } while (parser->lexer.tok.type == TOKEN_COMMA && (parser_eat(parser, TOKEN_COMMA), 1));
-        parser_eat(parser, TOKEN_RPAREN);
-
-        return tuple->info.type_id;
-    default:
-        FATAL("Invalid token type: {s}", token_type_to_str(parser->lexer.tok.type));
+            FATAL("Invalid token type: {s}", token_type_to_str(parser->lexer.tok.type));
     }
 }
 

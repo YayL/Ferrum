@@ -1,3 +1,7 @@
 import "ops/op" as op
 import "semantics/implicit_cast" as implicit_cast
+
+import "storage/slice" as slice
+import "storage/list" as list
+
 import "math" as math

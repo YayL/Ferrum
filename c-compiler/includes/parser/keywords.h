@@ -13,6 +13,7 @@ enum Keywords_usage {
     f(KEYWORD_BOOL, NONE, "bool") \
     f(KEYWORD_PLACE, NONE, "Place") \
     f(KEYWORD_MUTPLACE, NONE, "MutPlace") \
+    f(KEYWORD_STATIC, NONE, "static") \
     \
     f(KEYWORD_LET, ANY, "let") \
     f(KEYWORD_MUT, ANY, "mut") \

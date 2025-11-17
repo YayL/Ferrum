@@ -15,3 +15,15 @@ impl<T, U: numeric::Unsigned> #Indexable<RefType: &mut T, BaseType: MutPlace<T>,
         #llvm_getelementptr(ref, offset)
     }
 }
+
+impl<T, U: numeric::Unsigned> #Indexable<RefType: [_]T, BaseType: Place<T>, IndexType: U> {
+    fn inline #OP_SUBSCRIPT(ref: RefType, index: IndexType) -> BaseType {
+        #llvm_getelementptr(ref, offset)
+    }
+}
+
+impl<T, U: numeric::Unsigned> #Indexable<RefType: MutPlace<[_]T>, BaseType: MutPlace<T>, IndexType: U> {
+    fn inline #OP_SUBSCRIPT(ref: RefType, index: IndexType) -> BaseType {
+        #llvm_getelementptr(ref, offset)
+    }
+}

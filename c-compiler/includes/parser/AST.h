@@ -55,7 +55,7 @@ typedef struct a_function {
     Arena templates;
 
     char is_inline;
-    char is_checked;
+    char is_static;
 } a_function;
 
 typedef struct a_scope {
@@ -80,6 +80,7 @@ typedef struct a_expression {
 typedef struct a_structure {
     struct AST_info info;
     ID name_id;
+    Arena generics;
     Arena templates;
     Arena declarations;
 } a_structure;

@@ -1,0 +1,10 @@
+
+let START_ARENA_SIZE: u64 = 100			// Number of blocks at the start
+let BLOCK_ALIGNMENT: u64 = 16			// Block alignment in bytes
+let GROWTH_SPEED_NUMERATOR: u64 = 3		// The scalar's numerator to multiply block count by upon growth
+let GROWTH_SPEED_DENOMINATOR: u64 = 2	// The scalar's denominator to multiply block count by upon growth
+
+enum block_state {
+	NOT_AVAILABLE
+	AVILABLE
+}

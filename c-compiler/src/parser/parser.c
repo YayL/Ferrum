@@ -289,6 +289,7 @@ ID parser_parse_struct(struct Parser * parser) {
     parser->current_scope_id = _struct->info.node_id;
 
     parser_eat_keyword(parser, KEYWORD_STRUCT);
+    _struct->generics = parser_parse_template_list(parser);
 
     _struct->name_id = parser->lexer.tok.interner_id;
     parser_eat(parser, TOKEN_ID); // [name]
@@ -472,16 +473,15 @@ ID parser_parse_declaration(struct Parser * parser) {
     }
 
     ASSERT1(ID_IS(symbol->node_id, ID_AST_VARIABLE));
-    a_variable * variable = lookup(symbol->node_id);
 
     switch (declaration->info.scope_id.type) {
         case ID_AST_SCOPE: {
             a_scope * scope = lookup(declaration->info.scope_id);
-            ARENA_APPEND(&scope->declarations, symbol->node_id);
+            ARENA_APPEND(&scope->declarations, child_node_id);
         } break;
         case ID_AST_STRUCT: {
             a_structure * structure = lookup(declaration->info.scope_id);
-            ARENA_APPEND(&structure->declarations, symbol->node_id);
+            ARENA_APPEND(&structure->declarations, child_node_id);
         } break;
         default:
             FATAL("Invalid declaration scope: '{s}'", id_type_to_string(declaration->info.scope_id.type));
@@ -569,6 +569,11 @@ ID parser_parse_function(struct Parser * parser) {
     parser->current_scope_id = function->info.node_id;
 
     parser_eat_keyword(parser, KEYWORD_FN); // fn
+    
+    if (id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_STATIC))) {
+        function->is_static = 1;
+        parser_eat_keyword(parser, KEYWORD_STATIC);
+    }
 
     ID name_id = parser->lexer.tok.interner_id;
     parser_eat(parser, TOKEN_ID); // [name] or inline

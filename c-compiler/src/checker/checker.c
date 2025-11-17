@@ -174,10 +174,30 @@ void checker_check_return(ID node_id) {
 
 void checker_check_struct(ID node_id) {
     a_structure _struct = LOOKUP(node_id, a_structure);
+    context_add_template_list(_struct.templates);
 
-    // if (ast != get_symbol(_struct->name, ast->scope)) {
-    //     FATAL("Multiple definitions for struct '{s}'", _struct->name);
-    // }
+    print_ast_tree(node_id);
+
+    for (size_t i = 0; i < _struct.declarations.size; ++i) {
+        ID child_node_id = ARENA_GET(_struct.declarations, i, ID);
+
+        switch (child_node_id.type) {
+            case ID_AST_SYMBOL: {
+                a_symbol symbol = LOOKUP(child_node_id, a_symbol);
+
+            } break;
+            case ID_AST_FUNCTION: {
+                a_function function = LOOKUP(child_node_id, a_function);
+            } break;
+            default:
+                ERROR("Invalid ID type: {s}", id_type_to_string(child_node_id.type));
+                exit(1);
+        }
+
+        println("child: {s}", ast_to_string(child_node_id));
+    }
+
+    context_remove_template_list(_struct.templates);
 }
 
 void checker_check_impl(ID node_id) {
@@ -256,7 +276,7 @@ void checker_check_trait(ID node_id) {
 
 void checker_check_scope(ID node_id) {
     a_scope scope = LOOKUP(node_id, a_scope);
-    context_enter_scope(scope);
+    context_add_declaration_list(scope.declarations);
 
     for (int i = 0; i < scope.nodes.size; ++i) {
         ID child_node_id = ARENA_GET(scope.nodes, i, ID);
@@ -285,12 +305,11 @@ void checker_check_scope(ID node_id) {
         }
     }
 
-    context_exit_scope(scope);
+    context_remove_declaration_list(scope.declarations);
 }
 
 void checker_check_declaration(ID node_id) {
     a_declaration declaration = LOOKUP(node_id, a_declaration);
-
     a_expression * expr = lookup(declaration.expression_id);
 
     for (size_t i = 0; i < expr->children.size; ++i) {
@@ -318,15 +337,24 @@ void checker_check_declaration(ID node_id) {
 
         if (ID_IS(child_node_id, ID_AST_OP)) {
             a_operator assignment_op = LOOKUP(child_node_id, a_operator);
-
+            ASSERT1(ID_IS(assignment_op.left_id, ID_AST_SYMBOL));
             a_variable * variable = lookup(LOOKUP(assignment_op.left_id, a_symbol).node_id);
 
             Place_T * place_type = lookup(variable->type_id);
             place_type->is_mut = declaration.is_mut;
 
-            child_node_id = assignment_op.left_id;
-        } else if (!ID_IS(child_node_id, ID_AST_VARIABLE)) {
-            FATAL("Empty variable declaration must include a type");
+            child_node_id = variable->info.node_id;
+        } else {
+            ASSERT1(ID_IS(child_node_id, ID_AST_SYMBOL));
+            a_symbol symbol = LOOKUP(child_node_id, a_symbol);
+            ASSERT1(ID_IS(symbol.node_id, ID_AST_VARIABLE));
+            a_variable variable = LOOKUP(symbol.node_id, a_variable);
+
+            if (ID_IS_INVALID(variable.type_id)) {
+                FATAL("Empty variable declaration must include a type");
+            }
+
+            child_node_id = symbol.node_id;
         }
 
         checker_check_variable(child_node_id);
@@ -335,9 +363,9 @@ void checker_check_declaration(ID node_id) {
 
 void checker_check_function(ID node_id) {
     a_function function = LOOKUP(node_id, a_function);
-    context_enter_function(function);
-
+    context_add_template_list(function.templates);
     a_expression arguments = LOOKUP(function.arguments_id, a_expression);
+    context_add_declaration_list(arguments.children);
 
     for (int i = 0; i < arguments.children.size; ++i) {
         ID child_node_id = ARENA_GET(arguments.children, i, ID);
@@ -348,7 +376,8 @@ void checker_check_function(ID node_id) {
 
     checker_check_scope(function.body_id);
 
-    context_exit_function(function);
+    context_remove_declaration_list(arguments.children);
+    context_remove_template_list(function.templates);
 }
 
 void checker_check_import(ID node_id) {
