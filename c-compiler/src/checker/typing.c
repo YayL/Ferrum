@@ -28,10 +28,13 @@ void populate_template_hashmap_with_impl(a_implementation impl, khash_t(map_id_t
 
 char frsolver_check_candidate(FRSolver solver, a_function candidate, khash_t(map_id_to_id) * templates, unsigned int * specificity_cost) {
 	ASSERT1(ID_IS(solver.args_type_id, ID_TUPLE_TYPE));
-	ASSERT1(ID_IS(candidate.param_type, ID_TUPLE_TYPE));
+	ASSERT1(ID_IS(candidate.type, ID_FN_TYPE));
 
 	Arena call_arg_types = LOOKUP(solver.args_type_id, Tuple_T).types;
-	Arena func_arg_types = LOOKUP(candidate.param_type, Tuple_T).types;
+
+	Fn_T fn = LOOKUP(candidate.type, Fn_T);
+	ASSERT1(ID_IS(fn.arg_type, ID_TUPLE_TYPE));
+	Arena func_arg_types = LOOKUP(fn.arg_type, Tuple_T).types;
 
 	// Must have same amount of arguments
 	if (call_arg_types.size != func_arg_types.size) {
@@ -117,18 +120,20 @@ FRResult frsolver_solve(FRSolver solver) {
 				continue;
 			}
 
+
+			Fn_T fn = LOOKUP(candidate.type, Fn_T);
 			if (specificity_cost == best_specificity_cost) {
 				ASSERT1(!ID_IS_INVALID(result.function_id));
 				ERROR("There are multiple function candidates, unable to resolve");
 				ERROR("First(cost={u}): {s}", best_specificity_cost, type_to_str(result.function_return_type_id));
 				print_ast_tree(result.function_id);
-				ERROR("Second(cost={u}): {s}", specificity_cost, type_to_str(resolve_type_templates_in_type(candidate.return_type, &templates)));
+				ERROR("Second(cost={u}): {s}", specificity_cost, type_to_str(resolve_type_templates_in_type(fn.ret_type, &templates)));
 				print_ast_tree(candidate_id);
 				exit(1);
 			}
 
 			best_specificity_cost = specificity_cost;
-			result.function_return_type_id = resolve_type_templates_in_type(candidate.return_type, &templates);
+			result.function_return_type_id = resolve_type_templates_in_type(fn.ret_type, &templates);
 			result.function_id = candidate_id;
 			/* TODO: Templates have been resolved so keep that information (Required for codegen) */
 		}

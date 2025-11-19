@@ -49,8 +49,7 @@ typedef struct a_function {
     ID arguments_id;
     ID body_id;
 
-    ID param_type;
-    ID return_type;
+    ID type;
 
     Arena templates;
 

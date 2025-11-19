@@ -13,7 +13,8 @@
 	f(ID_REF_TYPE,		"RefT",			Ref_T,		TYPE) \
 	f(ID_ARRAY_TYPE,	"ArrayT",		Array_T,	TYPE) \
 	f(ID_TUPLE_TYPE,	"TupleT",		Tuple_T,	TYPE) \
-	f(ID_PLACE_TYPE,	"PlaceT",		Place_T,	TYPE)
+	f(ID_PLACE_TYPE,	"PlaceT",		Place_T,	TYPE) \
+	f(ID_FN_TYPE,		"FnT",			Fn_T,		TYPE)
 
 #define AST_REGISTRY_KINDS(f) \
     f(ID_AST_MODULE,		"Module",			a_module,				AST) \

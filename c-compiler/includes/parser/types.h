@@ -49,6 +49,13 @@ typedef struct Place_T {
     ID basetype_id;
 } Place_T;
 
+typedef struct Fn_T {
+    struct type_info info;
+    ID function_id;
+    ID arg_type;
+    ID ret_type;
+} Fn_T;
+
 void type_init_intrinsic_type(enum id_type type, void * type_ref);
 
 const char * get_base_type_str(ID type);

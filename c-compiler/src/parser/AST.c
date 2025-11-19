@@ -276,7 +276,7 @@ char * ast_to_string(ID node_id) {
         case ID_AST_FUNCTION: {
             a_function func = LOOKUP(node_id, a_function);
             const char * func_name = interner_lookup_str(func.name_id)._ptr;
-            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {2s: -> }" GREY ">" RESET, ast_str, func_name, type_to_str(func.param_type), type_to_str(func.return_type));
+            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, func_name, type_to_str(func.type));
         } break;
 
         case ID_AST_SCOPE: {

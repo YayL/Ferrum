@@ -592,13 +592,17 @@ ID parser_parse_function(struct Parser * parser) {
     function->arguments_id = parser_parse_expr_exit_on(parser, PARENTHESES);
     ASSERT1(ID_IS(function->arguments_id, ID_AST_EXPR));
 
-    function->param_type = ast_to_type(function->arguments_id);
+    Fn_T * fn = type_allocate(ID_FN_TYPE);
+    function->type = fn->info.type_id;
+    fn->arg_type = ast_to_type(function->arguments_id);
 
     if (parser->lexer.tok.type == TOKEN_MINUS) {
         parser_eat(parser, TOKEN_MINUS);
         parser_eat(parser, TOKEN_GT);
 
-        function->return_type = parser_parse_type(parser);
+        fn->ret_type = parser_parse_type(parser);
+    } else {
+        fn->ret_type = VOID_TYPE;
     }
 
     if (parser->lexer.tok.type == TOKEN_LBRACE) {

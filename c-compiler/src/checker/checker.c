@@ -65,7 +65,10 @@ ID checker_check_symbol(ID node_id) {
 ID checker_check_op(ID node_id) {
     a_operator * op = lookup(node_id);
 
+    print_ast_tree(node_id);
+
     if (op->op.key == CALL) {
+        checker_check_expr_node(op->left_id);
         if (!ID_IS(op->left_id, ID_AST_SYMBOL)) {
             ERROR("Arbitrary address calls are not supported yet");
             return INVALID_ID;
@@ -92,6 +95,9 @@ ID checker_check_op(ID node_id) {
         }
     } else if (op->op.key == PARENTHESES) {
         return op->type_id = checker_check_expr_node(op->right_id);
+    } else if (op->op.key == MEMBER_ACCESS) {
+        println("MEMBER ACCESS");
+        exit(0);
     } else if (!ID_IS_INVALID(op->left_id)) {
         checker_check_expr_node(op->left_id);
     }

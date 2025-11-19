@@ -146,6 +146,7 @@ void type_init_intrinsic_type(enum id_type type, void * type_ref) {
     switch (type) {
         case ID_TUPLE_TYPE:
             ((Tuple_T *) type_ref)->types = arena_init(sizeof(ID)); break;
+        case ID_FN_TYPE:
         case ID_PLACE_TYPE:
         case ID_NUMERIC_TYPE:
         case ID_SYMBOL_TYPE:
@@ -153,7 +154,7 @@ void type_init_intrinsic_type(enum id_type type, void * type_ref) {
         case ID_REF_TYPE:
             break;
         default:
-            println("Invalid ID type: {s}", id_type_to_string(type));
+            FATAL("Invalid ID type: {s}", id_type_to_string(type));
     }
 }
 
