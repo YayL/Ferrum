@@ -1,6 +1,7 @@
 #pragma once
 
 #include "parser/operators.h"
+#include "parser/AST.h"
 
 void resolve_function_from_call(ID node_id);
 void resolve_function_from_operator(ID node_id);

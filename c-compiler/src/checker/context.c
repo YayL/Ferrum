@@ -30,11 +30,16 @@ Arena context_lookup_all_declarations(ID name_id) {
 	Arena arena = arena_init(sizeof(ID));
 
 	struct symbol_map_entry entry = symbol_map_get_by_name(&context.symbol_table.declarations, name_id);
+	if (ID_IS_INVALID(entry.node_id)) {
+		return arena;
+	}
+
 	ARENA_APPEND(&arena, entry.node_id);
 
 	while (!ID_IS_INVALID(entry.shadowed_symbol_id)) {
 		entry = symbol_map_get_by_id(&context.symbol_table.declarations, entry.shadowed_symbol_id);
 		ARENA_APPEND(&arena, entry.node_id);
+		println("node: {s}", ast_to_string(entry.node_id));
 	}
 
 	return arena;

@@ -47,7 +47,7 @@ static inline void * registry_manager_lookup(struct registry_manager * manager, 
     switch (node_id.type) {
         REGISTRY_KINDS(AST_REGISTRY_MANAGER_REGISTRY_LOOKUP)
         default:
-            FATAL("Invalid id_type");
+            FATAL("Invalid id_type: {s}", id_type_to_string(node_id.type));
     }
 }
 

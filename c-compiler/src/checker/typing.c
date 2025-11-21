@@ -5,148 +5,14 @@
 #include "checker/symbol.h"
 #include "checker/context.h"
 
-FRSolver frsolver_init(ID name_id, ID args_type_id, ID scope_id, Arena candidates) {
-	a_module * module = get_scope(ID_AST_MODULE, scope_id);
-	ASSERT1(module != NULL);
-
-	return (FRSolver) { .name_id = name_id, args_type_id = args_type_id, .candidates = candidates };
-}
-
-FRResult frresult_init(FRSolver solver) {
-	return (FRResult) { .name_id = solver.name_id, .args_type_id = solver.args_type_id, .function_id = INVALID_ID };
-}
-
-char is_valid_equal_type(ID type_id1, ID type_id2, khash_t(map_id_to_id) * caller_templates, khash_t(map_id_to_id) * templates, unsigned int * specificity_cost);
 char type_has_trait_implementation(ID type, ID trait);
 char check_template_def_matches_type(ID template_id, ID type_id);
-ID resolve_type_templates_in_type(ID type_id, khash_t(map_id_to_id) * templates);
 ID get_template_from_templates(a_symbol symbol, khash_t(map_id_to_id) * templates, khint_t * found);
-char check_templates_uphold_template_rules(khash_t(map_id_to_id) templates, Arena template_rules);
-
-void populate_template_hashmap_by_arena(Arena arena, khash_t(map_id_to_id) * templates, char set_type);
-void populate_template_hashmap_with_impl(a_implementation impl, khash_t(map_id_to_id) * templates);
-
-char frsolver_check_candidate(FRSolver solver, a_function candidate, khash_t(map_id_to_id) * templates, unsigned int * specificity_cost) {
-	ASSERT1(ID_IS(solver.args_type_id, ID_TUPLE_TYPE));
-	ASSERT1(ID_IS(candidate.type, ID_FN_TYPE));
-
-	Arena call_arg_types = LOOKUP(solver.args_type_id, Tuple_T).types;
-
-	Fn_T fn = LOOKUP(candidate.type, Fn_T);
-	ASSERT1(ID_IS(fn.arg_type, ID_TUPLE_TYPE));
-	Arena func_arg_types = LOOKUP(fn.arg_type, Tuple_T).types;
-
-	// Must have same amount of arguments
-	if (call_arg_types.size != func_arg_types.size) {
-		return 0;
-	}
-
-	/* Perform function argument type checking */
-	for (size_t i = 0; i < call_arg_types.size; ++i) {
-		ID call_arg_type = ARENA_GET(call_arg_types, i, ID);
-		ASSERT1(!ID_IS_INVALID(call_arg_type));
-		ID func_arg_type = ARENA_GET(func_arg_types, i, ID);
-		ASSERT1(!ID_IS_INVALID(func_arg_type));
-
-		if (!is_valid_equal_type(call_arg_type, func_arg_type, NULL, templates, specificity_cost)) {
-			return 0;
-		}
-	}
-
-	return 1;
-}
-
-FRResult frsolver_solve(FRSolver solver) {
-	FRResult result = frresult_init(solver);
-	khash_t(map_id_to_id) templates = kh_init(map_id_to_id);
-	unsigned int best_specificity_cost = UINT32_MAX;
-
-	for (size_t i = 0; i < solver.candidates.size; ++i) {
-		ID candidate_id = ARENA_GET(solver.candidates, i, ID);
-		ASSERT1(ID_IS(candidate_id, ID_AST_FUNCTION));
-
-		a_function candidate = LOOKUP(candidate_id, a_function);
-		kh_clear(map_id_to_id, &templates);
-
-		switch (candidate.info.scope_id.type) {
-			case ID_AST_IMPL: {
-				a_implementation impl = LOOKUP(candidate.info.scope_id, a_implementation);
-				populate_template_hashmap_with_impl(impl, &templates);
-			} break;
-			default: break;
-		}
-
-		unsigned int specificity_cost = 0;
-
-		if (frsolver_check_candidate(solver, candidate, &templates, &specificity_cost)) {
-			char is_match = 1;
-
-			ID key, value;
-			kh_foreach(&templates, key, value, {
-				ASSERT1(!ID_IS_INVALID(key));
-				if (ID_IS_INVALID(value)) {
-					ERROR("Unable to determine type of the template type '{s}'", interner_lookup_str(key)._ptr);
-					is_match = 0;
-					break;
-				}
-
-				if (ID_IS(value, ID_AST_VARIABLE)) {
-					a_variable var = LOOKUP(value, a_variable);
-					value = var.type_id;
-				}
-			});
-
-			if (!is_match) {
-				continue; // Check next candidate
-			}
-
-			if (!check_templates_uphold_template_rules(templates, candidate.templates)) {
-				continue; // Check next candidate
-			}
-
-			is_match = 1;
-			switch (candidate.info.scope_id.type) {
-				case ID_AST_IMPL: {
-					a_implementation impl = LOOKUP(candidate.info.scope_id, a_implementation);
-					if  (!check_templates_uphold_template_rules(templates, impl.generic_templates)) {
-						is_match = 0;
-						break;
-					}
-				} break;
-				default: break;
-			}
-
-			if (!is_match || best_specificity_cost < specificity_cost) {
-				continue;
-			}
-
-
-			Fn_T fn = LOOKUP(candidate.type, Fn_T);
-			if (specificity_cost == best_specificity_cost) {
-				ASSERT1(!ID_IS_INVALID(result.function_id));
-				ERROR("There are multiple function candidates, unable to resolve");
-				ERROR("First(cost={u}): {s}", best_specificity_cost, type_to_str(result.function_return_type_id));
-				print_ast_tree(result.function_id);
-				ERROR("Second(cost={u}): {s}", specificity_cost, type_to_str(resolve_type_templates_in_type(fn.ret_type, &templates)));
-				print_ast_tree(candidate_id);
-				exit(1);
-			}
-
-			best_specificity_cost = specificity_cost;
-			result.function_return_type_id = resolve_type_templates_in_type(fn.ret_type, &templates);
-			result.function_id = candidate_id;
-			/* TODO: Templates have been resolved so keep that information (Required for codegen) */
-		}
-	}
-
-	kh_free(map_id_to_id, &templates);
-
-	return result;
-}
 
 char is_equal_types_and_template_resolution(ID caller_type, ID func_type, khash_t(map_id_to_id) * caller_templates, khash_t(map_id_to_id) * func_templates, unsigned int * specificity_cost) {
-	// println("Check: {2s: == }", type_to_str(caller_type), type_to_str(func_type));
+	println("Check: {2s: == }", type_to_str(caller_type), type_to_str(func_type));
 
+	// Auto de-place
 	if (ID_IS(caller_type, ID_PLACE_TYPE) && !ID_IS(func_type, ID_PLACE_TYPE) && !ID_IS(func_type, ID_SYMBOL_TYPE)) {
 		Place_T caller_place = LOOKUP(caller_type, Place_T);
 		caller_type = caller_place.basetype_id;
@@ -180,7 +46,7 @@ char is_equal_types_and_template_resolution(ID caller_type, ID func_type, khash_
 						}
 
 						kh_value(func_templates, found) = template_type_id = caller_type;
-						// println("{s} <- {s}", type_to_str(func_type), type_to_str(caller_type));
+						println("{s} <- {s}", type_to_str(func_type), type_to_str(caller_type));
 						return 1;
 					}
 
@@ -190,7 +56,7 @@ char is_equal_types_and_template_resolution(ID caller_type, ID func_type, khash_
 						template_type_id = var.type_id;
 					}
 
-					// println("{s} -> {s}", type_to_str(func_type), type_to_str(template_type_id)); 
+					println("{s} -> {s}", type_to_str(func_type), type_to_str(template_type_id)); 
 					return is_valid_equal_type(caller_type, template_type_id, caller_templates, func_templates, specificity_cost);
 				}
 			}
@@ -304,6 +170,8 @@ char is_valid_equal_type(ID caller_type, ID func_type, khash_t(map_id_to_id) * c
 		return 1;
 	}
 
+	println("Checking template resolution");
+
 	if (ID_IS(caller_type, ID_SYMBOL_TYPE) && caller_templates != NULL) {
 		a_symbol * caller_sym = lookup(LOOKUP(caller_type, Symbol_T).symbol_id);
 		khint_t found = 0;
@@ -343,10 +211,11 @@ char is_valid_equal_type(ID caller_type, ID func_type, khash_t(map_id_to_id) * c
 	for (size_t i = 0; i < trait.implementations.size; ++i) {
 		kh_clear(map_id_to_id, &temp_templates);
 		a_implementation impl = LOOKUP(ARENA_GET(trait.implementations, i, ID), a_implementation);
+		// populate_template_hashmap_with_impl(impl, &temp_templates);
 		populate_template_hashmap_by_arena(impl.generic_templates, &temp_templates, 0);
 
 		ID id1 = ARENA_GET(impl.trait_templates, 0, ID);
-		if (!is_equal_types_and_template_resolution(caller_type, id1, func_templates, &temp_templates, specificity_cost)) {
+		if (!is_equal_types_and_template_resolution(caller_type, id1, caller_templates, &temp_templates, specificity_cost)) {
 			// println("Nope id1 did not match #ImplicitCast<{s}, {s}>", type_to_str(caller_type), type_to_str(func_type));
 			continue;
 		}
@@ -400,14 +269,9 @@ char type_has_trait_implementation(ID type_id, ID trait_id) {
 	return 0;
 }
 
-char check_template_def_matches_type(ID template_id, ID type_id) {
-	println("template: {s}", ast_to_string(template_id));
-
-	return 1;
-}
-
 ID resolve_type_templates_in_type(ID type_id, khash_t(map_id_to_id) * templates) {
-	// println("resolve type templates in: {s}", type_to_str(type_id));
+	println("resolve type templates in: {s}", id_type_to_string(type_id.type));
+
 	switch (type_id.type) {
 		case ID_NUMERIC_TYPE:
 			return type_id;
@@ -539,7 +403,7 @@ void populate_template_hashmap_by_arena(Arena arena, khash_t(map_id_to_id) * tem
 		ID symbol_id = ARENA_GET(arena, i, ID);
 		a_symbol template = LOOKUP(symbol_id, a_symbol);
 
-		// println("{i}) {s}: {s}", i, interner_lookup_str(template.name_id)._ptr, ID_IS_INVALID(template.node_id) ? "?" : ast_to_string(template.node_id));
+		println("{i}) {s}: {s}", i, interner_lookup_str(template.name_id)._ptr, ID_IS_INVALID(template.node_id) ? "?" : ast_to_string(template.node_id));
 
 		int retcode;
 		khint_t k = kh_put(map_id_to_id, templates, template.name_id, &retcode);

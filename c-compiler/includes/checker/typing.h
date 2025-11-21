@@ -31,3 +31,10 @@ ID * create_type_variable();
 
 char is_equal_types_and_template_resolution(ID caller_type, ID func_type, khash_t(map_id_to_id) * caller_templates, khash_t(map_id_to_id) * func_templates, unsigned int * specificity_cost);
 ID get_template_from_templates(a_symbol symbol, khash_t(map_id_to_id) * templates, khint_t * found);
+
+ID resolve_type_templates_in_type(ID type_id, khash_t(map_id_to_id) * templates);
+char is_valid_equal_type(ID type_id1, ID type_id2, khash_t(map_id_to_id) * caller_templates, khash_t(map_id_to_id) * templates, unsigned int * specificity_cost);
+char check_templates_uphold_template_rules(khash_t(map_id_to_id) templates, Arena template_rules);
+
+void populate_template_hashmap_by_arena(Arena arena, khash_t(map_id_to_id) * templates, char set_type);
+void populate_template_hashmap_with_impl(a_implementation impl, khash_t(map_id_to_id) * templates);

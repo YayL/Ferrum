@@ -46,6 +46,9 @@ ID parser_parse_type(struct Parser * parser) {
                 numeric->width = 1;
 
                 return numeric->info.type_id;
+            } else if (id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_VOID))) {
+                parser_eat(parser, TOKEN_ID);
+                return VOID_TYPE;
             } else if (id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_PLACE))
                     || id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUTPLACE))) {
                 char is_mut = id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUTPLACE));
@@ -281,6 +284,13 @@ const char * get_base_type_str(ID type_id) {
 
 char * type_to_str(ID type_id) {
     switch (type_id.type) {
+        case ID_INVALID_TYPE: {
+            // WARN("Invalid type_id passed to type_to_str");
+            return "?";
+        }
+        case ID_VOID_TYPE: {
+            return "void";
+        }
         case ID_SYMBOL_TYPE: {
             Symbol_T symbol_type = LOOKUP(type_id, Symbol_T);
             a_symbol symbol = LOOKUP(symbol_type.symbol_id, a_symbol);
@@ -295,7 +305,6 @@ char * type_to_str(ID type_id) {
                 }
                 str = format("{s}>", str);
             }
-
 
             return str;
         }
@@ -366,7 +375,11 @@ char * type_to_str(ID type_id) {
                             : "Place<{s}>"
                           , type_to_str(place.basetype_id));
         }
+        case ID_FN_TYPE: {
+            Fn_T fn = LOOKUP(type_id, Fn_T);
+            return format("{s} -> {s}", type_to_str(fn.arg_type), type_to_str(fn.ret_type));
+        }
+        default: 
+            FATAL("Unimplemented type_to_str type: {s}", id_type_to_string(type_id.type));
     }
-
-    return "?";
 }

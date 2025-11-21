@@ -43,3 +43,25 @@ ID qualify_symbol(a_symbol * symbol, enum id_type type_to_find) {
 
 	return INVALID_ID;
 }
+
+#define DECLARATION_CHECK_IF_TYPE(DECLARATION, NAME_ID, TYPE) \
+	TYPE type = LOOKUP(DECLARATION, TYPE); \
+	if (id_is_equal(type.name_id, NAME_ID)) { return DECLARATION; }
+
+ID qualify_declaration(Arena declarations, ID declaration_name_id) {
+	for (size_t i = 0; i < declarations.size; ++i) {
+		ID declaration = ARENA_GET(declarations, i, ID);
+		switch (declaration.type) {
+			case ID_AST_FUNCTION: {
+				DECLARATION_CHECK_IF_TYPE(declaration, declaration_name_id, a_function);
+			} break;
+			case ID_AST_SYMBOL: {
+				DECLARATION_CHECK_IF_TYPE(declaration, declaration_name_id, a_symbol);
+			} break;
+			default:
+				FATAL("Not implemented: {s}", id_type_to_string(declaration.type));
+		}
+	}
+
+	return INVALID_ID;
+}

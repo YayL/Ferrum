@@ -3,4 +3,7 @@ import "../ops/cast/cast" as cast
 trait #ImplicitCast<From, To> {}
 
 impl<T> #ImplicitCast<From: &mut T, To: &T> {}
+impl<T> #ImplicitCast<From: Place<T>, To: &T> {}
+impl<T> #ImplicitCast<From: MutPlace<T>, To: &mut T> {}
+impl<T> #ImplicitCast<From: MutPlace<T>, To: &T> {}
 impl<T> #ImplicitCast<From: MutPlace<T>, To: Place<T>> {}

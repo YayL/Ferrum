@@ -1,9 +1,9 @@
 import "../groups/numeric" as numeric
 
 struct List<T> {
-    let buf: &T
-    let size: u32
-    let capacity: u32
+    let mut buf: &T
+    let mut size: u32
+    let mut capacity: u32
 
     fn new() -> Self {
         let item: T
@@ -19,7 +19,7 @@ struct List<T> {
         self.buf = realloc(self.buf, #sizeof(item) * self.capacity)
     }
 
-    fn push(self: &mut Self, item: T) -> void {
+    fn push(self: &mut List<T>, item: T) -> void {
         if self.size >= self.capacity {
             self.reserve(self.size)
         }

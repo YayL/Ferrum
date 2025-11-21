@@ -4,6 +4,7 @@
 #include "checker/functions.h"
 #include "checker/context.h"
 #include "checker/symbol.h"
+#include "checker/typing.h"
 #include "tables/registry_manager.h"
 
 ID get_interner_id(ID node_id) {
@@ -62,44 +63,137 @@ ID checker_check_symbol(ID node_id) {
     return symbol->node_id;
 }
 
+ID checker_check_op_member_access(a_operator * op) {
+    ASSERT1(op->op.key == MEMBER_ACCESS);
+    ASSERT1(ID_IS(op->right_id, ID_AST_SYMBOL));
+
+    a_symbol member = LOOKUP(op->right_id, a_symbol);
+    ASSERT1(member.name_ids.size == 1);
+
+    checker_check_expr_node(op->left_id);
+    print_ast_tree(op->left_id);
+
+    ID type = INVALID_ID;
+
+    if (ID_IS(op->left_id, ID_AST_SYMBOL)) {
+        a_symbol symbol = LOOKUP(op->left_id, a_symbol);
+        ASSERT1(ID_IS(symbol.node_id, ID_AST_VARIABLE));
+        type = LOOKUP(symbol.node_id, a_variable).type_id;
+    } else if (ID_IS(op->left_id, ID_AST_OP)) {
+        a_operator child_op = LOOKUP(op->left_id, a_operator);
+        println("child op: {b}", !ID_IS_INVALID(child_op.definition.function_id));
+        print_ast_tree(child_op.definition.function_id);
+        exit(0);
+    } else {
+        FATAL("Not implemented type: {s}", id_type_to_string(op->left_id.type));
+    }
+
+    print_ast_tree(op->info.node_id);
+    println("Type: {s}", type_to_str(type));
+
+    Symbol_T type_symbol = LOOKUP(type, Symbol_T);
+
+    ID qualified_symbol = qualify_symbol(lookup(type_symbol.symbol_id), ID_SYMBOL_TYPE);
+    ASSERT1(!ID_IS_INVALID(qualified_symbol));
+
+    print_ast_tree(qualified_symbol);
+
+    a_structure structure = LOOKUP(qualified_symbol, a_structure);
+    ASSERT1(structure.templates.size == type_symbol.templates.size);
+    khash_t(map_id_to_id) templates = kh_init(map_id_to_id);
+
+    for (size_t i = 0; i < structure.templates.size; ++i) {
+        ID template_symbol_id = ARENA_GET(structure.templates, i, ID);
+        a_symbol symbol = LOOKUP(template_symbol_id, a_symbol);
+        ASSERT1(symbol.name_ids.size == 1);
+        ID structure_type_id = ARENA_GET(type_symbol.templates, i, ID);
+
+        int retcode;
+		khint_t k = kh_put(map_id_to_id, &templates, symbol.name_id, &retcode);
+		if (retcode == KH_PUT_ALREADY_PRESENT) {
+			FATAL("Duplicate template type: '{s}'", interner_lookup_str(symbol.name_id)._ptr);
+		}
+
+        println("{s} = {s}", interner_lookup_str(symbol.name_id)._ptr, type_to_str(structure_type_id));
+		ASSERT(retcode == KH_PUT_SUCCESS, "Unknown error occured while populating template hashmap: {i}", retcode);
+		kh_value(&templates, k) = structure_type_id;
+    }
+
+    ID qualified_member = qualify_declaration(structure.declarations, member.name_id);
+    ASSERT1(ID_IS(qualified_member, ID_AST_SYMBOL));
+    a_symbol member_symbol = LOOKUP(qualified_member, a_symbol);
+    ASSERT1(ID_IS(member_symbol.node_id, ID_AST_VARIABLE));
+
+    switch (member_symbol.node_id.type) {
+        case ID_AST_VARIABLE: {
+            a_variable variable = LOOKUP(member_symbol.node_id, a_variable);
+            ASSERT1(!ID_IS_INVALID(variable.type_id));
+
+            return op->type_id = resolve_type_templates_in_type(variable.type_id, &templates);
+        } break;
+        default:
+            FATAL("Unimplemented: {s}", id_type_to_string(member_symbol.node_id.type));
+    }
+}
+
+ID checker_check_op_call(a_operator * op) {
+    ASSERT1(op->op.key == CALL);
+
+    if (ID_IS(op->left_id, ID_AST_OP)) {
+        a_operator * left_op = lookup(op->left_id);
+        switch (left_op->op.key) {
+            case MEMBER_ACCESS: {
+                checker_check_expr_node(left_op->left_id);
+                resolve_function_from_call(op->info.node_id);
+                return op->type_id;
+            } break;
+            default:
+                FATAL("Arbitrary address calls are not supported yet");
+        }
+    }
+
+    checker_check_expr_node(op->left_id);
+    if (!ID_IS(op->left_id, ID_AST_SYMBOL)) {
+        ERROR("Arbitrary address calls are not supported yet");
+        return INVALID_ID;
+    }
+
+    a_symbol symbol = LOOKUP(op->left_id, a_symbol);
+    if (builtin_interner_id_is_inbounds(symbol.name_id)) {
+        if (symbol.name_ids.size != 1) {
+            ERROR("Invalid to use '::' operator when trying to call builtin function");
+            exit(1);
+        }
+
+        return op->type_id = VOID_TYPE;
+    }
+
+    checker_check_expr_node(op->right_id);
+    resolve_function_from_call(op->info.node_id);
+
+    return op->type_id;
+}
+
 ID checker_check_op(ID node_id) {
     a_operator * op = lookup(node_id);
 
-    print_ast_tree(node_id);
-
-    if (op->op.key == CALL) {
-        checker_check_expr_node(op->left_id);
-        if (!ID_IS(op->left_id, ID_AST_SYMBOL)) {
-            ERROR("Arbitrary address calls are not supported yet");
-            return INVALID_ID;
-        }
-
-        a_symbol symbol = LOOKUP(op->left_id, a_symbol);
-        if (builtin_interner_id_is_inbounds(symbol.name_id)) {
-            if (symbol.name_ids.size != 1) {
-                ERROR("Invalid to use '::' operator when trying to call builtin function");
-                exit(1);
+    switch (op->op.key) {
+        case CALL:
+            return checker_check_op_call(op);
+        case TERNARY:
+            ASSERT1(ID_IS(op->right_id, ID_AST_OP));
+            if (LOOKUP(op->right_id, a_operator).op.key != TERNARY_BODY) {
+                FATAL("Detected an error with the ternary operator. This was most likely caused by operator precedence or nested ternary operators. To remedy this try applying parenthesis around the seperate ternary body entries");
             }
-
-            return op->type_id = VOID_TYPE;
-        }
-
-        checker_check_expr_node(op->right_id);
-        resolve_function_from_call(node_id);
-
-        return op->type_id;
-    } else if (op->op.key == TERNARY) {
-        ASSERT1(ID_IS(op->right_id, ID_AST_OP));
-        if (LOOKUP(op->right_id, a_operator).op.key != TERNARY_BODY) {
-            FATAL("Detected an error with the ternary operator. This was most likely caused by operator precedence or nested ternary operators. To remedy this try applying parenthesis around the seperate ternary body entries");
-        }
-    } else if (op->op.key == PARENTHESES) {
-        return op->type_id = checker_check_expr_node(op->right_id);
-    } else if (op->op.key == MEMBER_ACCESS) {
-        println("MEMBER ACCESS");
-        exit(0);
-    } else if (!ID_IS_INVALID(op->left_id)) {
-        checker_check_expr_node(op->left_id);
+            break;
+        case PARENTHESES:
+            return op->type_id = checker_check_expr_node(op->right_id);
+        case MEMBER_ACCESS:
+            return checker_check_op_member_access(op);
+        default:
+            if (!ID_IS_INVALID(op->left_id)) {
+                checker_check_expr_node(op->left_id);
+            }
     }
 
     checker_check_expr_node(op->right_id);
@@ -309,6 +403,8 @@ void checker_check_scope(ID node_id) {
                 ERROR("Invalid scope node type: {s}\n", id_type_to_string(child_node_id.type));
                 break;
         }
+
+        print_ast_tree(child_node_id);
     }
 
     context_remove_declaration_list(scope.declarations);
@@ -320,20 +416,31 @@ void checker_check_declaration(ID node_id) {
 
     for (size_t i = 0; i < expr->children.size; ++i) {
         ID child_node_id = ARENA_GET(expr->children, i, ID);
-        if (ID_IS(child_node_id, ID_AST_OP)) {
-            a_operator assignment_op = LOOKUP(child_node_id, a_operator);
+        ID symbol_id = INVALID_ID;
 
-            if (assignment_op.op.key != ASSIGNMENT) {
-                FATAL("Declarations require a direct assignment");
-            }
+        switch (child_node_id.type) {
+            case ID_AST_OP: {
+                a_operator assignment_op = LOOKUP(child_node_id, a_operator);
 
-            a_variable * variable = lookup(LOOKUP(assignment_op.left_id, a_symbol).node_id);
-            Place_T * place_type = type_allocate(ID_PLACE_TYPE);
-            place_type->basetype_id = variable->type_id;
-            place_type->is_mut = 1; // This is just temporary and the actual mutability is set after checker_check_expression
+                if (assignment_op.op.key != ASSIGNMENT) {
+                    FATAL("Declarations require a direct assignment");
+                }
 
-            variable->type_id = place_type->info.type_id;
+                symbol_id = assignment_op.left_id;
+            } break;
+            case ID_AST_SYMBOL: {
+                symbol_id = child_node_id;
+            } break;
+            default:
+                FATAL("Invalid declaration expr child: {s}", id_type_to_string(child_node_id.type));
         }
+
+        a_variable * variable = lookup(LOOKUP(symbol_id, a_symbol).node_id);
+        Place_T * place_type = type_allocate(ID_PLACE_TYPE);
+        place_type->basetype_id = variable->type_id;
+        place_type->is_mut = 1; // This is just temporary and the actual mutability is set after checker_check_expression
+
+        variable->type_id = place_type->info.type_id;
     }
 
     checker_check_expression(declaration.expression_id);

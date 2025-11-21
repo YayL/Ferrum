@@ -58,6 +58,8 @@ void ferrum_compile(char * file_path) {
     asprintf(&checker_time, "Time for checker:\t%.3fms", (double)time / 1000);
     puts("checker done");
 
+    print_ast_tree_from_root(root);
+
 //     const char * OUTPUT_PATH = "./build/ferrum.ll";
 //     FILE * fp = open_file(get_abs_path(OUTPUT_PATH), "w");
 //     start_timer();
