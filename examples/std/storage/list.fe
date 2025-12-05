@@ -2,10 +2,10 @@ import "../groups/numeric" as numeric
 
 struct List<T> {
     let mut buf: &T
-    let mut size: u32
-    let mut capacity: u32
+    let mut size: u64
+    let mut capacity: u64
 
-    fn new() -> Self {
+    fn new() -> List<T> {
         let item: T
         let list: List<T>
         list.buf = calloc(1, #sizeof(item))
@@ -13,9 +13,9 @@ struct List<T> {
         list.capacity = 1
     }
 
-    fn reserve<U: numeric::Unsigned>(self: &mut Self, additional: U) -> void {
+    fn reserve<U: numeric::Unsigned>(self: &mut List<T>, additional: U) -> void {
         let item: T
-        self.capacity = (self.size to U + additional) to u32
+        self.capacity = self.size + additional to u64
         self.buf = realloc(self.buf, #sizeof(item) * self.capacity)
     }
 
@@ -27,12 +27,12 @@ struct List<T> {
         self.buf[self.size++] = item
     }
 
-    fn at<I: numeric::Integer>(self: Self, index: I) -> T {
+    fn at<I: numeric::Integer>(self: List<T>, index: I) -> T {
         // panic if index is less than 0 or more/equal to self.size
         self.buf[index]
     }
     
-    fn pop(self: &mut Self) -> T {
+    fn pop(self: &mut List<T>) -> T {
         // panic if self.size is 0
         self.buf[--self.size]
     }

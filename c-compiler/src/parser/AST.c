@@ -239,6 +239,8 @@ void _print_ast_tree(ID node_id, String pad, char is_last) {
             }
 
         } break;
+        default:
+            break;
     }
 }
 
@@ -263,7 +265,6 @@ void print_ast_tree_from_root(a_root root) {
 
 char * ast_to_string(ID node_id) {
     const char * type_str = id_type_to_string(node_id.type);
-    const char * scope = id_type_to_string(ast_get_scope_id(node_id).type);
 
     char * ast_str = format(RED "{s}" RESET ": ", type_str);
 

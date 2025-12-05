@@ -10,7 +10,7 @@ char check_template_def_matches_type(ID template_id, ID type_id);
 ID get_template_from_templates(a_symbol symbol, khash_t(map_id_to_id) * templates, khint_t * found);
 
 char is_equal_types_and_template_resolution(ID caller_type, ID func_type, khash_t(map_id_to_id) * caller_templates, khash_t(map_id_to_id) * func_templates, unsigned int * specificity_cost) {
-	println("Check: {2s: == }", type_to_str(caller_type), type_to_str(func_type));
+	// println("Check: {2s: == }", type_to_str(caller_type), type_to_str(func_type));
 
 	// Auto de-place
 	if (ID_IS(caller_type, ID_PLACE_TYPE) && !ID_IS(func_type, ID_PLACE_TYPE) && !ID_IS(func_type, ID_SYMBOL_TYPE)) {
@@ -46,7 +46,7 @@ char is_equal_types_and_template_resolution(ID caller_type, ID func_type, khash_
 						}
 
 						kh_value(func_templates, found) = template_type_id = caller_type;
-						println("{s} <- {s}", type_to_str(func_type), type_to_str(caller_type));
+						// println("{s} <- {s}", type_to_str(func_type), type_to_str(caller_type));
 						return 1;
 					}
 
@@ -56,7 +56,7 @@ char is_equal_types_and_template_resolution(ID caller_type, ID func_type, khash_
 						template_type_id = var.type_id;
 					}
 
-					println("{s} -> {s}", type_to_str(func_type), type_to_str(template_type_id)); 
+					// println("{s} -> {s}", type_to_str(func_type), type_to_str(template_type_id)); 
 					return is_valid_equal_type(caller_type, template_type_id, caller_templates, func_templates, specificity_cost);
 				}
 			}
@@ -170,7 +170,7 @@ char is_valid_equal_type(ID caller_type, ID func_type, khash_t(map_id_to_id) * c
 		return 1;
 	}
 
-	println("Checking template resolution");
+	// println("Checking template resolution");
 
 	if (ID_IS(caller_type, ID_SYMBOL_TYPE) && caller_templates != NULL) {
 		a_symbol * caller_sym = lookup(LOOKUP(caller_type, Symbol_T).symbol_id);
@@ -270,7 +270,7 @@ char type_has_trait_implementation(ID type_id, ID trait_id) {
 }
 
 ID resolve_type_templates_in_type(ID type_id, khash_t(map_id_to_id) * templates) {
-	println("resolve type templates in: {s}", id_type_to_string(type_id.type));
+	// println("resolve type templates in: {s}", id_type_to_string(type_id.type));
 
 	switch (type_id.type) {
 		case ID_NUMERIC_TYPE:
@@ -403,7 +403,7 @@ void populate_template_hashmap_by_arena(Arena arena, khash_t(map_id_to_id) * tem
 		ID symbol_id = ARENA_GET(arena, i, ID);
 		a_symbol template = LOOKUP(symbol_id, a_symbol);
 
-		println("{i}) {s}: {s}", i, interner_lookup_str(template.name_id)._ptr, ID_IS_INVALID(template.node_id) ? "?" : ast_to_string(template.node_id));
+		// println("{i}) {s}: {s}", i, interner_lookup_str(template.name_id)._ptr, ID_IS_INVALID(template.node_id) ? "?" : ast_to_string(template.node_id));
 
 		int retcode;
 		khint_t k = kh_put(map_id_to_id, templates, template.name_id, &retcode);

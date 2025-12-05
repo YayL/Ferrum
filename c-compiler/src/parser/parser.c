@@ -648,6 +648,7 @@ ID parser_parse_function(struct Parser * parser) {
         case ID_AST_IMPL:
         case ID_AST_STRUCT:
             member_function_index_add(function->name_id, function->info.node_id);
+        default: break;
     }
 
     parser->current_scope_id = function->info.scope_id;

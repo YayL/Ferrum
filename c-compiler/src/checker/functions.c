@@ -11,7 +11,7 @@ FRSolver frsolver_init(ID name_id, ID args_type_id, ID scope_id, Arena candidate
 	a_module * module = get_scope(ID_AST_MODULE, scope_id);
 	ASSERT1(module != NULL);
 
-	return (FRSolver) { .name_id = name_id, args_type_id = args_type_id, .candidates = candidates };
+	return (FRSolver) { .name_id = name_id, .args_type_id = args_type_id, .candidates = candidates };
 }
 
 FRResult frresult_init(FRSolver solver) {
@@ -150,9 +150,20 @@ void resolve_function_from_call(ID node_id) {
 	switch (call_op->left_id.type) {
 		case ID_AST_SYMBOL: {
 			a_symbol function_symbol = LOOKUP(call_op->left_id, a_symbol);
-			name_id = function_symbol.name_id;
-			scope_id = function_symbol.info.scope_id;
-			candidates = context_lookup_all_declarations(name_id);
+			switch (function_symbol.node_id.type) {
+				case ID_AST_FUNCTION: {
+					a_function func = LOOKUP(function_symbol.node_id, a_function);
+					name_id = func.name_id;
+					scope_id = function_symbol.info.scope_id;
+					candidates = arena_init(sizeof(ID));
+					ARENA_APPEND(&candidates, function_symbol.node_id);
+				} break;
+				case ID_INVALID_TYPE: {
+					name_id = function_symbol.name_id;
+					scope_id = function_symbol.info.scope_id;
+					candidates = context_lookup_all_declarations(name_id);
+				} break;
+			}
 		} break;
 		case ID_AST_OP: {
 			a_operator op = LOOKUP(call_op->left_id, a_operator);
@@ -161,7 +172,6 @@ void resolve_function_from_call(ID node_id) {
 				FATAL("Invalid function call LHS operator");
 			}
 
-			ID type_id = ast_get_type_of(op.left_id);
 			a_symbol member_access_rhs = LOOKUP(op.right_id, a_symbol);
 
 			ASSERT1(ID_IS(call_op->right_id, ID_AST_EXPR));
@@ -172,10 +182,6 @@ void resolve_function_from_call(ID node_id) {
 				ARENA_GET(expr->children, i, ID) = ARENA_GET(expr->children, i - 1, ID);
 			}
 			ARENA_GET(expr->children, 0, ID) = op.left_id;
-
-			println("type: {s}", type_to_str(type_id));
-
-			print_ast_tree(node_id);
 
 			ASSERT1(member_access_rhs.name_ids.size == 1);
 			name_id = member_access_rhs.name_id;
@@ -193,8 +199,7 @@ void resolve_function_from_call(ID node_id) {
     FRResult result = frsolver_solve(frsolver_init(name_id, args_type_id, scope_id, candidates));
 
     if (ID_IS_INVALID(result.function_id)) {
-        ERROR("Function {s}{s} is not defined", interner_lookup_str(name_id)._ptr, type_to_str(args_type_id));
-        exit(1);
+        FATAL("Function {s}{s} is not defined", interner_lookup_str(name_id)._ptr, type_to_str(args_type_id));
     }
 
     call_op->definition.function_id = result.function_id;

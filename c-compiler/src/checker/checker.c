@@ -71,7 +71,7 @@ ID checker_check_op_member_access(a_operator * op) {
     ASSERT1(member.name_ids.size == 1);
 
     checker_check_expr_node(op->left_id);
-    print_ast_tree(op->left_id);
+    // print_ast_tree(op->left_id);
 
     ID type = INVALID_ID;
 
@@ -88,15 +88,15 @@ ID checker_check_op_member_access(a_operator * op) {
         FATAL("Not implemented type: {s}", id_type_to_string(op->left_id.type));
     }
 
-    print_ast_tree(op->info.node_id);
-    println("Type: {s}", type_to_str(type));
+    // print_ast_tree(op->info.node_id);
+    // println("Type: {s}", type_to_str(type));
 
     Symbol_T type_symbol = LOOKUP(type, Symbol_T);
 
     ID qualified_symbol = qualify_symbol(lookup(type_symbol.symbol_id), ID_SYMBOL_TYPE);
     ASSERT1(!ID_IS_INVALID(qualified_symbol));
 
-    print_ast_tree(qualified_symbol);
+    // print_ast_tree(qualified_symbol);
 
     a_structure structure = LOOKUP(qualified_symbol, a_structure);
     ASSERT1(structure.templates.size == type_symbol.templates.size);
@@ -114,7 +114,7 @@ ID checker_check_op_member_access(a_operator * op) {
 			FATAL("Duplicate template type: '{s}'", interner_lookup_str(symbol.name_id)._ptr);
 		}
 
-        println("{s} = {s}", interner_lookup_str(symbol.name_id)._ptr, type_to_str(structure_type_id));
+        // println("{s} = {s}", interner_lookup_str(symbol.name_id)._ptr, type_to_str(structure_type_id));
 		ASSERT(retcode == KH_PUT_SUCCESS, "Unknown error occured while populating template hashmap: {i}", retcode);
 		kh_value(&templates, k) = structure_type_id;
     }
@@ -204,7 +204,9 @@ ID checker_check_op(ID node_id) {
 
 ID checker_check_expression(ID node_id) {
     a_expression * expr = lookup(node_id);
-    ASSERT1(expr->children.size != 0);
+    if (expr->children.size == 0) {
+        return VOID_TYPE;
+    }
 
     if (expr->children.size == 1) {
         ID child_node_id = ARENA_GET(expr->children, 0, ID);
@@ -276,25 +278,24 @@ void checker_check_struct(ID node_id) {
     a_structure _struct = LOOKUP(node_id, a_structure);
     context_add_template_list(_struct.templates);
 
-    print_ast_tree(node_id);
+    // print_ast_tree(node_id);
 
     for (size_t i = 0; i < _struct.declarations.size; ++i) {
         ID child_node_id = ARENA_GET(_struct.declarations, i, ID);
 
         switch (child_node_id.type) {
             case ID_AST_SYMBOL: {
-                a_symbol symbol = LOOKUP(child_node_id, a_symbol);
-
+                // a_symbol symbol = LOOKUP(child_node_id, a_symbol);
             } break;
             case ID_AST_FUNCTION: {
-                a_function function = LOOKUP(child_node_id, a_function);
+                // a_function function = LOOKUP(child_node_id, a_function);
             } break;
             default:
                 ERROR("Invalid ID type: {s}", id_type_to_string(child_node_id.type));
                 exit(1);
         }
 
-        println("child: {s}", ast_to_string(child_node_id));
+        // println("child: {s}", ast_to_string(child_node_id));
     }
 
     context_remove_template_list(_struct.templates);
@@ -404,7 +405,7 @@ void checker_check_scope(ID node_id) {
                 break;
         }
 
-        print_ast_tree(child_node_id);
+        // print_ast_tree(child_node_id);
     }
 
     context_remove_declaration_list(scope.declarations);
