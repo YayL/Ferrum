@@ -4,8 +4,6 @@
 #include "parser/keywords.h"
 #include "parser/parser.h"
 #include "tables/registry_manager.h"
-#include "checker/symbol.h"
-#include "checker/typing.h"
 
 struct registry_manager types_manager;
 
@@ -161,21 +159,6 @@ void type_init_intrinsic_type(enum id_type type, void * type_ref) {
     }
 }
 
-// char __is_template_type(struct hashmap * map, char * name) {
-//     if (map == NULL)
-//         return 0;
-//
-//     return hashmap_has(map, name);
-// }
-
-char is_template_type(ID scope_id, ID name_id) {
-    struct AST * scope = get_scope(ID_AST_FUNCTION, scope_id); 
-    
-    return 0;
-    // return scope->type == AST_FUNCTION;
-    //         && __is_template_type(scope->value.function.template_types, name);
-}
-
 ID ast_get_type_of(ID node_id) {
     switch (node_id.type) {
         case ID_AST_OP:
@@ -262,9 +245,10 @@ ID get_base_type(ID type_id) {
             return get_base_type(LOOKUP(type_id, Array_T).basetype_id);
         case ID_REF_TYPE:
             return get_base_type(LOOKUP(type_id, Ref_T).basetype_id);
+        default:
+            FATAL("Invalid type: {s}", id_type_to_string(type_id.type));
     }
 
-    FATAL("Invalid type: {s}", id_type_to_string(type_id.type));
 }
 
 const char * get_base_type_str(ID type_id) {
@@ -275,9 +259,9 @@ const char * get_base_type_str(ID type_id) {
         case ID_REF_TYPE:
         case ID_TUPLE_TYPE:
             return type_to_str(get_base_type(type_id));
+        default:
+            return "(NULL)";
     }
-
-    return "(NULL)";
 }
 
 #define RETURN_WITH_MUT_ADDED(IS_MUT, FMT, ...) if (IS_MUT) return format("mut " FMT, __VA_ARGS__); else return format(FMT, __VA_ARGS__);
@@ -311,7 +295,7 @@ char * type_to_str(ID type_id) {
         case ID_NUMERIC_TYPE:
         {
             Numeric_T num = LOOKUP(type_id, Numeric_T);
-            char c;
+            char c = 0;
             switch (num.type) {
                 case NUMERIC_SIGNED:
                     c = 'i'; break;

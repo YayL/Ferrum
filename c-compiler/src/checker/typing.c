@@ -319,20 +319,33 @@ ID resolve_type_templates_in_type(ID type_id, khash_t(map_id_to_id) * templates)
 		}
 		case ID_SYMBOL_TYPE: {
 			Symbol_T symbol_type = LOOKUP(type_id, Symbol_T);
+			if (symbol_type.templates.size != 0) {
+				Symbol_T * new_symbol = type_allocate(ID_SYMBOL_TYPE);
+				new_symbol->symbol_id = symbol_type.symbol_id;
+				new_symbol->templates = arena_init(sizeof(ID));
+				arena_grow(&new_symbol->templates, symbol_type.templates.size);
+
+				for (size_t i = 0; i < symbol_type.templates.size; ++i) {
+					ARENA_APPEND(&new_symbol->templates, resolve_type_templates_in_type(ARENA_GET(symbol_type.templates, i, ID), templates));
+				}
+
+				return new_symbol->info.type_id;
+			}
+
 			a_symbol symbol = LOOKUP(symbol_type.symbol_id, a_symbol);
 
 			khint_t found;
 			ID template_type = get_template_from_templates(symbol, templates, &found);
-			if (found != kh_end(templates)) { // Is a template
-				if (ID_IS(template_type, ID_AST_VARIABLE)) {
-					template_type = LOOKUP(template_type, a_variable).type_id;
-				}
-
-				ASSERT1(!ID_IS_INVALID(template_type));
-				type_id = template_type;
+			if (found == kh_end(templates)) { // Is not a template
+				return type_id;
 			}
 
-			return resolve_type_templates_in_type(type_id, templates);
+			if (ID_IS(template_type, ID_AST_VARIABLE)) {
+				template_type = LOOKUP(template_type, a_variable).type_id;
+			}
+
+			ASSERT1(!ID_IS_INVALID(template_type));
+			return resolve_type_templates_in_type(template_type, templates);
 		}
 		case ID_VOID_TYPE:
 			return type_id;
@@ -345,8 +358,7 @@ ID resolve_type_templates_in_type(ID type_id, khash_t(map_id_to_id) * templates)
 ID get_template_from_templates(a_symbol symbol, khash_t(map_id_to_id) * templates, khint_t * found) {
 	ASSERT1(!ID_IS_INVALID(symbol.name_id));
 
-	khint_t key;
-	key = kh_get(map_id_to_id, templates, symbol.name_id);
+	khint_t key = kh_get(map_id_to_id, templates, symbol.name_id);
 	if (found != NULL) {
 		*found = key;
 	}

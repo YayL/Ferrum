@@ -6,7 +6,6 @@
 #include "tables/interner.h"
 #include "parser/types.h"
 #include "parser/AST.h"
-#include "tables/symbol_table.h"
 
 #define AST_REGISTRY_MANAGER_DECL_EL(ENUM, STR, NAME, ...) Registry NAME;
 struct registry_manager {

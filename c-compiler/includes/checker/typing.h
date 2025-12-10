@@ -8,6 +8,7 @@ typedef struct function_resoloution_solver {
 	ID name_id;
 	ID args_type_id;
 	Arena candidates;
+	Arena extra_templates;
 } FRSolver;
 
 typedef struct function_resoloution_result {
@@ -22,7 +23,7 @@ struct substitution {
 	ID type_id;		// the type ID of the type the template is resolved to
 };
 
-FRSolver frsolver_init(ID name_id, ID args_type_id, ID scope_id, Arena candidates);
+FRSolver frsolver_init(ID name_id, ID args_type_id, ID scope_id, Arena candidates, Arena extra_templates);
 FRResult frsolver_solve(FRSolver solver);
 
 struct substitution subst_lookup(FRResult fr, ID id);

@@ -27,7 +27,7 @@ struct builtin builtin_get_by_intern_id(ID id) {
 }
 
 void gen_builtin_llvm_op(ID node_id) { 
-	a_expression expr = LOOKUP(node_id, a_expression);
+	// a_expression expr = LOOKUP(node_id, a_expression);
 
 	// const char * op = ((struct AST *) list_at(expr.children, 0))->value.literal.value;
 	// const char * arr[3] = {0};
@@ -46,7 +46,7 @@ void gen_builtin_llvm_store(ID node_id) {
 		FATAL("Invalid builtin 'llvm_store': must only take a type, LHS and RHS value");
 	}
 
-	const char * arr[3] = {0};
+	// const char * arr[3] = {0};
 
 	// for (int i = 0; i < expr.children->size; ++i) {
 	// 	arr[i] = gen_expr_node(list_at(expr.children, i), self_type);
@@ -68,7 +68,7 @@ void gen_builtin_llvm_load(ID node_id) {
 		FATAL("Invalid builtin 'llvm_load': requires a variable as argument");
 	}
 
-	struct AST * node = arena_get_ref(expr.children, 0);
+	// struct AST * node = arena_get_ref(expr.children, 0);
 
 	// gen_write(format("%{u} = load {s}, ptr %{u}; #llvm_load\n",  gen_new_register(), 
 	// 				 llvm_type_to_llvm_type(*node->value.variable.type, self_type),
@@ -76,16 +76,16 @@ void gen_builtin_llvm_load(ID node_id) {
 }
 
 const char * gen_builtin_llvm_type_of(ID node_id) {
-	a_expression expr = LOOKUP(node_id, a_expression);
+	// a_expression expr = LOOKUP(node_id, a_expression);
 
-	ID type = ast_get_type_of(ARENA_GET(expr.children, 0, ID));
+	// ID type = ast_get_type_of(ARENA_GET(expr.children, 0, ID));
 
 	// return llvm_type_to_llvm_type(type, self_type);
 	return "";
 }
 
 const char * gen_builtin(ID node_id) {
-	a_operator op = LOOKUP(node_id, a_operator);
+	// a_operator op = LOOKUP(node_id, a_operator);
 	// const char * builtin = op.left->value.variable.name;
 
 	// if (!strcmp("#llvm_op", builtin)) 

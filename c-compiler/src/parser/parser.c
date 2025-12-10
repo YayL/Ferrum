@@ -157,6 +157,54 @@ ID parser_parse_id(struct Parser * parser) {
     size_t symbols_length = parser->previous_token.span.start - symbol_start + parser->previous_token.span.length;
     symbol->name_id = interner_intern(source_span_init(symbol_start, symbols_length));
 
+    // Try to parse templates
+    if (parser->lexer.tok.type == TOKEN_LT) {
+        struct Parser saved_parser = *parser;
+        a_operator * op = ast_allocate(ID_AST_OP, parser->current_scope_id);
+        Tuple_T * tuple = type_allocate(ID_TUPLE_TYPE);
+        char restore_parser = 0;
+        parser_eat(parser, TOKEN_LT);
+
+        while (parser->lexer.tok.type != TOKEN_GT) {
+            if (parser->lexer.tok.type != TOKEN_ID) {
+                restore_parser = 1; break;
+            }
+
+            ID type_id = parser_parse_type(parser);
+            if (ID_IS_INVALID(type_id)) {
+                restore_parser = 1; break;
+            }
+
+            if (parser->lexer.tok.type == TOKEN_COMMA) {
+                parser_eat(parser, TOKEN_COMMA);
+                if (parser->lexer.tok.type == TOKEN_GT) {
+                    restore_parser = 1; break;
+                }
+            } else if (parser->lexer.tok.type != TOKEN_GT) {
+                restore_parser = 1; break;
+            }
+
+            ARENA_APPEND(&tuple->types, type_id);
+        }
+
+        if (!restore_parser) {
+            parser_eat(parser, TOKEN_GT);
+            // println("Found templates: {i}", tuple->types.size);
+            // for (size_t i = 0; i < tuple->types.size; ++i) {
+            //     println("\t({i}): {s}", i + 1, type_to_str(ARENA_GET(tuple->types, i, ID)));
+            // }
+
+            op->right_id = symbol->info.node_id;
+            op->type_id = tuple->info.type_id;
+            op->op = operator_get(TEMPLATE);
+
+            return op->info.node_id;
+        }
+
+        *parser = saved_parser;
+        println("Restore");
+    }
+
     return symbol->info.node_id;
 }
 
@@ -186,7 +234,6 @@ ID parser_parse_if(struct Parser * parser) {
     * previous = NULL;
 
     ID if_node_id = if_statement->info.node_id;
-    char is_else = 0;
 
     enum if_types {
         _NONE,
@@ -664,7 +711,6 @@ ID parser_parse_import(struct Parser * parser) {
     ASSERT1(last != -1);
     current_path._ptr[last + 1] = '\0';
 
-    SourceSpan module_path = parser->lexer.tok.span;
     char * module_path_cstr = source_span_to_cstr(parser->lexer.tok.span);
 
     char * formatted_path = format("{4s}", current_path._ptr, "/", module_path_cstr, ".fe");

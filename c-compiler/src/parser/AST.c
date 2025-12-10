@@ -320,7 +320,7 @@ char * ast_to_string(ID node_id) {
 
         case ID_AST_LITERAL: {
             a_literal literal = LOOKUP(node_id, a_literal);
-            const char * fmt_string;
+            const char * fmt_string = "";
 
             switch (literal.literal_type) {
                 case LITERAL_NUMBER:

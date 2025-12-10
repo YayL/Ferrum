@@ -28,6 +28,7 @@ enum OP_speciality {
     \
     f(MEMBER_ACCESS, BINARY, 1, LEFT, NORMAL, ".") \
     f(CALL, BINARY, 1, LEFT, ENCLOSED, "(\0)") \
+    f(TEMPLATE, UNARY_POST, 1, LEFT, ENCLOSED, "<\0>") \
     f(SUBSCRIPT, BINARY, 1, LEFT, ENCLOSED, "[\0]") \
     \
     f(PRE_INCREMENT, UNARY_PRE, 1, LEFT, NORMAL, "++") \

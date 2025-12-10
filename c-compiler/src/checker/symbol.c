@@ -28,7 +28,7 @@ ID qualify_symbol(a_symbol * symbol, enum id_type type_to_find) {
 
 	a_module * module = get_scope(ID_AST_MODULE, symbol->info.scope_id);
 
-	size_t name_ids_stepped;
+	size_t name_ids_stepped = symbol->name_ids.size;
 	for (size_t i = 0; i < symbol->name_ids.size; ++i) {
 		ID name_id = ARENA_GET(symbol->name_ids, i, ID);
 

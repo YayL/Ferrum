@@ -7,11 +7,11 @@
 #include "checker/context.h"
 #include "tables/member_functions.h"
 
-FRSolver frsolver_init(ID name_id, ID args_type_id, ID scope_id, Arena candidates) {
+FRSolver frsolver_init(ID name_id, ID args_type_id, ID scope_id, Arena candidates, Arena extra_templates) {
 	a_module * module = get_scope(ID_AST_MODULE, scope_id);
 	ASSERT1(module != NULL);
 
-	return (FRSolver) { .name_id = name_id, .args_type_id = args_type_id, .candidates = candidates };
+	return (FRSolver) { .name_id = name_id, .args_type_id = args_type_id, .candidates = candidates, .extra_templates = extra_templates };
 }
 
 FRResult frresult_init(FRSolver solver) {
@@ -31,6 +31,25 @@ char frsolver_check_candidate(FRSolver solver, a_function candidate, khash_t(map
 	// Must have same amount of arguments
 	if (call_arg_types.size != func_arg_types.size) {
 		return 0;
+	}
+
+	if (candidate.templates.size != solver.extra_templates.size) {
+		return 0;
+	}
+
+	if (candidate.templates.size != 0) {
+		for (size_t i = 0; i < candidate.templates.size; ++i) {
+			a_symbol candidate_template_symbol = LOOKUP(ARENA_GET(candidate.templates, i, ID), a_symbol);
+			ASSERT1(candidate_template_symbol.name_ids.size == 1);
+
+			int retcode;
+			khint_t k = kh_put(map_id_to_id, templates, candidate_template_symbol.name_id, &retcode);
+
+			ASSERT1(retcode != KH_PUT_ERROR);
+			ID type_id = ARENA_GET(solver.extra_templates, i, ID);
+			// println("{s}: {s}", interner_lookup_str(candidate_template_symbol.name_id)._ptr, type_to_str(type_id));
+			kh_value(templates, k) = type_id;
+		}
 	}
 
 	/* Perform function argument type checking */
@@ -140,7 +159,7 @@ FRResult frsolver_solve(FRSolver solver) {
 	return result;
 }
 
-void resolve_function_from_call(ID node_id) {
+void resolve_function_from_call(ID node_id, Arena extra_templates) {
     ASSERT1(ID_IS(node_id, ID_AST_OP));
     a_operator * call_op = lookup(node_id);
 
@@ -163,30 +182,47 @@ void resolve_function_from_call(ID node_id) {
 					scope_id = function_symbol.info.scope_id;
 					candidates = context_lookup_all_declarations(name_id);
 				} break;
+				default:
+					FATAL("Unimplemented type: {s}", id_type_to_string(call_op->left_id.type));
 			}
 		} break;
 		case ID_AST_OP: {
 			a_operator op = LOOKUP(call_op->left_id, a_operator);
 
-			if (op.op.key != MEMBER_ACCESS) {
-				FATAL("Invalid function call LHS operator");
+			a_symbol call_symbol = LOOKUP(op.right_id, a_symbol);
+			switch (op.op.key) {
+				case MEMBER_ACCESS: {
+					call_symbol = LOOKUP(op.right_id, a_symbol);
+					ASSERT1(call_symbol.name_ids.size == 1);
+
+					ASSERT1(ID_IS(call_op->right_id, ID_AST_EXPR));
+					a_expression * expr = lookup(call_op->right_id);
+
+					arena_next(&expr->children);
+					for (ssize_t i = expr->children.size - 1; i > 0; --i) {
+						ARENA_GET(expr->children, i, ID) = ARENA_GET(expr->children, i - 1, ID);
+					}
+					ARENA_GET(expr->children, 0, ID) = op.left_id;
+
+					name_id = call_symbol.name_id;
+					scope_id = op.info.scope_id;
+					candidates = member_function_index_lookup(name_id);
+				} break;
+				case TEMPLATE: {
+					// This will probably need to be revisted in the future to allow
+					// static trait functions to be called
+					call_symbol = LOOKUP(op.right_id, a_symbol);
+					a_function function = LOOKUP(call_symbol.node_id, a_function);
+
+					name_id = function.name_id;
+					scope_id = op.info.scope_id;
+					candidates = arena_init(sizeof(ID));
+					ARENA_APPEND(&candidates, function.info.node_id);
+				} break;
+				default:
+					FATAL("Invalid function call LHS operator");
 			}
 
-			a_symbol member_access_rhs = LOOKUP(op.right_id, a_symbol);
-
-			ASSERT1(ID_IS(call_op->right_id, ID_AST_EXPR));
-			a_expression * expr = lookup(call_op->right_id);
-
-			arena_next(&expr->children);
-			for (ssize_t i = expr->children.size - 1; i > 0; --i) {
-				ARENA_GET(expr->children, i, ID) = ARENA_GET(expr->children, i - 1, ID);
-			}
-			ARENA_GET(expr->children, 0, ID) = op.left_id;
-
-			ASSERT1(member_access_rhs.name_ids.size == 1);
-			name_id = member_access_rhs.name_id;
-			scope_id = op.info.scope_id;
-			candidates = member_function_index_lookup(name_id);
 		} break;
 		default:
 			FATAL("Invalid function call LHS");
@@ -196,7 +232,7 @@ void resolve_function_from_call(ID node_id) {
 
 	// println("Call '{s}', Type: {s}, Scope: {s}, Candidates: {i}", interner_lookup_str(name_id)._ptr, type_to_str(args_type_id), id_type_to_string(scope_id.type), candidates.size);
 
-    FRResult result = frsolver_solve(frsolver_init(name_id, args_type_id, scope_id, candidates));
+    FRResult result = frsolver_solve(frsolver_init(name_id, args_type_id, scope_id, candidates, extra_templates));
 
     if (ID_IS_INVALID(result.function_id)) {
         FATAL("Function {s}{s} is not defined", interner_lookup_str(name_id)._ptr, type_to_str(args_type_id));
@@ -224,7 +260,7 @@ void resolve_function_from_operator(ID node_id) {
     ID args_type_id = type_from_arena(tuple_types);
     Arena candidates = member_function_index_lookup(name_id);
 
-    FRResult result = frsolver_solve(frsolver_init(name_id, args_type_id, op->info.scope_id, candidates));
+    FRResult result = frsolver_solve(frsolver_init(name_id, args_type_id, op->info.scope_id, candidates, (Arena) {0}));
 
     if (ID_IS_INVALID(result.function_id)) {
         ERROR("Operator '{s}'{s} is not defined for {s}", op->op.str, operator_get_runtime_name(op->op.key), type_to_str(args_type_id));

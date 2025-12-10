@@ -5,12 +5,14 @@ struct List<T> {
     let mut size: u64
     let mut capacity: u64
 
-    fn new() -> List<T> {
+    fn new<T>() -> List<T> {
         let item: T
         let list: List<T>
         list.buf = calloc(1, #sizeof(item))
         list.size = 0
         list.capacity = 1
+
+        return list
     }
 
     fn reserve<U: numeric::Unsigned>(self: &mut List<T>, additional: U) -> void {

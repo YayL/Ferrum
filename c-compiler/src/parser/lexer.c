@@ -110,7 +110,7 @@ void lexer_parse_string_literal(struct Lexer * lexer) {
     ASSERT1(lexer->c != '\'');
 
     // Skip first '"' so perform pre-increment
-	while (peek = lexer_peek(lexer, ++length), isprint(peek) && peek != '"');
+	while (peek = lexer_peek(lexer, ++length), isprint(peek) && peek != '"') {};
 
     lexer_update_token(lexer, lexer->src + lexer->index + 1, length - 1, TOKEN_STRING_LITERAL);
     lexer_update(lexer, length + 1); // Add 1 to skip last '"'
@@ -121,7 +121,7 @@ void lexer_parse_int(struct Lexer * lexer) {
     unsigned int length = 0;
     char peek;
 
-	while (peek = lexer_peek(lexer, length++), isdigit(peek) || peek == '_');
+	while (peek = lexer_peek(lexer, length++), isdigit(peek) || peek == '_') {};
     length -= 1; // Went pass the end of int
 
     lexer_update_token(lexer, lexer->src + lexer->index, length, TOKEN_INT);
@@ -149,9 +149,6 @@ void lexer_parse_multi_line_comment(struct Lexer * lexer) {
 
 
 void lexer_parse_single_line_comment(struct Lexer * lexer) {
-    unsigned int offset = 0;    
-    char c;
-    
     while(lexer->c != '\n' && lexer->c != EOF) {
         lexer_advance(lexer);
     }

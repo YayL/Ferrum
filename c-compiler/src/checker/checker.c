@@ -144,7 +144,14 @@ ID checker_check_op_call(a_operator * op) {
         switch (left_op->op.key) {
             case MEMBER_ACCESS: {
                 checker_check_expr_node(left_op->left_id);
-                resolve_function_from_call(op->info.node_id);
+                resolve_function_from_call(op->info.node_id, (Arena) {0});
+                return op->type_id;
+            } break;
+            case TEMPLATE: {
+                ASSERT1(ID_IS(left_op->type_id, ID_TUPLE_TYPE));
+                Arena templates = LOOKUP(left_op->type_id, Tuple_T).types;
+                checker_check_expr_node(left_op->right_id);
+                resolve_function_from_call(op->info.node_id, templates);
                 return op->type_id;
             } break;
             default:
@@ -169,7 +176,7 @@ ID checker_check_op_call(a_operator * op) {
     }
 
     checker_check_expr_node(op->right_id);
-    resolve_function_from_call(op->info.node_id);
+    resolve_function_from_call(op->info.node_id, (Arena) {0});
 
     return op->type_id;
 }
@@ -302,7 +309,7 @@ void checker_check_struct(ID node_id) {
 }
 
 void checker_check_impl(ID node_id) {
-    a_implementation impl = LOOKUP(node_id, a_implementation);
+    // a_implementation impl = LOOKUP(node_id, a_implementation);
     // struct AST * node = get_symbol(impl.name, ast->scope),
     //            * temp1,
     //            * temp2;
@@ -366,7 +373,7 @@ void checker_check_impl(ID node_id) {
 }
 
 void checker_check_trait(ID node_id) {
-    a_trait trait = LOOKUP(node_id, a_trait);
+    // a_trait trait = LOOKUP(node_id, a_trait);
 
     // struct AST * node = get_symbol(trait.name, ast->scope);
     //

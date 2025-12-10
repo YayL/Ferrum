@@ -62,8 +62,15 @@ Arena _parser_parse_expr(struct Parser * parser, Arena * output, DEQUE_T(Operato
 
                 ID node_id = parser_parse_id(parser);
 
-                ASSERT1(ID_IS(node_id, ID_AST_SYMBOL));
-                a_symbol symbol = LOOKUP(node_id, a_symbol);
+                a_symbol symbol;
+                switch (node_id.type) {
+                    case ID_AST_SYMBOL:
+                        symbol = LOOKUP(node_id, a_symbol); break;
+                    case ID_AST_OP:
+                        symbol = LOOKUP(LOOKUP(node_id, a_operator).right_id, a_symbol); break;
+                    default:
+                        FATAL("Invalid node type: {s}", id_type_to_string(node_id.type));
+                }
 
                 if (!ID_IS_INVALID(symbol.node_id) && output->size != 0) {
                     ERROR("Invalid use of symbol type hinting");
@@ -88,7 +95,7 @@ Arena _parser_parse_expr(struct Parser * parser, Arena * output, DEQUE_T(Operato
                 if (op1.enclosed == ENCLOSED) {
                     if (!flag) { // open enclosed operator
                         parser_eat(parser, parser->lexer.tok.type);
-                        
+
                         DEQUE_T(Operator) deque = DEQUE_INIT(Operator);
                         Arena arena = arena_init(sizeof(ID));
                         DEQUE_PUSH_BACK(Operator, &deque, op1);
@@ -149,11 +156,16 @@ Arena _parser_parse_expr(struct Parser * parser, Arena * output, DEQUE_T(Operato
 
                 if (op1.key == ADDRESS_OF
                     && parser->lexer.tok.type == TOKEN_ID 
-                    && id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUT)))
-                {
+                    && id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUT))
+                ) {
                     parser_eat(parser, TOKEN_ID);
                     op1 = operator_get(MUT_ADDRESS_OF);
                 }
+
+                // println("operator: {s}", operator_to_str(op1));
+                // if (op1.key == LESS_THAN || op1.key == TEMPLATE) {
+                //     exit(0);
+                // }
 
                 if (op1.key == CAST) {
                     consume_add_operator(op1, output, parser);

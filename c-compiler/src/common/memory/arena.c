@@ -22,10 +22,15 @@ void arena_free(Arena arena) {
 }
 
 void arena_grow(Arena * arena, uint32_t new_capacity) {
-	ASSERT1(arena->arena != NULL);
-	ASSERT1(arena->capacity < new_capacity);
-	arena->capacity = new_capacity;
-	arena->arena = realloc(arena->arena, arena->item_size * arena->capacity);
+	if (arena->arena == NULL) {
+		arena->capacity = new_capacity;
+		arena->arena = malloc(arena->item_size * arena->capacity);
+	} else {
+		ASSERT1(arena->arena != NULL);
+		ASSERT1(arena->capacity < new_capacity);
+		arena->capacity = new_capacity;
+		arena->arena = realloc(arena->arena, arena->item_size * arena->capacity);
+	}
 	ASSERT1(arena->arena != NULL);
 }
 
