@@ -15,6 +15,8 @@ const char * keyword_get_str(enum Keywords keyword_enum) {
     switch (keyword_enum) {
         KEYWORDS_LIST_FULL(KEYWORD_GET_STR)
     }
+
+    FATAL("Keywords uhoh");
 }
 
 struct Keyword keyword_get(enum Keywords keyword_enum) {

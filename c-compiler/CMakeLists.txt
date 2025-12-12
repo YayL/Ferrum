@@ -4,8 +4,8 @@ project(Compiler VERSION 1.0.0)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_BUILD_TYPE Debug) 
-set(CMAKE_C_FLAGS_DEBUG "-pg -g")
-set(CMAKE_C_FLAGS_RELEASE "-Wall -Ofast -g")
+set(CMAKE_C_FLAGS_DEBUG "-Wall -Wno-unused -pg -g")
+set(CMAKE_C_FLAGS_RELEASE "-Ofast")
 
 find_library(LIBBT NAMES libbacktrace)
 

@@ -21,7 +21,6 @@ ID _parser_parse_numeric_type(struct Parser * parser) {
     long width = strtol(&span.start[1], &end_ptr, 10);
 
     if (!(0 < width && width <= UINT16_MAX) || end_ptr != &span.start[span.length]) {
-        println("invalid: {u}, {u}", end_ptr - span.start, span.length);
         return INVALID_ID;
     }
 
@@ -143,22 +142,6 @@ ID parser_parse_type(struct Parser * parser) {
     }
 }
 
-void type_init_intrinsic_type(enum id_type type, void * type_ref) {
-    switch (type) {
-        case ID_TUPLE_TYPE:
-            ((Tuple_T *) type_ref)->types = arena_init(sizeof(ID)); break;
-        case ID_FN_TYPE:
-        case ID_PLACE_TYPE:
-        case ID_NUMERIC_TYPE:
-        case ID_SYMBOL_TYPE:
-        case ID_ARRAY_TYPE:
-        case ID_REF_TYPE:
-            break;
-        default:
-            FATAL("Invalid ID type: {s}", id_type_to_string(type));
-    }
-}
-
 ID ast_get_type_of(ID node_id) {
     switch (node_id.type) {
         case ID_AST_OP:
@@ -266,7 +249,7 @@ const char * get_base_type_str(ID type_id) {
 
 #define RETURN_WITH_MUT_ADDED(IS_MUT, FMT, ...) if (IS_MUT) return format("mut " FMT, __VA_ARGS__); else return format(FMT, __VA_ARGS__);
 
-char * type_to_str(ID type_id) {
+const char * type_to_str(ID type_id) {
     switch (type_id.type) {
         case ID_INVALID_TYPE: {
             // WARN("Invalid type_id passed to type_to_str");
@@ -279,7 +262,7 @@ char * type_to_str(ID type_id) {
             Symbol_T symbol_type = LOOKUP(type_id, Symbol_T);
             a_symbol symbol = LOOKUP(symbol_type.symbol_id, a_symbol);
 
-            char * str = interner_lookup_str(symbol.name_id)._ptr;
+            const char * str = interner_lookup_str(symbol.name_id)._ptr;
 
             if (symbol_type.templates.size > 0) {
                 str = format("{s}<{s}", str, type_to_str(ARENA_GET(symbol_type.templates, 0, ID)));

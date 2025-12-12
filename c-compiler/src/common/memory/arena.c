@@ -1,7 +1,6 @@
 #include "common/memory/arena.h"
 
 #include "common/common.h"
-#include "common/math.h"
 
 #define ARENA_GET_INDEX(ARENA, INDEX) ARENA.arena + INDEX * ARENA.item_size
 #define ARENA_INITIAL_CAPACITY 4
@@ -79,7 +78,7 @@ void arena_extend(Arena * dest, const Arena src) {
 
 	if (dest->capacity < needed_size) {
 		ASSERT(ARENA_GROWTH_RATE == 2, "Arena growth rate was adjusted, please fix this code");
-		uint32_t adjusted_capacity = 1 << log2i(needed_size - 1); // subtact one to "ceil" result
+		// uint32_t adjusted_capacity = 1 << log2i(needed_size - 1); // subtact one to "ceil" result
 		arena_grow(dest, needed_size);
 	}
 

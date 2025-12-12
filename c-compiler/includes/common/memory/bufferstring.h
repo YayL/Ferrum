@@ -3,7 +3,7 @@
 #include "common/common.h"
 
 typedef struct {
-	char * _ptr;
+	const char * _ptr;
 	size_t length;
 } BString;
 

@@ -12,7 +12,7 @@ fn fib(n: i32) -> i32 {
 	}
 
 	// start at fib(3)
-	let mut i: i32 = 3
+	let mut i: u32 = 3 to u32
 	let mut temp: i32 = 0
 	let mut prev: i32 = 1
 	let mut curr: i32 = 2

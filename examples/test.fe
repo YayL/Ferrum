@@ -5,13 +5,15 @@ fn main(argc: i32) -> i32 {
 }
 
 fn func_1(foo: i32) -> i32 {
-    let a: i64 = (2 + 222) * foo to i64
+    let a: i32 = (2 + 222) * foo
 
-    let b: i64 = a - foo
+    let b: i32 = a - foo
 
     let mut i: i32 = 0
 
     for i < b, i++ {
         i = i + 1
    }
+
+    func_1(foo + 1)
 }

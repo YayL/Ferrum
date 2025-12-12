@@ -56,7 +56,7 @@ void lexer_parse_operator(struct Lexer * lexer) {
             else
                 length = 1;
         // is enclosed operator and the ending of enclosed matches char
-        } else if (op.enclosed && c == op.str[op.enclosed_offset]) {
+        } else if (op.enclosed && c == op.str[(size_t) op.enclosed_offset]) {
             if (op.str[op.enclosed_offset + 1])
                 arr[arr_index++] = i;
             else
@@ -155,6 +155,8 @@ const char * operator_get_runtime_name(enum Operators op) {
     switch (op) {
         OPERATORS_LIST(OPERATOR_RUNTIME_NAME)
     }
+
+    FATAL("operator uhoh");
 }
 
 char * operator_to_str(struct Operator operator) {

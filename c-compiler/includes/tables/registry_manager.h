@@ -20,6 +20,22 @@ static struct registry_manager registry_manager_init() {
 	return manager;
 }
 
+static inline void type_init_intrinsic_type(enum id_type type, void * type_ref) {
+    switch (type) {
+        case ID_TUPLE_TYPE:
+            ((Tuple_T *) type_ref)->types = arena_init(sizeof(ID)); break;
+        case ID_SYMBOL_TYPE:
+        case ID_PLACE_TYPE:
+        case ID_FN_TYPE:
+        case ID_NUMERIC_TYPE:
+        case ID_ARRAY_TYPE:
+        case ID_REF_TYPE:
+            break;
+        default:
+            FATAL("Invalid ID type: {s}", id_type_to_string(type));
+    }
+}
+
 #define FILL_INTERNER_ID(REF, INTERNER_ID, ...) (((struct interner_entry *) REF)->id = INTERNER_ID)
 #define FILL_SYMBOL_ID(REF, SYMBOL_ID, ...) (((struct symbol_map_entry *) REF)->symbol_id = SYMBOL_ID)
 #define FILL_TYPE_ID(REF, TYPE_ID, ...) (((struct type_info *) REF)->type_id = TYPE_ID); type_init_intrinsic_type(TYPE_ID.type, REF)

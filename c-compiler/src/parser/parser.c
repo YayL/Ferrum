@@ -202,7 +202,6 @@ ID parser_parse_id(struct Parser * parser) {
         }
 
         *parser = saved_parser;
-        println("Restore");
     }
 
     return symbol->info.node_id;

@@ -463,7 +463,6 @@ void checker_check_declaration(ID node_id) {
 
             Place_T * place_type = lookup(variable->type_id);
             place_type->is_mut = declaration.is_mut;
-
             child_node_id = variable->info.node_id;
         } else {
             ASSERT1(ID_IS(child_node_id, ID_AST_SYMBOL));
