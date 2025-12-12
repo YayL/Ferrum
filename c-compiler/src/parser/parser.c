@@ -386,13 +386,16 @@ ID parser_parse_struct(struct Parser * parser) {
 
         switch (child_node_id.type) {
             case ID_AST_DECLARATION: {
-                a_declaration declaration = LOOKUP(child_node_id, a_declaration);
-                a_expression expr = LOOKUP(declaration.expression_id, a_expression);
-                arena_extend(&_struct->declarations, expr.children);
-            } break;
-            case ID_AST_FUNCTION: {
                 ARENA_APPEND(&_struct->declarations, child_node_id);
+                a_expression expr = LOOKUP(LOOKUP(child_node_id, a_declaration).expression_id, a_expression);
+                for (size_t i = 0; i < expr.children.size; ++i) {
+                    ARENA_APPEND(&_struct->members, ARENA_GET(expr.children, i, ID));
+                }
             } break;
+            case ID_AST_FUNCTION:
+                ARENA_APPEND(&_struct->members, child_node_id);
+                ARENA_APPEND(&_struct->declarations, child_node_id);
+                break;
             default: {
                 FATAL("{2i::} Invalid identifier '{s}' in struct declaration", parser->lexer.line, parser->lexer.pos, id_type_to_string(child_node_id.type));
             }
@@ -403,6 +406,8 @@ ID parser_parse_struct(struct Parser * parser) {
         }
 
     } while (parser->lexer.tok.type != TOKEN_RBRACE);
+
+    println("Struct {s}", ast_to_string(_struct->info.node_id));
 
     parser_eat(parser, TOKEN_RBRACE);
 
@@ -551,20 +556,6 @@ ID parser_parse_declaration(struct Parser * parser) {
     }
 
     ASSERT1(ID_IS(symbol->node_id, ID_AST_VARIABLE));
-
-    switch (declaration->info.scope_id.type) {
-        case ID_AST_SCOPE: {
-            a_scope * scope = lookup(declaration->info.scope_id);
-            ARENA_APPEND(&scope->declarations, child_node_id);
-        } break;
-        case ID_AST_STRUCT: {
-            a_structure * structure = lookup(declaration->info.scope_id);
-            ARENA_APPEND(&structure->declarations, child_node_id);
-        } break;
-        default:
-            FATAL("Invalid declaration scope: '{s}'", id_type_to_string(declaration->info.scope_id.type));
-    }
-
     declaration->name_id = symbol->name_id;
 
     return declaration->info.node_id;
@@ -604,6 +595,17 @@ ID parser_parse_statement(struct Parser * parser) {
     FATAL("[Parser] Unknown error control flow somehow got to the end of parser_parse_statement?");
 }
 
+static inline void parser_parse_scope_statement(struct Parser * parser, a_scope * scope) {
+    ID statement = parser_parse_statement(parser);
+    ARENA_APPEND(&scope->nodes, statement);
+    if (ID_IS(statement, ID_AST_DECLARATION)) {
+        a_expression expr = LOOKUP(LOOKUP(statement, a_declaration).expression_id, a_expression);
+        for (size_t i = 0; i < expr.children.size; ++i) {
+            ARENA_APPEND(&scope->declarations, ARENA_GET(expr.children, i, ID));
+        }
+    }
+}
+
 ID parser_parse_scope(struct Parser * parser) {
     a_scope * scope = ast_allocate(ID_AST_SCOPE, parser->current_scope_id);
     parser->current_scope_id = scope->info.node_id;
@@ -622,7 +624,7 @@ ID parser_parse_scope(struct Parser * parser) {
                 FATAL("Unclosed scope");
             }
 
-            ARENA_APPEND(&scope->nodes, parser_parse_statement(parser));
+            parser_parse_scope_statement(parser, scope);
         }
 
         parser_eat(parser, TOKEN_RBRACE);
@@ -633,7 +635,7 @@ ID parser_parse_scope(struct Parser * parser) {
         if (parser->lexer.tok.type == TOKEN_LINE_BREAK) {
             WARN("Scopes without curly brackets must follow the scope initializer immidiatly(1 line or less)");
         } else {
-            ARENA_APPEND(&scope->nodes, parser_parse_statement(parser));
+            parser_parse_scope_statement(parser, scope);
         }
     }
 

@@ -1,21 +1,21 @@
 import "../groups/numeric" as numeric
 
-struct<U: numeric::Unsigned> Slice<ElementType, SizeType: U> {
-	let buf: &ElementType
-	let length: SizeType
+struct Slice<T> {
+	let buf: &T
+	let length: u32
 
-	fn static new(buf: &ElementType, length: SizeType) -> Self {
+	fn static new<U: numeric::Unsigned>(buf: &T, length: U) -> Self {
 		let new_slice: Self
 
 		new_slice.buf = buf
-		new_slice.length = length
+		new_slice.length = length to u32
 
 		new_slice
 	}
 }
 
 import "../ops/address/subscript" as subscript
-impl<T, U: numeric::Unsigned> subscript::#Indexable<RefType: Slice<T, U>, BaseType: T, IndexType: U> {
+impl<T, U: numeric::Unsigned> subscript::#Indexable<RefType: Slice<T>, BaseType: T, IndexType: U> {
     fn inline #OP_SUBSCRIPT(ref: RefType, index: IndexType) -> BaseType {
 		ref.buf[index]
 	}

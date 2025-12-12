@@ -23,6 +23,7 @@ void ast_init_node(enum id_type type, void * node_ref) {
             break;
         case ID_AST_STRUCT:
             ((a_structure *) node_ref)->declarations = arena_init(sizeof(ID));
+            ((a_structure *) node_ref)->members = arena_init(sizeof(ID));
             ((a_structure *) node_ref)->name_id = INVALID_ID;
             break;
         case ID_AST_TRAIT:

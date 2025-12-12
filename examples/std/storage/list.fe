@@ -29,8 +29,7 @@ struct List<T> {
         self.buf[self.size++] = item
     }
 
-    fn at<I: numeric::Integer>(self: List<T>, index: I) -> T {
-        // panic if index is less than 0 or more/equal to self.size
+    fn at<U: numeric::Unsigned>(self: List<T>, index: U) -> T {
         self.buf[index]
     }
     

@@ -3,7 +3,7 @@ group Unsigned as (u8, u16, u32, u64, u128)
 group Float as (f16, f32, f64, f128)
 
 group Integer as (Signed, Unsigned)
-group Numeric as (Integer, Float)
+group Numeric as (Signed, Unsigned, Float)
 
 import "../ops/cast/cast" as cast
 

@@ -50,6 +50,10 @@ ID checker_check_symbol(ID node_id) {
     ASSERT1(ID_IS(node_id, ID_AST_SYMBOL));
     a_symbol * symbol = lookup(node_id);
 
+    if (!ID_IS_INVALID(symbol->node_id)) {
+        return symbol->node_id;
+    }
+
     if (symbol->name_ids.size > 1) {
         symbol->node_id = qualify_symbol(symbol, ID_AST_DECLARATION);
     } else {
@@ -71,7 +75,7 @@ ID checker_check_op_member_access(a_operator * op) {
     ASSERT1(member.name_ids.size == 1);
 
     checker_check_expr_node(op->left_id);
-    // print_ast_tree(op->left_id);
+    print_ast_tree(op->info.node_id);
 
     ID type = INVALID_ID;
 
@@ -85,11 +89,11 @@ ID checker_check_op_member_access(a_operator * op) {
         print_ast_tree(child_op.definition.function_id);
         exit(0);
     } else {
-        FATAL("Not implemented type: {s}", id_type_to_string(op->left_id.type));
+        FATAL("Unable to take member access of type: {s}", id_type_to_string(op->left_id.type));
     }
 
     // print_ast_tree(op->info.node_id);
-    // println("Type: {s}", type_to_str(type));
+    println("Type: {s}", type_to_str(type));
 
     Symbol_T type_symbol = LOOKUP(type, Symbol_T);
 
@@ -285,17 +289,24 @@ void checker_check_struct(ID node_id) {
     a_structure _struct = LOOKUP(node_id, a_structure);
     context_add_template_list(_struct.templates);
 
-    // print_ast_tree(node_id);
+    for (size_t i = 0; i < _struct.declarations.size; ++i) {
+        println("{i}) {s}", i + 1, ast_to_string(ARENA_GET(_struct.declarations, i, ID)));
+    }
 
     for (size_t i = 0; i < _struct.declarations.size; ++i) {
         ID child_node_id = ARENA_GET(_struct.declarations, i, ID);
 
         switch (child_node_id.type) {
-            case ID_AST_SYMBOL: {
+            case ID_AST_DECLARATION: {
                 // a_symbol symbol = LOOKUP(child_node_id, a_symbol);
+                println("Checking {s}", ast_to_string(child_node_id));
+                print_ast_tree(child_node_id);
+                checker_check_declaration(child_node_id);
             } break;
             case ID_AST_FUNCTION: {
                 // a_function function = LOOKUP(child_node_id, a_function);
+                println("Checking {s}", ast_to_string(child_node_id));
+                checker_check_function(child_node_id);
             } break;
             default:
                 ERROR("Invalid ID type: {s}", id_type_to_string(child_node_id.type));
