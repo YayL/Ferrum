@@ -26,6 +26,16 @@ ID context_lookup_declaration(ID name_id) {
 	return entry.node_id;
 }
 
+ID context_lookup_type(ID name_id) {
+	struct symbol_map_entry entry = symbol_map_get_by_name(&context.symbol_table.types, name_id);
+
+	if (ID_IS_INVALID(entry.symbol_id)) {
+		return INVALID_ID;
+	}
+
+	return entry.node_id;
+}
+
 Arena context_lookup_all_declarations(ID name_id) {
 	Arena arena = arena_init(sizeof(ID));
 
@@ -50,6 +60,7 @@ void context_add_template_list(Arena arena) {
 		ID child_node_id = ARENA_GET(arena, i, ID);
 		ASSERT1(ID_IS(child_node_id, ID_AST_SYMBOL)); // should be handled in the parser
 
+		println("{i}) {s}", i + 1, ast_to_string(child_node_id));
 		a_symbol symbol = LOOKUP(child_node_id, a_symbol);
 		ASSERT1(ID_IS(symbol.name_id, ID_INTERNER)); // should be handled in the parser
 		ASSERT1(symbol.name_ids.size == 1); // should be handled in the parser

@@ -319,6 +319,7 @@ ID resolve_type_templates_in_type(ID type_id, khash_t(map_id_to_id) * templates)
 		}
 		case ID_SYMBOL_TYPE: {
 			Symbol_T symbol_type = LOOKUP(type_id, Symbol_T);
+
 			if (symbol_type.templates.size != 0) {
 				Symbol_T * new_symbol = type_allocate(ID_SYMBOL_TYPE);
 				new_symbol->symbol_id = symbol_type.symbol_id;
@@ -333,15 +334,29 @@ ID resolve_type_templates_in_type(ID type_id, khash_t(map_id_to_id) * templates)
 			}
 
 			a_symbol symbol = LOOKUP(symbol_type.symbol_id, a_symbol);
+			ID template_type;
 
-			khint_t found;
-			ID template_type = get_template_from_templates(symbol, templates, &found);
-			if (found == kh_end(templates)) { // Is not a template
-				return type_id;
-			}
+			if (templates != NULL) {
+				khint_t found;
+				ID template_type = get_template_from_templates(symbol, templates, &found);
+				if (found == kh_end(templates)) { // Is not a template
+					return type_id;
+				}
 
-			if (ID_IS(template_type, ID_AST_VARIABLE)) {
-				template_type = LOOKUP(template_type, a_variable).type_id;
+				if (ID_IS(template_type, ID_AST_VARIABLE)) {
+					template_type = LOOKUP(template_type, a_variable).type_id;
+				}
+			} else {
+				ASSERT1(symbol.name_ids.size == 1);
+				template_type = context_lookup_type(symbol.name_id);
+				ASSERT1(!ID_IS_INVALID(template_type));
+
+				if (ID_IS(template_type, ID_AST_SYMBOL)) {
+					return type_id;
+				}
+
+				a_symbol template_var_sym = LOOKUP(template_type, a_symbol);
+				ASSERT(!ID_IS_INVALID(template_var_sym.node_id), "Template variable '{s}' has not been inferred", interner_lookup_str(template_var_sym.name_id)._ptr);
 			}
 
 			ASSERT1(!ID_IS_INVALID(template_type));

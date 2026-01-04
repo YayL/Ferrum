@@ -93,39 +93,67 @@ ID checker_check_op_member_access(a_operator * op) {
     }
 
     // print_ast_tree(op->info.node_id);
-    println("Type: {s}", type_to_str(type));
+    println("Type: {s} | {s}", type_to_str(type), id_type_to_string(type.type));
 
-    Symbol_T type_symbol = LOOKUP(type, Symbol_T);
-
-    ID qualified_symbol = qualify_symbol(lookup(type_symbol.symbol_id), ID_SYMBOL_TYPE);
-    ASSERT1(!ID_IS_INVALID(qualified_symbol));
-
-    // print_ast_tree(qualified_symbol);
-
-    a_structure structure = LOOKUP(qualified_symbol, a_structure);
-    ASSERT1(structure.templates.size == type_symbol.templates.size);
-    khash_t(map_id_to_id) templates = kh_init(map_id_to_id);
-
-    for (size_t i = 0; i < structure.templates.size; ++i) {
-        ID template_symbol_id = ARENA_GET(structure.templates, i, ID);
-        a_symbol symbol = LOOKUP(template_symbol_id, a_symbol);
-        ASSERT1(symbol.name_ids.size == 1);
-        ID structure_type_id = ARENA_GET(type_symbol.templates, i, ID);
-
-        int retcode;
-		khint_t k = kh_put(map_id_to_id, &templates, symbol.name_id, &retcode);
-		if (retcode == KH_PUT_ALREADY_PRESENT) {
-			FATAL("Duplicate template type: '{s}'", interner_lookup_str(symbol.name_id)._ptr);
-		}
-
-        // println("{s} = {s}", interner_lookup_str(symbol.name_id)._ptr, type_to_str(structure_type_id));
-		ASSERT(retcode == KH_PUT_SUCCESS, "Unknown error occured while populating template hashmap: {i}", retcode);
-		kh_value(&templates, k) = structure_type_id;
+    if (ID_IS(type, ID_PLACE_TYPE)) {
+        type = LOOKUP(type, Place_T).basetype_id;
     }
 
-    ID qualified_member = qualify_declaration(structure.declarations, member.name_id);
+    ASSERT1(ID_IS(type, ID_SYMBOL_TYPE));
+    Symbol_T type_symbol = LOOKUP(type, Symbol_T);
+    ASSERT1(ID_IS(type_symbol.symbol_id, ID_AST_SYMBOL));
+
+    a_symbol * symbol = lookup(type_symbol.symbol_id);
+    ID template_symbol = context_lookup_type(symbol->name_id);
+
+    print_ast_tree(template_symbol);
+
+    if (symbol->name_ids.size == 1) {
+        ASSERT1(ID_IS(template_symbol, ID_AST_SYMBOL));
+        a_symbol t_symbol = LOOKUP(template_symbol, a_symbol);
+        ASSERT1(ID_IS(t_symbol.node_id, ID_AST_VARIABLE));
+        a_variable t_var = LOOKUP(t_symbol.node_id, a_variable);
+        ASSERT1(ID_IS(t_var.type_id, ID_SYMBOL_TYPE));
+        type_symbol = LOOKUP(t_var.type_id, Symbol_T);
+        symbol = lookup(type_symbol.symbol_id);
+    }
+
+    ID qualified_symbol = qualify_symbol(symbol, ID_SYMBOL_TYPE);
+
+    if (ID_IS_INVALID(qualified_symbol)) {
+        FATAL("Unable to find symbol: {s}", interner_lookup_str(symbol->name_id)._ptr);
+    }
+
+    print_ast_tree(qualified_symbol);
+    puts("1");
+
+    ASSERT1(ID_IS(qualified_symbol, ID_AST_STRUCT));
+    a_structure structure = LOOKUP(qualified_symbol, a_structure);
+    ASSERT1(structure.templates.size == type_symbol.templates.size);
+		//     khash_t(map_id_to_id) templates = kh_init(map_id_to_id);
+		//
+		//     for (size_t i = 0; i < structure.templates.size; ++i) {
+		//         ID template_symbol_id = ARENA_GET(structure.templates, i, ID);
+		//         a_symbol symbol = LOOKUP(template_symbol_id, a_symbol);
+		//         ASSERT1(symbol.name_ids.size == 1);
+		//         ID structure_type_id = ARENA_GET(type_symbol.templates, i, ID);
+		//
+		//         int retcode;
+		// khint_t k = kh_put(map_id_to_id, &templates, symbol.name_id, &retcode);
+		// if (retcode == KH_PUT_ALREADY_PRESENT) {
+		// 	FATAL("Duplicate template type: '{s}'", interner_lookup_str(symbol.name_id)._ptr);
+		// }
+		//
+		//         // println("{s} = {s}", interner_lookup_str(symbol.name_id)._ptr, type_to_str(structure_type_id));
+		// ASSERT(retcode == KH_PUT_SUCCESS, "Unknown error occured while populating template hashmap: {i}", retcode);
+		// kh_value(&templates, k) = structure_type_id;
+		//     }
+
+    ID qualified_member = qualify_declaration(structure.members, member.name_id);
     ASSERT1(ID_IS(qualified_member, ID_AST_SYMBOL));
     a_symbol member_symbol = LOOKUP(qualified_member, a_symbol);
+
+    println("{s}", ast_to_string(qualified_member));
     ASSERT1(ID_IS(member_symbol.node_id, ID_AST_VARIABLE));
 
     switch (member_symbol.node_id.type) {
@@ -133,7 +161,8 @@ ID checker_check_op_member_access(a_operator * op) {
             a_variable variable = LOOKUP(member_symbol.node_id, a_variable);
             ASSERT1(!ID_IS_INVALID(variable.type_id));
 
-            return op->type_id = resolve_type_templates_in_type(variable.type_id, &templates);
+            println("var: {s}", ast_to_string(member_symbol.node_id));
+            return op->type_id = resolve_type_templates_in_type(variable.type_id, NULL);
         } break;
         default:
             FATAL("Unimplemented: {s}", id_type_to_string(member_symbol.node_id.type));
@@ -288,20 +317,23 @@ void checker_check_return(ID node_id) {
 void checker_check_struct(ID node_id) {
     a_structure _struct = LOOKUP(node_id, a_structure);
     context_add_template_list(_struct.templates);
+    context_add_template_list(_struct.generics);
 
-    for (size_t i = 0; i < _struct.declarations.size; ++i) {
-        println("{i}) {s}", i + 1, ast_to_string(ARENA_GET(_struct.declarations, i, ID)));
+    for (size_t i = 0; i < _struct.members.size; ++i) {
+        println("{i}) {s}", i + 1, ast_to_string(ARENA_GET(_struct.members, i, ID)));
     }
 
     for (size_t i = 0; i < _struct.declarations.size; ++i) {
         ID child_node_id = ARENA_GET(_struct.declarations, i, ID);
+        checker_check_declaration(child_node_id);
+    }
+
+    for (size_t i = 0; i < _struct.members.size; ++i) {
+        ID child_node_id = ARENA_GET(_struct.members, i, ID);
 
         switch (child_node_id.type) {
-            case ID_AST_DECLARATION: {
-                // a_symbol symbol = LOOKUP(child_node_id, a_symbol);
-                println("Checking {s}", ast_to_string(child_node_id));
-                print_ast_tree(child_node_id);
-                checker_check_declaration(child_node_id);
+            case ID_AST_SYMBOL: {
+                checker_check_symbol(child_node_id);
             } break;
             case ID_AST_FUNCTION: {
                 // a_function function = LOOKUP(child_node_id, a_function);
@@ -316,6 +348,7 @@ void checker_check_struct(ID node_id) {
         // println("child: {s}", ast_to_string(child_node_id));
     }
 
+    context_remove_template_list(_struct.generics);
     context_remove_template_list(_struct.templates);
 }
 

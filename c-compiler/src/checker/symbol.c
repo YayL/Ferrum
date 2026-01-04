@@ -46,7 +46,7 @@ ID qualify_symbol(a_symbol * symbol, enum id_type type_to_find) {
 
 	ID name_id = ARENA_GET(symbol->name_ids, name_ids_stepped, ID);
 	ID next_id = module_lookup_id(module, name_id, type_to_find);
-
+	
 	// Last name id
 	if (name_ids_stepped + 1 == symbol->name_ids.size) {
 		return symbol->node_id = next_id;
@@ -67,8 +67,8 @@ ID qualify_symbol(a_symbol * symbol, enum id_type type_to_find) {
 			case ID_AST_STRUCT: {
 				a_structure _struct = LOOKUP(next_id, a_structure);
 
-				for (size_t j = 0; j < _struct.declarations.size; ++j) {
-					ID struct_child_id = ARENA_GET(_struct.declarations, j, ID);
+				for (size_t j = 0; j < _struct.members.size; ++j) {
+					ID struct_child_id = ARENA_GET(_struct.members, j, ID);
 
 					// print_ast_tree(struct_child_id);
 
@@ -113,6 +113,9 @@ ID qualify_declaration(Arena declarations, ID declaration_name_id) {
 			} break;
 			case ID_AST_SYMBOL: {
 				DECLARATION_CHECK_IF_TYPE(declaration, declaration_name_id, a_symbol);
+			} break;
+			case ID_AST_DECLARATION: {
+				DECLARATION_CHECK_IF_TYPE(declaration, declaration_name_id, a_declaration);
 			} break;
 			default:
 				FATAL("Not implemented: {s}", id_type_to_string(declaration.type));

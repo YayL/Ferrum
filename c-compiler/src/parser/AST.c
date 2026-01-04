@@ -347,7 +347,7 @@ char * ast_to_string(ID node_id) {
 
         case ID_AST_STRUCT: {
             a_structure structure = LOOKUP(node_id, a_structure);
-            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Declarations" RESET ": {u}" GREY ">" RESET, ast_str, interner_lookup_str(structure.name_id)._ptr, structure.declarations.size);
+            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Members" RESET ": {u}" GREY ">" RESET, ast_str, interner_lookup_str(structure.name_id)._ptr, structure.members.size);
         } break;
 
         default: {

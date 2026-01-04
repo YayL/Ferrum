@@ -263,8 +263,7 @@ void resolve_function_from_operator(ID node_id) {
     FRResult result = frsolver_solve(frsolver_init(name_id, args_type_id, op->info.scope_id, candidates, (Arena) {0}));
 
     if (ID_IS_INVALID(result.function_id)) {
-        ERROR("Operator '{s}'{s} is not defined for {s}", op->op.str, operator_get_runtime_name(op->op.key), type_to_str(args_type_id));
-        exit(1);
+        FATAL("Operator '{s}'{s} is not defined for {s}", op->op.str, operator_get_runtime_name(op->op.key), type_to_str(args_type_id));
     }
 
     op->definition.function_id = result.function_id;

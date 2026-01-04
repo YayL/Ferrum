@@ -346,35 +346,35 @@ ID parser_parse_struct(struct Parser * parser) {
 
     // Add Self template to generics
 
-    // a_symbol * self_template_symbol = ast_allocate(ID_AST_SYMBOL, parser->current_scope_id);
-    // a_variable * self_template_var = ast_allocate(ID_AST_VARIABLE, parser->current_scope_id);
-    // self_template_symbol->node_id = self_template_var->info.node_id;
-    //
-    // ID keyword_self_intern_id = keyword_get_intern_id(KEYWORD_SELF);
-    // self_template_symbol->name_id = self_template_var->name_id = keyword_self_intern_id;
-    // ARENA_APPEND(&self_template_symbol->name_ids, keyword_self_intern_id);
-    //
-    // Symbol_T * self_type = type_allocate(ID_SYMBOL_TYPE);
-    // self_template_var->type_id = self_type->info.type_id;
-    //
-    // for (size_t i = 0; i < _struct->templates.size; ++i) {
-    //     Symbol_T * template_symbol_type = type_allocate(ID_SYMBOL_TYPE);
-    //     template_symbol_type->symbol_id = ARENA_GET(_struct->templates, i, ID);
-    //     ARENA_APPEND(&self_type->templates, template_symbol_type->info.type_id);
-    // }
-    //
-    // a_symbol * self_type_symbol = ast_allocate(ID_AST_SYMBOL, _struct->info.scope_id);
-    // self_type_symbol->name_id = _struct->name_id;
-    // self_type_symbol->node_id = _struct->info.node_id; // Immediatly connect it to this struct
-    // ARENA_APPEND(&self_type_symbol->name_ids, _struct->name_id);
-    //
-    // self_type->symbol_id = self_type_symbol->info.node_id;
-    //
-    // println("type: {s}", type_to_str(self_type->info.type_id));
-    // println("self_template: {s}", ast_to_string(self_template_symbol->info.node_id));
-    // print_ast_tree(self_template_symbol->info.node_id);
-    //
-    // ARENA_APPEND(&_struct->generics, self_template_symbol->info.node_id);
+    a_symbol * self_template_symbol = ast_allocate(ID_AST_SYMBOL, parser->current_scope_id);
+    a_variable * self_template_var = ast_allocate(ID_AST_VARIABLE, parser->current_scope_id);
+    self_template_symbol->node_id = self_template_var->info.node_id;
+    
+    ID keyword_self_intern_id = keyword_get_intern_id(KEYWORD_SELF);
+    self_template_symbol->name_id = self_template_var->name_id = keyword_self_intern_id;
+    ARENA_APPEND(&self_template_symbol->name_ids, keyword_self_intern_id);
+    
+    Symbol_T * self_type = type_allocate(ID_SYMBOL_TYPE);
+    self_template_var->type_id = self_type->info.type_id;
+    
+    for (size_t i = 0; i < _struct->templates.size; ++i) {
+        Symbol_T * template_symbol_type = type_allocate(ID_SYMBOL_TYPE);
+        template_symbol_type->symbol_id = ARENA_GET(_struct->templates, i, ID);
+        ARENA_APPEND(&self_type->templates, template_symbol_type->info.type_id);
+    }
+    
+    a_symbol * self_type_symbol = ast_allocate(ID_AST_SYMBOL, _struct->info.scope_id);
+    self_type_symbol->name_id = _struct->name_id;
+    self_type_symbol->node_id = _struct->info.node_id; // Immediatly connect it to this struct
+    ARENA_APPEND(&self_type_symbol->name_ids, _struct->name_id);
+    
+    self_type->symbol_id = self_type_symbol->info.node_id;
+    
+    println("type: {s}", type_to_str(self_type->info.type_id));
+    println("self_template: {s}", ast_to_string(self_template_symbol->info.node_id));
+    print_ast_tree(self_template_symbol->info.node_id);
+    
+    ARENA_APPEND(&_struct->generics, self_template_symbol->info.node_id);
 
     do {
         while (parser->lexer.tok.type == TOKEN_LINE_BREAK) {
@@ -394,7 +394,6 @@ ID parser_parse_struct(struct Parser * parser) {
             } break;
             case ID_AST_FUNCTION:
                 ARENA_APPEND(&_struct->members, child_node_id);
-                ARENA_APPEND(&_struct->declarations, child_node_id);
                 break;
             default: {
                 FATAL("{2i::} Invalid identifier '{s}' in struct declaration", parser->lexer.line, parser->lexer.pos, id_type_to_string(child_node_id.type));
