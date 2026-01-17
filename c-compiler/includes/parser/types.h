@@ -56,6 +56,11 @@ typedef struct Fn_T {
     ID ret_type;
 } Fn_T;
 
+typedef struct Variable_T {
+    ID lower_bound;
+    ID upper_bound;
+} Variable_T;
+
 const char * get_base_type_str(ID type);
 ID get_base_type(ID type_id);
 const char * type_to_str(ID type_id);

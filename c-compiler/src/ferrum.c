@@ -25,6 +25,8 @@ unsigned long stop_timer() {
 }
 
 void ferrum_compile(char * file_path) {
+    ASSERT(ID_LARGEST < 64, "Update struct ID element sizes since gone past 6 bits");
+
     registry_manager_setup_instance();
     interner_init();
     a_root root = { .modules = kh_init(map_string_to_id), .info = { .node_id = { .id = 0, .type = ID_AST_ROOT }, .scope_id = INVALID_ID }};
@@ -57,6 +59,16 @@ void ferrum_compile(char * file_path) {
     total += time;
     asprintf(&checker_time, "Time for checker:\t%.3fms", (double)time / 1000);
     puts("checker done");
+
+    puts("\n" LINE_BREAKER);
+    const struct registry_manager manager = registry_manager_get();
+    println("Vars: {i}", manager.Variable_TC.entries.item_count);
+    println("Constraints: {i}", manager.Constraint_TC.entries.item_count);
+    println("Shapes: {i}", manager.Shape_TC.entries.item_count);
+    println("Generics: {i}", manager.Generic_TC.entries.item_count);
+    println("Configurations: {i}", manager.Configuration_TC.entries.item_count);
+    println("Dimensions: {i}", manager.Dimension_TC.entries.item_count);
+    puts(LINE_BREAKER);
 
     // print_ast_tree_from_root(root);
 

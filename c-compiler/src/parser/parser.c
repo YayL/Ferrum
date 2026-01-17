@@ -151,7 +151,6 @@ ID parser_parse_id(struct Parser * parser) {
             ARENA_APPEND(&symbol->name_ids, parser->lexer.tok.interner_id);
             parser_eat(parser, TOKEN_ID);
         }
-
     }
 
     size_t symbols_length = parser->previous_token.span.start - symbol_start + parser->previous_token.span.length;
@@ -335,7 +334,7 @@ ID parser_parse_struct(struct Parser * parser) {
     parser->current_scope_id = _struct->info.node_id;
 
     parser_eat_keyword(parser, KEYWORD_STRUCT);
-    _struct->generics = parser_parse_template_list(parser);
+    // _struct->generics = parser_parse_template_list(parser);
 
     _struct->name_id = parser->lexer.tok.interner_id;
     parser_eat(parser, TOKEN_ID); // [name]
@@ -370,11 +369,7 @@ ID parser_parse_struct(struct Parser * parser) {
     
     self_type->symbol_id = self_type_symbol->info.node_id;
     
-    println("type: {s}", type_to_str(self_type->info.type_id));
-    println("self_template: {s}", ast_to_string(self_template_symbol->info.node_id));
-    print_ast_tree(self_template_symbol->info.node_id);
-    
-    ARENA_APPEND(&_struct->generics, self_template_symbol->info.node_id);
+    ARENA_APPEND(&_struct->templates, self_template_symbol->info.node_id);
 
     do {
         while (parser->lexer.tok.type == TOKEN_LINE_BREAK) {
@@ -386,10 +381,24 @@ ID parser_parse_struct(struct Parser * parser) {
 
         switch (child_node_id.type) {
             case ID_AST_DECLARATION: {
-                ARENA_APPEND(&_struct->declarations, child_node_id);
-                a_expression expr = LOOKUP(LOOKUP(child_node_id, a_declaration).expression_id, a_expression);
+                a_declaration declaration = LOOKUP(child_node_id, a_declaration);
+
+                a_expression expr = LOOKUP(declaration.expression_id, a_expression);
                 for (size_t i = 0; i < expr.children.size; ++i) {
-                    ARENA_APPEND(&_struct->members, ARENA_GET(expr.children, i, ID));
+                    ID symbol_decl = ARENA_GET(expr.children, i, ID);
+                    if (!ID_IS(symbol_decl, ID_AST_SYMBOL)) {
+                        FATAL("It is not allowed to specify a default value of a struct member");
+                    }
+                    ARENA_APPEND(&_struct->members, symbol_decl);
+                    a_symbol * symbol = lookup(symbol_decl);
+
+                    Place_T * place_type = type_allocate(ID_PLACE_TYPE);
+                    place_type->is_mut = declaration.is_mut;
+
+                    ASSERT1(!ID_IS_INVALID(symbol->node_id));
+                    a_variable * variable = lookup(symbol->node_id);
+                    place_type->basetype_id = variable->type_id;
+                    variable->type_id = place_type->info.type_id;
                 }
             } break;
             case ID_AST_FUNCTION:
@@ -405,8 +414,6 @@ ID parser_parse_struct(struct Parser * parser) {
         }
 
     } while (parser->lexer.tok.type != TOKEN_RBRACE);
-
-    println("Struct {s}", ast_to_string(_struct->info.node_id));
 
     parser_eat(parser, TOKEN_RBRACE);
 
@@ -459,9 +466,9 @@ ID parser_parse_impl(struct Parser * parser) {
     parser->current_scope_id = impl->info.node_id;
 
     parser_eat_keyword(parser, KEYWORD_IMPL);
-    impl->generic_templates = parser_parse_template_list(parser);
+    impl->generics = parser_parse_template_list(parser);
     impl->trait_symbol_id = parser_parse_symbol(parser);
-    impl->trait_templates = parser_parse_template_list(parser);
+    impl->templates = parser_parse_template_list(parser);
 
     if (parser->lexer.tok.type == TOKEN_ID) {
         parser_eat_keyword(parser, KEYWORD_WHERE);
@@ -544,14 +551,18 @@ ID parser_parse_declaration(struct Parser * parser) {
 
     ASSERT1(symbol->name_ids.size != 0);
     if (symbol->name_ids.size > 1) {
-        ERROR("Variable declaration does not allow names with '::'");
+        ERROR("Variables can not be declared with '::'");
     }
 
     if (ID_IS_INVALID(symbol->node_id) && symbol->name_ids.size == 1) {
         a_variable * variable = ast_allocate(ID_AST_VARIABLE, parser->current_scope_id);
         variable->name_id = symbol->name_id;
-
         symbol->node_id = variable->info.node_id;
+
+        if (ID_IS_INVALID(variable->type_id)) {
+            Variable_TC * variable_tc = tc_allocate(ID_TC_VARIABLE);
+            variable->type_id = variable_tc->variable_id;
+        }
     }
 
     ASSERT1(ID_IS(symbol->node_id, ID_AST_VARIABLE));
@@ -597,10 +608,25 @@ ID parser_parse_statement(struct Parser * parser) {
 static inline void parser_parse_scope_statement(struct Parser * parser, a_scope * scope) {
     ID statement = parser_parse_statement(parser);
     ARENA_APPEND(&scope->nodes, statement);
-    if (ID_IS(statement, ID_AST_DECLARATION)) {
-        a_expression expr = LOOKUP(LOOKUP(statement, a_declaration).expression_id, a_expression);
-        for (size_t i = 0; i < expr.children.size; ++i) {
-            ARENA_APPEND(&scope->declarations, ARENA_GET(expr.children, i, ID));
+
+    if (!ID_IS(statement, ID_AST_DECLARATION)) {
+        return;
+    }
+
+    a_expression expr = LOOKUP(LOOKUP(statement, a_declaration).expression_id, a_expression);
+    for (size_t i = 0; i < expr.children.size; ++i) {
+        ID node = ARENA_GET(expr.children, i, ID);
+        if (ID_IS(node, ID_AST_SYMBOL)) {
+            ARENA_APPEND(&scope->declarations, node);
+        } else if (ID_IS(node, ID_AST_OP)) {
+            a_operator operator = LOOKUP(node, a_operator);
+
+            if (operator.op.key != ASSIGNMENT) {
+                continue;
+            }
+
+            ASSERT1(ID_IS(operator.left_id, ID_AST_SYMBOL));
+            ARENA_APPEND(&scope->declarations, operator.left_id);
         }
     }
 }
@@ -666,14 +692,39 @@ ID parser_parse_function(struct Parser * parser) {
     function->name_id = name_id;
     function->templates = parser_parse_template_list(parser);
 
-    parser_eat(parser, TOKEN_LPAREN);
-
-    function->arguments_id = parser_parse_expr_exit_on(parser, PARENTHESES);
-    ASSERT1(ID_IS(function->arguments_id, ID_AST_EXPR));
-
+    function->arguments = arena_init(sizeof(ID));
     Fn_T * fn = type_allocate(ID_FN_TYPE);
+    Tuple_T * args = type_allocate(ID_TUPLE_TYPE);
+
+    char mut = 0;
+    parser_eat(parser, TOKEN_LPAREN);
+    if (parser->lexer.tok.type != TOKEN_RPAREN) {
+        do {
+            mut = 0;
+            if (parser->lexer.tok.type == TOKEN_ID && id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUT))) {
+                parser_eat(parser, TOKEN_ID);
+                mut = 1;
+            }
+
+            ID arg_id = parser_parse_id(parser);
+            a_symbol arg_symbol = LOOKUP(arg_id, a_symbol);
+            a_variable * arg_var = lookup(arg_symbol.node_id);
+
+            Place_T * place_type = type_allocate(ID_PLACE_TYPE);
+            place_type->is_mut = mut;
+            place_type->basetype_id = arg_var->type_id;
+
+            arg_var->type_id = place_type->info.type_id;
+
+            ARENA_APPEND(&args->types, place_type->basetype_id);
+            ARENA_APPEND(&function->arguments, arg_id);
+        } while (parser->lexer.tok.type == TOKEN_COMMA && (parser_eat(parser, TOKEN_COMMA), 1));
+    }
+
+    parser_eat(parser, TOKEN_RPAREN);
+
+    fn->arg_type = args->info.type_id;
     function->type = fn->info.type_id;
-    fn->arg_type = ast_to_type(function->arguments_id);
 
     if (parser->lexer.tok.type == TOKEN_MINUS) {
         parser_eat(parser, TOKEN_MINUS);

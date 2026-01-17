@@ -5,23 +5,23 @@ struct List<T> {
     let mut size: u64
     let mut capacity: u64
 
-    fn new<T>() -> List<T> {
+    fn new() -> Self {
         let item: T
-        let list: List<T>
-        list.buf = calloc(1, #sizeof(item))
+        let list: Self
+        // list.buf = calloc(1, #sizeof(item))
         list.size = 0
         list.capacity = 1
 
         return list
     }
 
-    fn reserve<U: numeric::Unsigned>(self: &mut List<T>, additional: U) -> void {
+    fn reserve<U: numeric::Unsigned>(self: &mut Self, additional: U) -> void {
         let item: T
         self.capacity = self.size + additional to u64
-        self.buf = realloc(self.buf, #sizeof(item) * self.capacity)
+        // self.buf = realloc(self.buf, #sizeof(item) * self.capacity)
     }
 
-    fn push(self: &mut List<T>, item: T) -> void {
+    fn push(self: &mut Self, item: T) -> void {
         if self.size >= self.capacity {
             self.reserve(self.size)
         }
@@ -29,11 +29,11 @@ struct List<T> {
         self.buf[self.size++] = item
     }
 
-    fn at<U: numeric::Unsigned>(self: List<T>, index: U) -> T {
+    fn at<U: numeric::Unsigned>(self: Self, index: U) -> T {
         self.buf[index]
     }
     
-    fn pop(self: &mut List<T>) -> T {
+    fn pop(self: &mut Self) -> T {
         // panic if self.size is 0
         self.buf[--self.size]
     }

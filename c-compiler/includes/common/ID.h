@@ -7,6 +7,14 @@
 	f(ID_INTERNER,			"InternerID",		interner_entry,			INTERNER) \
 	f(ID_SYMBOL,			"SymbolID",			symbol_map_entry,		SYMBOL)
 
+#define TYPE_CHECKING_REGISTRY_KINDS(f) \
+	f(ID_TC_CONFIGURATION,	"ConfigurationID",	Configuration_TC,	TC)	\
+	f(ID_TC_CONSTRAINT,		"ConstraintID",		Constraint_TC,		TC)	\
+	f(ID_TC_DIMENSION,		"DimensionID",		Dimension_TC,		TC)	\
+	f(ID_TC_GENERIC,		"GenericID",		Generic_TC,			TC)	\
+	f(ID_TC_SHAPE,			"ShapeId",			Shape_TC,			TC)	\
+	f(ID_TC_VARIABLE,		"VariableID",		Variable_TC,		TC)
+
 #define TYPE_REGISTRY_KINDS(f) \
 	f(ID_NUMERIC_TYPE,	"NumericT",		Numeric_T,	TYPE) \
 	f(ID_SYMBOL_TYPE,	"SymbolT",		Symbol_T,	TYPE) \
@@ -45,20 +53,23 @@
 
 #define REGISTRY_KINDS(f) \
 	OTHER_REGISTRY_KINDS(f) \
+	TYPE_CHECKING_REGISTRY_KINDS(f) \
 	TYPE_REGISTRY_KINDS(f) \
 	AST_REGISTRY_KINDS(f)
 
 #define COMPILER_ID_TYPE unsigned int
 #define ID_TYPE_ENUM_MEMBER(ENUM, ...) ENUM,
 
+#define BIT_SIZE_ID_TYPE 6
 typedef struct id {
-	COMPILER_ID_TYPE id;
+	COMPILER_ID_TYPE id : (sizeof(COMPILER_ID_TYPE) * 8 - BIT_SIZE_ID_TYPE);
 	enum id_type {
 		ID_INVALID_TYPE = 0,
 		ID_VOID_TYPE,
 		ID_AST_ROOT,
 		REGISTRY_KINDS(ID_TYPE_ENUM_MEMBER)
-	} type;
+		ID_LARGEST
+	} type : BIT_SIZE_ID_TYPE;
 } ID;
 
 #define INVALID_ID ((ID) { .type = ID_INVALID_TYPE, .id = 0 })

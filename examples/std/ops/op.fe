@@ -10,6 +10,8 @@ import "arithmetic/post_decrement" as post_decrement
 
 import "relational/less_equal_to" as less_equal_to
 import "relational/less_than" as less_than
+import "relational/greater_equal_to" as greater_equal_to
+import "relational/greater_than" as greater_than
 import "relational/equal" as equal
 
 import "assignment/assignment" as assignment

@@ -95,3 +95,8 @@ void arena_extend_with_list(Arena * dest, const struct List * src) {
 
 	arena_extend(dest, temp);
 }
+
+void arena_remove(Arena * arena, uint32_t remove_count) {
+	ASSERT1(arena->size >= remove_count);
+	arena->size -= remove_count;
+}

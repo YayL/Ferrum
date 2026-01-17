@@ -60,7 +60,6 @@ void context_add_template_list(Arena arena) {
 		ID child_node_id = ARENA_GET(arena, i, ID);
 		ASSERT1(ID_IS(child_node_id, ID_AST_SYMBOL)); // should be handled in the parser
 
-		println("{i}) {s}", i + 1, ast_to_string(child_node_id));
 		a_symbol symbol = LOOKUP(child_node_id, a_symbol);
 		ASSERT1(ID_IS(symbol.name_id, ID_INTERNER)); // should be handled in the parser
 		ASSERT1(symbol.name_ids.size == 1); // should be handled in the parser
@@ -85,28 +84,43 @@ void context_remove_template_list(Arena arena) {
 void context_add_declaration_list(Arena arena) {
 	for (size_t i = 0; i < arena.size; ++i) {
 		ID arg_id = ARENA_GET(arena, i, ID);
-		ASSERT1(ID_IS(arg_id, ID_AST_SYMBOL)); // Should be handled in the parser
 
-		a_symbol symbol = LOOKUP(arg_id, a_symbol);
-		ASSERT1(!ID_IS_INVALID(symbol.node_id)); // Should be handled in the parser
-		ASSERT1(symbol.name_ids.size == 1); // Should be handled in the parser
-
-		// println("Trying to add symbol: {s}", interner_lookup_str(symbol.name_id)._ptr);
-		symbol_map_insert(&context.symbol_table.declarations, symbol.name_id, symbol.node_id);
+		switch (arg_id.type) {
+			case ID_AST_SYMBOL: {
+				a_symbol symbol = LOOKUP(arg_id, a_symbol);
+				ASSERT1(!ID_IS_INVALID(symbol.node_id)); // Should be handled in the parser
+				ASSERT1(symbol.name_ids.size == 1); // Should be handled in the parser
+				symbol_map_insert(&context.symbol_table.declarations, symbol.name_id, symbol.node_id);
+			} break;
+			case ID_AST_FUNCTION: {
+				a_function func = LOOKUP(arg_id, a_function);
+				symbol_map_insert(&context.symbol_table.declarations, func.name_id, func.info.node_id);
+			} break;
+			case ID_AST_OP: break;
+			default: 
+				FATAL("Invalid id type: {s}", id_type_to_string(arg_id.type));
+		}
 	}
 }
 
 void context_remove_declaration_list(Arena arena) {
 	for (size_t index_plus_one = arena.size; index_plus_one > 0; --index_plus_one) {
 		ID arg_id = ARENA_GET(arena, index_plus_one - 1, ID);
-		ASSERT1(ID_IS(arg_id, ID_AST_SYMBOL)); // Should be handled in the parser
 
-		a_symbol symbol = LOOKUP(arg_id, a_symbol);
-		ASSERT1(!ID_IS_INVALID(symbol.node_id)); // Should be handled in the parser
-		ASSERT1(symbol.name_ids.size == 1); // Should be handled in the parser
+		switch (arg_id.type) {
+			case ID_AST_SYMBOL: {
+				a_symbol symbol = LOOKUP(arg_id, a_symbol);
+				ASSERT1(!ID_IS_INVALID(symbol.node_id));
+				ASSERT1(symbol.name_ids.size == 1); // Should be handled in the parser
 
-		// println("Trying to remove symbol: {s}", interner_lookup_str(symbol.name_id)._ptr);
-		symbol_map_remove(&context.symbol_table.declarations, symbol.name_id);
+				symbol_map_remove(&context.symbol_table.declarations, symbol.name_id);
+			} break;
+			case ID_AST_FUNCTION: {
+				a_function function = LOOKUP(arg_id, a_function);
+
+				symbol_map_remove(&context.symbol_table.declarations, function.name_id);
+			} break;
+		}
 	}
 }
 
@@ -116,30 +130,4 @@ void context_enter_module(a_module module) {
 
 void context_exit_module(a_module module) {
 	symbol_table_clear(&context.symbol_table);
-}
-
-void context_enter_function(a_function function) {
-	// println("Entering: '{s}'", interner_lookup_str(function.name_id)._ptr);
-	context_add_template_list(function.templates);
-
-	ASSERT1(ID_IS(function.arguments_id, ID_AST_EXPR));
-	a_expression arguments = LOOKUP(function.arguments_id, a_expression);
-	context_add_declaration_list(arguments.children);
-}
-
-void context_exit_function(a_function function) {
-	// println("Leaving: '{s}'", interner_lookup_str(function.name_id)._ptr);
-	ASSERT1(ID_IS(function.arguments_id, ID_AST_EXPR));
-	a_expression arguments = LOOKUP(function.arguments_id, a_expression);
-	context_remove_declaration_list(arguments.children);
-	context_remove_template_list(function.templates);
-}
-
-void context_enter_scope(a_scope scope) {
-	// println("Scope declarations: {u}", scope.declarations.size);
-	context_add_declaration_list(scope.declarations);
-}
-
-void context_exit_scope(a_scope scope) {
-	context_remove_declaration_list(scope.declarations);
 }

@@ -6,6 +6,7 @@
 #include "tables/interner.h"
 #include "parser/types.h"
 #include "parser/AST.h"
+#include "checker/typing/gathering.h"
 
 #define AST_REGISTRY_MANAGER_DECL_EL(ENUM, STR, NAME, ...) Registry NAME;
 struct registry_manager {
@@ -36,10 +37,11 @@ static inline void type_init_intrinsic_type(enum id_type type, void * type_ref) 
     }
 }
 
-#define FILL_INTERNER_ID(REF, INTERNER_ID, ...) (((struct interner_entry *) REF)->id = INTERNER_ID)
-#define FILL_SYMBOL_ID(REF, SYMBOL_ID, ...) (((struct symbol_map_entry *) REF)->symbol_id = SYMBOL_ID)
-#define FILL_TYPE_ID(REF, TYPE_ID, ...) (((struct type_info *) REF)->type_id = TYPE_ID); type_init_intrinsic_type(TYPE_ID.type, REF)
-#define FILL_AST_ID(REF, NODE_ID, SCOPE_ID) (((struct AST_info *) REF)->node_id = NODE_ID, ((struct AST_info *) REF)->scope_id = SCOPE_ID); ast_init_node(NODE_ID.type, REF)
+#define FILL_INTERNER_ID(REF, INTERNER_ID, ...) (((struct interner_entry *) REF)->id = INTERNER_ID);
+#define FILL_SYMBOL_ID(REF, SYMBOL_ID, ...) (((struct symbol_map_entry *) REF)->symbol_id = SYMBOL_ID);
+#define FILL_TC_ID(REF, TC_ID, ...) tc_node_init(TC_ID, REF);
+#define FILL_TYPE_ID(REF, TYPE_ID, ...) (((struct type_info *) REF)->type_id = TYPE_ID); type_init_intrinsic_type(TYPE_ID.type, REF);
+#define FILL_AST_ID(REF, NODE_ID, SCOPE_ID) (((struct AST_info *) REF)->node_id = NODE_ID, ((struct AST_info *) REF)->scope_id = SCOPE_ID); ast_init_node(NODE_ID.type, REF);
 
 #define AST_REGISTRY_MANAGER_REGISTRY_ALLOCATE(ENUM, STR, TYPE, KIND) \
     case ENUM: ptr = registry_allocate(&manager->TYPE, &node_id); FILL_##KIND##_ID(ptr, node_id, scope_id); break;
@@ -75,11 +77,22 @@ static inline void registry_manager_remove(struct registry_manager * manager, ID
     }
 }
 
+#define LOOP_OVER_REGISTRY(TYPE, VAR, CODE) { \
+	Registry registry = registry_manager_get().TYPE; \
+	for (size_t i = 0, block = 0; block < registry.entries.block_count; ++block) { \
+		for (size_t bi = 0; bi < registry.entries.block_max_item_count && i < registry.entries.item_count; ++bi, ++i) { \
+			TYPE * VAR = block_arena_get_ref(registry.entries, i); \
+			CODE \
+		} \
+	} \
+}
+
 void registry_manager_setup_instance();
 const struct registry_manager registry_manager_get();
 
 struct symbol_map_entry * symbol_allocate();
 struct interner_entry * interner_allocate();
+void * tc_allocate(enum id_type type);
 void * ast_allocate(enum id_type type, ID scope_id);
 void * type_allocate(enum id_type type);
 

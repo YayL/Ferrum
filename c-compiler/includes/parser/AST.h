@@ -46,11 +46,11 @@ typedef struct a_import {
 typedef struct a_function {
     struct AST_info info;
     ID name_id;
-    ID arguments_id;
     ID body_id;
 
     ID type;
 
+    Arena arguments;
     Arena templates;
 
     char is_inline;
@@ -79,7 +79,7 @@ typedef struct a_expression {
 typedef struct a_structure {
     struct AST_info info;
     ID name_id;
-    Arena generics;
+    // Arena generics;
     Arena templates;
     Arena declarations;
     Arena members;
@@ -103,8 +103,8 @@ typedef struct a_trait {
 typedef struct a_implementation {
     struct AST_info info;
     ID trait_symbol_id;
-    Arena generic_templates;
-    Arena trait_templates;
+    Arena generics;
+    Arena templates;
     Arena where;
     Arena members;
 } a_implementation;

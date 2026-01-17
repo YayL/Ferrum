@@ -128,7 +128,9 @@ void _print_ast_tree(ID node_id, String pad, char is_last) {
 
             String next_pad = string_copy(pad);
 
-            _print_ast_tree(func.arguments_id, next_pad, 0);
+            for (size_t i = 0; i < func.arguments.size; ++i) {
+                _print_ast_tree(ARENA_GET(func.arguments, i, ID), next_pad, 0);
+            }
             _print_ast_tree(func.body_id, next_pad, 1);
             free_string(next_pad);
         } break;

@@ -2,8 +2,9 @@ import "std/lib" as std
 import "std/storage/list" as list
 
 fn main(argc: i32) -> i8 {
-	let mut list: list::List<i32> = list::List::new<i32>()
-	list.push(3)
+	let mut list = list::List::new()
+	list.push(argc)
 
 	let value = list.pop()
+	0
 }

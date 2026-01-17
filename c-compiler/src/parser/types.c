@@ -144,30 +144,30 @@ ID parser_parse_type(struct Parser * parser) {
 
 ID ast_get_type_of(ID node_id) {
     switch (node_id.type) {
-        case ID_AST_OP:
-            {
-                a_operator operator = LOOKUP(node_id, a_operator);
-                ASSERT1(!ID_IS_INVALID(operator.type_id));
-                return operator.type_id;
-            }
-        case ID_AST_LITERAL:
-            {
-                a_literal literal = LOOKUP(node_id, a_literal);
-                ASSERT1(!ID_IS_INVALID(literal.type_id));
-                return literal.type_id;
-            }
-        case ID_AST_VARIABLE:
-            {
-                a_variable variable = LOOKUP(node_id, a_variable);
-                ASSERT1(!ID_IS_INVALID(variable.type_id));
-                return variable.type_id;
-            }
-        case ID_AST_SYMBOL:
-            {
-                a_symbol symbol = LOOKUP(node_id, a_symbol);
-                ASSERT1(!ID_IS_INVALID(symbol.node_id));
-                return ast_get_type_of(symbol.node_id);
-            }
+        case ID_AST_OP: {
+            a_operator operator = LOOKUP(node_id, a_operator);
+            ASSERT1(!ID_IS_INVALID(operator.type_id));
+            return operator.type_id;
+        }
+        case ID_AST_LITERAL: {
+            a_literal literal = LOOKUP(node_id, a_literal);
+            ASSERT1(!ID_IS_INVALID(literal.type_id));
+            return literal.type_id;
+        }
+        case ID_AST_VARIABLE: {
+            a_variable variable = LOOKUP(node_id, a_variable);
+            ASSERT1(!ID_IS_INVALID(variable.type_id));
+            return variable.type_id;
+        }
+        case ID_AST_SYMBOL: {
+            a_symbol symbol = LOOKUP(node_id, a_symbol);
+            ASSERT1(!ID_IS_INVALID(symbol.node_id));
+            return ast_get_type_of(symbol.node_id);
+        }
+        case ID_AST_FUNCTION: {
+            a_function function = LOOKUP(node_id, a_function);
+            return function.type;
+        }
         default:
             FATAL("Unable to get a type from ast type '{s}'", id_type_to_string(node_id.type));
     }
@@ -345,6 +345,16 @@ const char * type_to_str(ID type_id) {
         case ID_FN_TYPE: {
             Fn_T fn = LOOKUP(type_id, Fn_T);
             return format("{s} -> {s}", type_to_str(fn.arg_type), type_to_str(fn.ret_type));
+        }
+        case ID_TC_VARIABLE: {
+            return format("{i}?", type_id.id);
+        }
+        case ID_TC_SHAPE: {
+            Shape_TC shape = LOOKUP(type_id, Shape_TC);
+            ASSERT1(ID_IS(shape.member_id, ID_AST_SYMBOL));
+            a_symbol symbol = LOOKUP(shape.member_id, a_symbol);
+            ASSERT1(symbol.name_ids.size == 1);
+            return format("Shape(\"{s}\", Req: {s})", interner_lookup_str(symbol.name_id)._ptr, type_to_str(shape.requirement_id));
         }
         default: 
             FATAL("Unimplemented type_to_str type: {s}", id_type_to_string(type_id.type));

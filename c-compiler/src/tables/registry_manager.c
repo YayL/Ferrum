@@ -18,6 +18,10 @@ struct interner_entry * interner_allocate() {
 	return registry_manager_allocate(&manager, ID_INTERNER, INVALID_ID);
 }
 
+void * tc_allocate(enum id_type type) {
+	return registry_manager_allocate(&manager, type, INVALID_ID);
+}
+
 void * ast_allocate(enum id_type type, ID scope_id) {
 	return registry_manager_allocate(&manager, type, scope_id);
 }

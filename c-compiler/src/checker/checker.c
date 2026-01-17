@@ -1,11 +1,10 @@
 #include "checker/checker.h"
 
-#include "codegen/builtin.h"
-#include "checker/functions.h"
 #include "checker/context.h"
 #include "checker/symbol.h"
-#include "checker/typing.h"
 #include "tables/registry_manager.h"
+#include "tables/member_functions.h"
+#include "checker/typing/solver.h"
 
 ID get_interner_id(ID node_id) {
     switch (node_id.type) {
@@ -19,21 +18,25 @@ ID get_interner_id(ID node_id) {
     }
 }
 
-ID checker_check_expr_node(ID node_id) {
+ID checker_check_expr_node(ID node_id, const Arena templates) {
+    ID ret_value;
     switch (node_id.type) {
         case ID_AST_OP:
-            return checker_check_op(node_id);
+            ret_value = checker_check_op(node_id, templates); break;
         case ID_AST_VARIABLE:
-            return checker_check_variable(node_id);
+            ret_value = checker_check_variable(node_id, templates); break;
         case ID_AST_EXPR:
-            return checker_check_expression(node_id);
+            ret_value = checker_check_expression(node_id, templates); break;
         case ID_AST_LITERAL:
-            return checker_check_literal(node_id);
+            ret_value = checker_check_literal(node_id); break;
         case ID_AST_SYMBOL:
-            return checker_check_symbol(node_id);
+            ret_value = checker_check_symbol(node_id, templates); break;
         default:
             FATAL("Unimplemented expr node type: {s}", id_type_to_string(node_id.type));
     }
+
+    // println("Expr node({s}): {s}", id_type_to_string(node_id.type), ast_to_string(ret_value));
+    return ret_value;
 }
 
 ID checker_check_literal(ID node_id) {
@@ -46,12 +49,12 @@ ID checker_check_literal(ID node_id) {
     return literal.type_id;
 }
 
-ID checker_check_symbol(ID node_id) {
+ID checker_check_symbol(ID node_id, const Arena templates) {
     ASSERT1(ID_IS(node_id, ID_AST_SYMBOL));
     a_symbol * symbol = lookup(node_id);
 
     if (!ID_IS_INVALID(symbol->node_id)) {
-        return symbol->node_id;
+        return replace_templates_in_type_with_template_variables(ast_get_type_of(symbol->node_id), templates);
     }
 
     if (symbol->name_ids.size > 1) {
@@ -64,185 +67,123 @@ ID checker_check_symbol(ID node_id) {
         FATAL("Unable to find symbol: {s}", interner_lookup_str(symbol->name_id)._ptr);
     }
 
-    return symbol->node_id;
+    return replace_templates_in_type_with_template_variables(ast_get_type_of(symbol->node_id), templates);
 }
 
-ID checker_check_op_member_access(a_operator * op) {
-    ASSERT1(op->op.key == MEMBER_ACCESS);
+ID checker_check_op_member_access(a_operator * op, const Arena templates) {
+    ID lhs_type_id = checker_check_expr_node(op->left_id, templates);
+
+    Variable_TC * result_var = tc_allocate(ID_TC_VARIABLE);
+    Shape_TC * shape = tc_allocate(ID_TC_SHAPE);
+
     ASSERT1(ID_IS(op->right_id, ID_AST_SYMBOL));
+    shape->member_id = op->right_id;
+    shape->requirement_id = result_var->variable_id;
 
-    a_symbol member = LOOKUP(op->right_id, a_symbol);
-    ASSERT1(member.name_ids.size == 1);
+    Constraint_TC * constraint = tc_allocate(ID_TC_CONSTRAINT);
+    constraint->from = lhs_type_id;
+    constraint->to = shape->shape_id;
 
-    checker_check_expr_node(op->left_id);
-    print_ast_tree(op->info.node_id);
-
-    ID type = INVALID_ID;
-
-    if (ID_IS(op->left_id, ID_AST_SYMBOL)) {
-        a_symbol symbol = LOOKUP(op->left_id, a_symbol);
-        ASSERT1(ID_IS(symbol.node_id, ID_AST_VARIABLE));
-        type = LOOKUP(symbol.node_id, a_variable).type_id;
-    } else if (ID_IS(op->left_id, ID_AST_OP)) {
-        a_operator child_op = LOOKUP(op->left_id, a_operator);
-        println("child op: {b}", !ID_IS_INVALID(child_op.definition.function_id));
-        print_ast_tree(child_op.definition.function_id);
-        exit(0);
-    } else {
-        FATAL("Unable to take member access of type: {s}", id_type_to_string(op->left_id.type));
-    }
-
-    // print_ast_tree(op->info.node_id);
-    println("Type: {s} | {s}", type_to_str(type), id_type_to_string(type.type));
-
-    if (ID_IS(type, ID_PLACE_TYPE)) {
-        type = LOOKUP(type, Place_T).basetype_id;
-    }
-
-    ASSERT1(ID_IS(type, ID_SYMBOL_TYPE));
-    Symbol_T type_symbol = LOOKUP(type, Symbol_T);
-    ASSERT1(ID_IS(type_symbol.symbol_id, ID_AST_SYMBOL));
-
-    a_symbol * symbol = lookup(type_symbol.symbol_id);
-    ID template_symbol = context_lookup_type(symbol->name_id);
-
-    print_ast_tree(template_symbol);
-
-    if (symbol->name_ids.size == 1) {
-        ASSERT1(ID_IS(template_symbol, ID_AST_SYMBOL));
-        a_symbol t_symbol = LOOKUP(template_symbol, a_symbol);
-        ASSERT1(ID_IS(t_symbol.node_id, ID_AST_VARIABLE));
-        a_variable t_var = LOOKUP(t_symbol.node_id, a_variable);
-        ASSERT1(ID_IS(t_var.type_id, ID_SYMBOL_TYPE));
-        type_symbol = LOOKUP(t_var.type_id, Symbol_T);
-        symbol = lookup(type_symbol.symbol_id);
-    }
-
-    ID qualified_symbol = qualify_symbol(symbol, ID_SYMBOL_TYPE);
-
-    if (ID_IS_INVALID(qualified_symbol)) {
-        FATAL("Unable to find symbol: {s}", interner_lookup_str(symbol->name_id)._ptr);
-    }
-
-    print_ast_tree(qualified_symbol);
-    puts("1");
-
-    ASSERT1(ID_IS(qualified_symbol, ID_AST_STRUCT));
-    a_structure structure = LOOKUP(qualified_symbol, a_structure);
-    ASSERT1(structure.templates.size == type_symbol.templates.size);
-		//     khash_t(map_id_to_id) templates = kh_init(map_id_to_id);
-		//
-		//     for (size_t i = 0; i < structure.templates.size; ++i) {
-		//         ID template_symbol_id = ARENA_GET(structure.templates, i, ID);
-		//         a_symbol symbol = LOOKUP(template_symbol_id, a_symbol);
-		//         ASSERT1(symbol.name_ids.size == 1);
-		//         ID structure_type_id = ARENA_GET(type_symbol.templates, i, ID);
-		//
-		//         int retcode;
-		// khint_t k = kh_put(map_id_to_id, &templates, symbol.name_id, &retcode);
-		// if (retcode == KH_PUT_ALREADY_PRESENT) {
-		// 	FATAL("Duplicate template type: '{s}'", interner_lookup_str(symbol.name_id)._ptr);
-		// }
-		//
-		//         // println("{s} = {s}", interner_lookup_str(symbol.name_id)._ptr, type_to_str(structure_type_id));
-		// ASSERT(retcode == KH_PUT_SUCCESS, "Unknown error occured while populating template hashmap: {i}", retcode);
-		// kh_value(&templates, k) = structure_type_id;
-		//     }
-
-    ID qualified_member = qualify_declaration(structure.members, member.name_id);
-    ASSERT1(ID_IS(qualified_member, ID_AST_SYMBOL));
-    a_symbol member_symbol = LOOKUP(qualified_member, a_symbol);
-
-    println("{s}", ast_to_string(qualified_member));
-    ASSERT1(ID_IS(member_symbol.node_id, ID_AST_VARIABLE));
-
-    switch (member_symbol.node_id.type) {
-        case ID_AST_VARIABLE: {
-            a_variable variable = LOOKUP(member_symbol.node_id, a_variable);
-            ASSERT1(!ID_IS_INVALID(variable.type_id));
-
-            println("var: {s}", ast_to_string(member_symbol.node_id));
-            return op->type_id = resolve_type_templates_in_type(variable.type_id, NULL);
-        } break;
-        default:
-            FATAL("Unimplemented: {s}", id_type_to_string(member_symbol.node_id.type));
-    }
+    return result_var->variable_id;
 }
 
-ID checker_check_op_call(a_operator * op) {
-    ASSERT1(op->op.key == CALL);
+ID checker_check_op_call(a_operator * op, const Arena templates) {
+    ASSERT1(!ID_IS_INVALID(op->left_id));
+    // Signature to match against
+    ID lhs_type_id = checker_check_expr_node(op->left_id, templates);
 
-    if (ID_IS(op->left_id, ID_AST_OP)) {
-        a_operator * left_op = lookup(op->left_id);
-        switch (left_op->op.key) {
-            case MEMBER_ACCESS: {
-                checker_check_expr_node(left_op->left_id);
-                resolve_function_from_call(op->info.node_id, (Arena) {0});
-                return op->type_id;
-            } break;
-            case TEMPLATE: {
-                ASSERT1(ID_IS(left_op->type_id, ID_TUPLE_TYPE));
-                Arena templates = LOOKUP(left_op->type_id, Tuple_T).types;
-                checker_check_expr_node(left_op->right_id);
-                resolve_function_from_call(op->info.node_id, templates);
-                return op->type_id;
-            } break;
-            default:
-                FATAL("Arbitrary address calls are not supported yet");
-        }
+    // Get the args and turn it into a type
+    ASSERT1(ID_IS(op->right_id, ID_AST_EXPR));
+    a_expression args = LOOKUP(op->right_id, a_expression);
+
+    Tuple_T * args_type = type_allocate(ID_TUPLE_TYPE);
+    arena_grow(&args_type->types, args.children.size);
+
+    for (size_t i = 0; i < args.children.size; ++i) {
+        ARENA_APPEND(&args_type->types, checker_check_expr_node(ARENA_GET(args.children, i, ID), templates));
     }
 
-    checker_check_expr_node(op->left_id);
-    if (!ID_IS(op->left_id, ID_AST_SYMBOL)) {
-        ERROR("Arbitrary address calls are not supported yet");
-        return INVALID_ID;
-    }
+    Fn_T * fn_type = type_allocate(ID_FN_TYPE);
+    fn_type->arg_type = args_type->info.type_id;
 
-    a_symbol symbol = LOOKUP(op->left_id, a_symbol);
-    if (builtin_interner_id_is_inbounds(symbol.name_id)) {
-        if (symbol.name_ids.size != 1) {
-            ERROR("Invalid to use '::' operator when trying to call builtin function");
-            exit(1);
-        }
+    Variable_TC * output_var = tc_allocate(ID_TC_VARIABLE);
+    fn_type->ret_type = output_var->variable_id;
 
-        return op->type_id = VOID_TYPE;
-    }
+    Constraint_TC * constraint = tc_allocate(ID_TC_CONSTRAINT);
+    constraint->from = fn_type->info.type_id;
+    constraint->to = lhs_type_id;
 
-    checker_check_expr_node(op->right_id);
-    resolve_function_from_call(op->info.node_id, (Arena) {0});
-
-    return op->type_id;
+    return fn_type->ret_type;
 }
 
-ID checker_check_op(ID node_id) {
+ID checker_check_op(ID node_id, const Arena templates) {
     a_operator * op = lookup(node_id);
 
     switch (op->op.key) {
-        case CALL:
-            return checker_check_op_call(op);
+        case CALL: return checker_check_op_call(op, templates);
+        case PARENTHESES: return op->type_id = checker_check_expr_node(op->right_id, templates);
+        case MEMBER_ACCESS: return checker_check_op_member_access(op, templates);
         case TERNARY:
             ASSERT1(ID_IS(op->right_id, ID_AST_OP));
             if (LOOKUP(op->right_id, a_operator).op.key != TERNARY_BODY) {
                 FATAL("Detected an error with the ternary operator. This was most likely caused by operator precedence or nested ternary operators. To remedy this try applying parenthesis around the seperate ternary body entries");
             }
-            break;
-        case PARENTHESES:
-            return op->type_id = checker_check_expr_node(op->right_id);
-        case MEMBER_ACCESS:
-            return checker_check_op_member_access(op);
-        default:
-            if (!ID_IS_INVALID(op->left_id)) {
-                checker_check_expr_node(op->left_id);
-            }
+        default: break;
     }
 
-    checker_check_expr_node(op->right_id);
-    resolve_function_from_operator(node_id);
+    Variable_TC * result_var = tc_allocate(ID_TC_VARIABLE);
 
-    return op->type_id;
+    Fn_T * req_sig = type_allocate(ID_FN_TYPE);
+    Tuple_T * fn_args = type_allocate(ID_TUPLE_TYPE);
+
+    if (!ID_IS_INVALID(op->left_id)) {
+        ASSERT1(op->op.mode == BINARY);
+        ARENA_APPEND(&fn_args->types, checker_check_expr_node(op->left_id, templates));
+    } else {
+        ASSERT1(op->op.mode == UNARY_PRE || op->op.mode == UNARY_POST);
+    }
+
+    ARENA_APPEND(&fn_args->types, checker_check_expr_node(op->right_id, templates));
+
+    req_sig->arg_type = fn_args->info.type_id;
+    req_sig->ret_type = result_var->variable_id;
+
+    ID name_id = operator_get_intern_id(op->op.key);
+    Arena candidates = member_function_index_lookup(name_id);
+
+    ASSERT(candidates.size > 0, "No implementations found for operator: {s}", interner_lookup_str(name_id)._ptr);
+
+    Dimension_TC * dimension = tc_allocate(ID_TC_DIMENSION);
+    dimension->candidates = candidates;
+
+    Arena template_arena = {0};
+    const ID signature_id = replace_templates_in_type_with_template_variables(req_sig->info.type_id, templates);
+    const ID dimension_id = dimension->dimension_id;
+
+    for (size_t i = 0; i < candidates.size; ++i) {
+        ID candidate_decl_id = ARENA_GET(candidates, i, ID);
+        Arena template_arena = {0};
+        generate_template_constraints(candidate_decl_id, &template_arena);
+
+        ID candidate_type_id = replace_templates_in_type_with_template_variables(ast_get_type_of(candidate_decl_id), template_arena);
+
+        Configuration_TC * config = tc_allocate(ID_TC_CONFIGURATION);
+        config->dimension_id = dimension_id;
+        config->dimension_choice = i;
+
+        Constraint_TC * constraint = tc_allocate(ID_TC_CONSTRAINT);
+        constraint->from = signature_id ;
+        constraint->to = candidate_type_id;
+        constraint->config_id = config->config_id;
+
+    }
+
+    // println("To: {s}", type_to_str(signature_id));
+
+    return op->type_id = result_var->variable_id;
 }
 
-ID checker_check_expression(ID node_id) {
+ID checker_check_expression(ID node_id, const Arena templates) {
     a_expression * expr = lookup(node_id);
     if (expr->children.size == 0) {
         return VOID_TYPE;
@@ -251,7 +192,7 @@ ID checker_check_expression(ID node_id) {
     if (expr->children.size == 1) {
         ID child_node_id = ARENA_GET(expr->children, 0, ID);
         ASSERT1(!ID_IS_INVALID(child_node_id));
-        return checker_check_expr_node(child_node_id);
+        return checker_check_expr_node(child_node_id, templates);
     }
 
     Tuple_T * tuple_type = type_allocate(ID_TUPLE_TYPE);
@@ -259,31 +200,43 @@ ID checker_check_expression(ID node_id) {
     for (int i = 0; i < expr->children.size; ++i) {
         ID child_node_id = ARENA_GET(expr->children, i, ID);
         ASSERT1(!ID_IS_INVALID(child_node_id));
-        ARENA_APPEND(&tuple_type->types, checker_check_expr_node(child_node_id));
+        ARENA_APPEND(&tuple_type->types, checker_check_expr_node(child_node_id, templates));
     }
 
     return tuple_type->info.type_id;
 }
 
-ID checker_check_variable(ID node_id) {
-    a_variable variable = LOOKUP(node_id, a_variable);
-    ASSERT1(!ID_IS_INVALID(variable.type_id));
-    return variable.type_id;
+ID checker_check_variable(ID node_id, const Arena templates) {
+    ASSERT1(ID_IS(node_id, ID_AST_VARIABLE));
+    a_variable * variable = lookup(node_id);
+    // ASSERT1(id_is_equal(node_id, context_lookup_declaration(variable->name_id)));
+
+    if (!ID_IS(variable->type_id, ID_PLACE_TYPE)) {
+        ERROR("Variable \"{s}\" used before declared", interner_lookup_str(variable->name_id)._ptr);
+    }
+
+    Place_T * place_type = lookup(variable->type_id);
+    if (ID_IS_INVALID(place_type->basetype_id)) {
+        Variable_TC * variable_tc = tc_allocate(ID_TC_VARIABLE);
+        place_type->basetype_id = variable_tc->variable_id;
+    }
+
+    return replace_templates_in_type_with_template_variables(variable->type_id, templates);
 }
 
-void checker_check_if(ID node_id) {
+void checker_check_if(ID node_id, const Arena templates) {
     ID next_id = node_id;
     
     do {
         a_if_statement if_statement = LOOKUP(next_id, a_if_statement);
 
         if (!ID_IS_INVALID(if_statement.expression_id)) {
-            checker_check_expression(if_statement.expression_id);
+            checker_check_expression(if_statement.expression_id, templates);
         } else if (!ID_IS_INVALID(if_statement.next_id)) {
             FATAL("Else is not at the end of an if chain?");
         }
 
-        checker_check_scope(if_statement.body_id);
+        checker_check_scope(if_statement.body_id, templates);
 
         if (ID_IS_INVALID(if_statement.next_id)) {
             break;
@@ -293,39 +246,38 @@ void checker_check_if(ID node_id) {
     } while (!ID_IS_INVALID(next_id));
 }
 
-void checker_check_while(ID node_id) {
+void checker_check_while(ID node_id, const Arena templates) {
     a_while_statement while_statement = LOOKUP(node_id, a_while_statement);
 
-    checker_check_expression(while_statement.expression_id);
-    checker_check_scope(while_statement.body_id);
+    checker_check_expression(while_statement.expression_id, templates);
+    checker_check_scope(while_statement.body_id, templates);
 }
 
-void checker_check_for(ID node_id) {
+void checker_check_for(ID node_id, const Arena templates) {
     a_for_statement for_statement = LOOKUP(node_id, a_for_statement);
 
-    checker_check_expression(for_statement.expression_id);
-    checker_check_scope(for_statement.body_id);
+    checker_check_expression(for_statement.expression_id, templates);
+    checker_check_scope(for_statement.body_id, templates);
 }
 
-void checker_check_return(ID node_id) {
+void checker_check_return(ID node_id, const Arena templates) {
     a_return_statement return_statement = LOOKUP(node_id, a_return_statement);
 
-    checker_check_expression(return_statement.expression_id);
+    checker_check_expression(return_statement.expression_id, templates);
 }
 
 
 void checker_check_struct(ID node_id) {
     a_structure _struct = LOOKUP(node_id, a_structure);
     context_add_template_list(_struct.templates);
-    context_add_template_list(_struct.generics);
+    context_add_declaration_list(_struct.members);
 
-    for (size_t i = 0; i < _struct.members.size; ++i) {
-        println("{i}) {s}", i + 1, ast_to_string(ARENA_GET(_struct.members, i, ID)));
-    }
+    Arena templates = {.arena = NULL};
+    generate_template_constraints(node_id, &templates);
 
     for (size_t i = 0; i < _struct.declarations.size; ++i) {
         ID child_node_id = ARENA_GET(_struct.declarations, i, ID);
-        checker_check_declaration(child_node_id);
+        checker_check_declaration(child_node_id, templates);
     }
 
     for (size_t i = 0; i < _struct.members.size; ++i) {
@@ -333,12 +285,11 @@ void checker_check_struct(ID node_id) {
 
         switch (child_node_id.type) {
             case ID_AST_SYMBOL: {
-                checker_check_symbol(child_node_id);
+                checker_check_symbol(child_node_id, templates);
             } break;
             case ID_AST_FUNCTION: {
                 // a_function function = LOOKUP(child_node_id, a_function);
-                println("Checking {s}", ast_to_string(child_node_id));
-                checker_check_function(child_node_id);
+                checker_check_function(child_node_id, &templates);
             } break;
             default:
                 ERROR("Invalid ID type: {s}", id_type_to_string(child_node_id.type));
@@ -348,7 +299,7 @@ void checker_check_struct(ID node_id) {
         // println("child: {s}", ast_to_string(child_node_id));
     }
 
-    context_remove_template_list(_struct.generics);
+    context_remove_declaration_list(_struct.members);
     context_remove_template_list(_struct.templates);
 }
 
@@ -426,7 +377,7 @@ void checker_check_trait(ID node_id) {
     // }
 }
 
-void checker_check_scope(ID node_id) {
+void checker_check_scope(ID node_id, const Arena templates) {
     a_scope scope = LOOKUP(node_id, a_scope);
     context_add_declaration_list(scope.declarations);
 
@@ -434,22 +385,22 @@ void checker_check_scope(ID node_id) {
         ID child_node_id = ARENA_GET(scope.nodes, i, ID);
         switch (child_node_id.type) {
             case ID_AST_EXPR:
-                checker_check_expression(child_node_id);
+                checker_check_expression(child_node_id, templates);
                 break;
             case ID_AST_DECLARATION:
-                checker_check_declaration(child_node_id);
+                checker_check_declaration(child_node_id, templates);
                 break;
             case ID_AST_IF:
-                checker_check_if(child_node_id);
+                checker_check_if(child_node_id, templates);
                 break;
             case ID_AST_WHILE:
-                checker_check_while(child_node_id);
+                checker_check_while(child_node_id, templates);
                 break;
             case ID_AST_FOR:
-                checker_check_for(child_node_id);
+                checker_check_for(child_node_id, templates);
                 break;
             case ID_AST_RETURN:
-                checker_check_return(child_node_id);
+                checker_check_return(child_node_id, templates);
                 break;
             default:
                 ERROR("Invalid scope node type: {s}\n", id_type_to_string(child_node_id.type));
@@ -462,7 +413,7 @@ void checker_check_scope(ID node_id) {
     context_remove_declaration_list(scope.declarations);
 }
 
-void checker_check_declaration(ID node_id) {
+void checker_check_declaration(ID node_id, const Arena templates) {
     a_declaration declaration = LOOKUP(node_id, a_declaration);
     a_expression * expr = lookup(declaration.expression_id);
 
@@ -474,7 +425,7 @@ void checker_check_declaration(ID node_id) {
             case ID_AST_OP: {
                 a_operator assignment_op = LOOKUP(child_node_id, a_operator);
 
-                if (assignment_op.op.key != ASSIGNMENT) {
+                if (assignment_op.op.key != ASSIGNMENT || !ID_IS(assignment_op.left_id, ID_AST_SYMBOL)) {
                     FATAL("Declarations require a direct assignment");
                 }
 
@@ -490,12 +441,12 @@ void checker_check_declaration(ID node_id) {
         a_variable * variable = lookup(LOOKUP(symbol_id, a_symbol).node_id);
         Place_T * place_type = type_allocate(ID_PLACE_TYPE);
         place_type->basetype_id = variable->type_id;
-        place_type->is_mut = 1; // This is just temporary and the actual mutability is set after checker_check_expression
+        place_type->is_mut = declaration.is_mut;
 
         variable->type_id = place_type->info.type_id;
     }
 
-    checker_check_expression(declaration.expression_id);
+    checker_check_expression(declaration.expression_id, templates);
 
     for (int i = 0; i < expr->children.size; ++i) {
         ID child_node_id = ARENA_GET(expr->children, i, ID);
@@ -521,27 +472,35 @@ void checker_check_declaration(ID node_id) {
             child_node_id = symbol.node_id;
         }
 
-        checker_check_variable(child_node_id);
+        checker_check_variable(child_node_id, templates);
     }
 }
 
-void checker_check_function(ID node_id) {
+void checker_check_function(ID node_id, Arena * templates_ref) {
     a_function function = LOOKUP(node_id, a_function);
-    context_add_template_list(function.templates);
-    a_expression arguments = LOOKUP(function.arguments_id, a_expression);
-    context_add_declaration_list(arguments.children);
-
-    for (int i = 0; i < arguments.children.size; ++i) {
-        ID child_node_id = ARENA_GET(arguments.children, i, ID);
-        ASSERT(ID_IS(child_node_id, ID_AST_SYMBOL), "Function arguments currently only support declarations");
-        a_symbol symbol = LOOKUP(child_node_id, a_symbol);
-        checker_check_variable(symbol.node_id);
+    Arena templates = { .arena = NULL };
+    if (templates_ref != NULL) {
+        templates = *templates_ref;
     }
 
-    checker_check_scope(function.body_id);
+    generate_template_constraints(node_id, &templates);
+    context_add_declaration_list(function.arguments);
 
-    context_remove_declaration_list(arguments.children);
-    context_remove_template_list(function.templates);
+    for (int i = 0; i < function.arguments.size; ++i) {
+        ID child_node_id = ARENA_GET(function.arguments, i, ID);
+        ASSERT(ID_IS(child_node_id, ID_AST_SYMBOL), "Function arguments currently only support declarations");
+        a_symbol symbol = LOOKUP(child_node_id, a_symbol);
+        checker_check_variable(symbol.node_id, templates);
+    }
+
+    checker_check_scope(function.body_id, templates);
+
+    if  (templates_ref != NULL) {
+        templates.size = templates_ref->size;
+        *templates_ref = templates;
+    }
+
+    context_remove_declaration_list(function.arguments);
 }
 
 void checker_check_import(ID node_id) {
@@ -553,9 +512,9 @@ void checker_check_definitions(ID node_id) {
 
     switch (node_id.type) {
         case ID_AST_FUNCTION:
-            checker_check_function(node_id); break;
+            checker_check_function(node_id, NULL); break;
         case ID_AST_DECLARATION:
-            checker_check_declaration(node_id); break;
+            checker_check_declaration(node_id, (Arena) {.arena = NULL}); break;
         case ID_AST_STRUCT:
             checker_check_struct(node_id); break;
         case ID_AST_TRAIT:
@@ -587,6 +546,12 @@ void checker_check(a_root root) {
     kh_foreach_value(&root.modules, module_id, {
         checker_check_module(module_id);
     });
+
+    println("Time for solver");
+
+    struct solver solver;
+    solver_initialize(&solver);
+    solver_process_worklist(&solver);
 
     // perform main function lookup on root.entry_point module
 }

@@ -11,6 +11,16 @@ find_library(LIBBT NAMES libbacktrace)
 
 include(FetchContent)
 
+execute_process(
+    COMMAND ping www.google.com -n 2 -w 1000
+    RESULT_VARIABLE NO_CONNECTION
+)
+if(NO_CONNECTION GREATER 0)
+    set(FETCHCONTENT_FULLY_DISCONNECTED ON)
+else()
+    set(FETCHCONTENT_FULLY_DISCONNECTED OFF)
+endif()
+
 FetchContent_Declare(
     fmt
     GIT_REPOSITORY https://github.com/yayl/string-formatter

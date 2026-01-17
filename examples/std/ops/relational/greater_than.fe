@@ -1,0 +1,17 @@
+import "../../groups/numeric" as numeric
+
+trait #Greater_Than<LeftType, RightType, RetType> {
+    fn inline #OP_GREATER_THAN(left: LeftType, right: RightType) -> RetType
+}
+
+impl<T: numeric::Signed> #Greater_Than<LeftType: T, RightType: T, RetType: bool> {
+    fn inline #OP_GREATER_THAN(left: LeftType, right: RightType) -> RetType {
+        #llvm_op("icmp slt", left, right)
+    }
+}
+
+impl<T: numeric::Unsigned> #Greater_Than<LeftType: T, RightType: T, RetType: bool> {
+    fn inline #OP_GREATER_THAN(left: LeftType, right: RightType) -> RetType {
+        #llvm_op("icmp ult", left, right)
+    }
+}
