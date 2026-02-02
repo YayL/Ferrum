@@ -7,12 +7,8 @@ set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_C_FLAGS_DEBUG "-Wall -Wno-unused -pg -g")
 set(CMAKE_C_FLAGS_RELEASE "-Ofast")
 
-find_library(LIBBT NAMES libbacktrace)
-
-include(FetchContent)
-
 execute_process(
-    COMMAND ping www.google.com -n 2 -w 1000
+    COMMAND ping www.google.com -n 2 -w 1
     RESULT_VARIABLE NO_CONNECTION
 )
 if(NO_CONNECTION GREATER 0)
@@ -20,6 +16,10 @@ if(NO_CONNECTION GREATER 0)
 else()
     set(FETCHCONTENT_FULLY_DISCONNECTED OFF)
 endif()
+
+find_library(LIBBT NAMES libbacktrace)
+
+include(FetchContent)
 
 FetchContent_Declare(
     fmt

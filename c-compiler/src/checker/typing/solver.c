@@ -10,8 +10,6 @@ ID config_merge(ID config1_id, ID config2_id, char * is_impossible_flag);
 void solver_initialize(struct solver * ctx) {
 	ctx->worklist = DEQUE_INIT(ID);
 	LOOP_OVER_REGISTRY(Constraint_TC, c, {
-		println("{s} <: {s}", type_to_str(c->from), type_to_str(c->to));
-
 		solver_link_constraint(c);
 
 		if (!ID_IS(c->from, ID_TC_VARIABLE) || !ID_IS(c->to, ID_TC_VARIABLE)) {
@@ -37,17 +35,18 @@ void solver_decompose(struct solver * ctx, Constraint_TC * c) {
 				  FATAL("Shape constraint on non symbol type: {s}", type_to_str(c->from));
 			}
 
-			// solver_add_new_flows(ctx, basetype_id, c->to, c->config_id);
+			solver_add_new_flows(ctx, basetype_id, c->to, c->config_id);
 			return;
 		} 
 
 		Symbol_T symbol = LOOKUP(c->from, Symbol_T);
 		Shape_TC * shape = lookup(c->to);
+		ID member_name_id = ast_get_interner_id(shape->member_id);
 
-		if (!check_has_member(symbol.symbol_id, shape->member_id)) {
-			FATAL("{s} does not have member \"{s}\"", interner_lookup_str(shape->member_id)._ptr);
+		if (!check_has_member(symbol.symbol_id, member_name_id)) {
+			FATAL("{s} does not have member \"{s}\"", interner_lookup_str(ast_get_interner_id(symbol.symbol_id))._ptr, interner_lookup_str(ast_get_interner_id(shape->member_id))._ptr);
 		} else {
-			println("{s} has member \"{s}\"", interner_lookup_str(shape->member_id)._ptr);
+			println("{s} has member \"{s}\"", interner_lookup_str(member_name_id)._ptr);
 		}
 
 		return;
@@ -111,7 +110,7 @@ void solver_process_worklist(struct solver * ctx) {
 		DEQUE_POP_FRONT(ID, &ctx->worklist);
 
 		Constraint_TC * c = lookup(constraint_id);
-		// println("{s} <: {s}", type_to_str(c->from), type_to_str(c->to));
+		println("{s} <: {s}", type_to_str(c->from), type_to_str(c->to));
 
 		// Propogate forward:
 		// Turn FROM -> To and To -> Next

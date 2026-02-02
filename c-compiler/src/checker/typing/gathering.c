@@ -227,34 +227,7 @@ void generate_template_constraints(ID node_id, Arena * templates) {
 				generate_template_constraints(function.info.scope_id, templates);
 			}
 
-            for (size_t i = 0; i < function.templates.size; ++i) {
-				ID template_id = ARENA_GET(function.templates, i, ID);
-				ASSERT1(ID_IS(template_id, ID_AST_SYMBOL));
-				a_symbol template_symbol = LOOKUP(template_id, a_symbol);
-				ASSERT1(template_symbol.name_ids.size == 1);
-
-                for (size_t j = 0; j < templates->size; ++j) {
-					struct template_variable var = ARENA_GET(*templates, j, struct template_variable);
-					if (id_is_equal(var.name_id, template_symbol.name_id)) {
-						// println("{s}", ast_to_string(node_id));
-						FATAL("Duplicate template \"{s}\"", interner_lookup_str(template_symbol.name_id)._ptr);
-					}
-                }
-
-				if (!ID_IS_INVALID(template_symbol.node_id)) {
-					println("template node: {s}", ast_to_string(template_symbol.node_id));
-				}
-
-				Variable_TC * variable = tc_allocate(ID_TC_VARIABLE);
-				struct template_variable new_var = { .variable_id = variable->variable_id, .name_id = template_symbol.name_id };
-				ARENA_APPEND(templates, new_var);
-            }
-
-			// println("templates: {i} | {s}", templates->size, ast_to_string(node_id));
-			//
-			// for (size_t i = 0; i < templates->size; ++i) {
-			// 	println("{i}) {s}", i + 1, type_to_str(ARENA_GET(*templates, i, struct template_variable).variable_id));
-			// }
+			generate_template_list_constraints(function.templates, templates);
         } break;
         case ID_AST_STRUCT: {
             a_structure _struct = LOOKUP(node_id, a_structure);

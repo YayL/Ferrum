@@ -7,6 +7,20 @@ ID ast_get_scope_id(ID node_id) {
     return LOOKUP(node_id, struct AST_info).scope_id;
 }
 
+ID ast_get_interner_id(ID node_id) {
+    switch (node_id.type) {
+        case ID_AST_FUNCTION:
+            return LOOKUP(node_id, a_function).name_id;
+        case ID_AST_DECLARATION:
+            return LOOKUP(node_id, a_declaration).name_id;
+        case ID_AST_SYMBOL:
+            return LOOKUP(node_id, a_symbol).name_id;
+        default:
+            println("get_name invalid type: {s}", ast_to_string(node_id));
+            exit(1);
+    }
+}
+
 void ast_init_node(enum id_type type, void * node_ref) {
     switch (type) {
         // case ID_AST_ROOT:

@@ -6,18 +6,6 @@
 #include "tables/member_functions.h"
 #include "checker/typing/solver.h"
 
-ID get_interner_id(ID node_id) {
-    switch (node_id.type) {
-        case ID_AST_FUNCTION:
-            return LOOKUP(node_id, a_function).name_id;
-        case ID_AST_DECLARATION:
-            return LOOKUP(node_id, a_declaration).name_id;
-        default:
-            println("get_name invalid type: {s}", ast_to_string(node_id));
-            exit(1);
-    }
-}
-
 char check_has_member(ID node_id, ID member_name_id) {
     ASSERT1(ID_IS(node_id, ID_AST_SYMBOL));
     a_symbol symbol = LOOKUP(node_id, a_symbol);
@@ -26,7 +14,7 @@ char check_has_member(ID node_id, ID member_name_id) {
         case ID_AST_STRUCT: {
             a_structure _struct = LOOKUP(symbol.node_id, a_structure);
             for (size_t i = 0; i < _struct.members.size; ++i) {
-                if (id_is_equal(member_name_id, get_interner_id(ARENA_GET(_struct.members, i, ID)))) {
+                if (id_is_equal(member_name_id, ast_get_interner_id(ARENA_GET(_struct.members, i, ID)))) {
                     return 1;
                 }
             }
@@ -568,6 +556,15 @@ void checker_check(a_root root) {
     // struct solver solver = {0};
     // solver_initialize(&solver);
     // solver_process_worklist(&solver);
+    //
+    // const struct registry_manager manager = registry_manager_get();
+    // println("\nVars: {i}", manager.Variable_TC.entries.item_count);
+    // println("Constraints: {i}", manager.Constraint_TC.entries.item_count);
+    // println("Shapes: {i}", manager.Shape_TC.entries.item_count);
+    // println("Generics: {i}", manager.Generic_TC.entries.item_count);
+    // println("Configurations: {i}", manager.Configuration_TC.entries.item_count);
+    // println("Dimensions: {i}", manager.Dimension_TC.entries.item_count);
+    //
     // exit(0);
 
     // println("entry: {s}", root.entry_point);
@@ -577,9 +574,9 @@ void checker_check(a_root root) {
 
     println("Time for solver");
 
-    // struct solver solver;
-    // solver_initialize(&solver);
-    // solver_process_worklist(&solver);
+    struct solver solver;
+    solver_initialize(&solver);
+    solver_process_worklist(&solver);
 
     // perform main function lookup on root.entry_point module
 }

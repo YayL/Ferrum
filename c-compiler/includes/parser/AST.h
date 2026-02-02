@@ -6,6 +6,7 @@
 #include "tables/symbol_table.h"
 
 ID ast_get_scope_id(ID node_id);
+ID ast_get_interner_id(ID node_id);
 
 void ast_init_node(enum id_type type, void * node_ref);
 
