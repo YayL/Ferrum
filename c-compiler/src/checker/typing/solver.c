@@ -1,6 +1,7 @@
 #include "checker/typing/solver.h"
 
 #include "tables/registry_manager.h"
+#include "checker/checker.h"
 
 void solver_add_new_flows(struct solver * ctx, ID from, ID to, ID config_id);
 void solver_link_constraint(Constraint_TC * constraint);
@@ -9,6 +10,8 @@ ID config_merge(ID config1_id, ID config2_id, char * is_impossible_flag);
 void solver_initialize(struct solver * ctx) {
 	ctx->worklist = DEQUE_INIT(ID);
 	LOOP_OVER_REGISTRY(Constraint_TC, c, {
+		println("{s} <: {s}", type_to_str(c->from), type_to_str(c->to));
+
 		solver_link_constraint(c);
 
 		if (!ID_IS(c->from, ID_TC_VARIABLE) || !ID_IS(c->to, ID_TC_VARIABLE)) {
@@ -22,6 +25,32 @@ void solver_decompose(struct solver * ctx, Constraint_TC * c) {
 
 	if (!ID_IS(c->from, ID_PLACE_TYPE) && ID_IS(c->to, ID_PLACE_TYPE)) {
 		FATAL("A non-place can not flow into a place");
+	}
+
+	if (ID_IS(c->to, ID_TC_SHAPE)) {
+		if (!ID_IS(c->from, ID_SYMBOL_TYPE)) {
+			ID basetype_id;
+			switch (c->from.type) {
+				case ID_PLACE_TYPE: basetype_id = LOOKUP(c->from, Place_T).basetype_id; break;
+				case ID_REF_TYPE: basetype_id = LOOKUP(c->from, Ref_T).basetype_id; break;
+				default:
+				  FATAL("Shape constraint on non symbol type: {s}", type_to_str(c->from));
+			}
+
+			// solver_add_new_flows(ctx, basetype_id, c->to, c->config_id);
+			return;
+		} 
+
+		Symbol_T symbol = LOOKUP(c->from, Symbol_T);
+		Shape_TC * shape = lookup(c->to);
+
+		if (!check_has_member(symbol.symbol_id, shape->member_id)) {
+			FATAL("{s} does not have member \"{s}\"", interner_lookup_str(shape->member_id)._ptr);
+		} else {
+			println("{s} has member \"{s}\"", interner_lookup_str(shape->member_id)._ptr);
+		}
+
+		return;
 	}
 
 	switch (c->from.type) {
@@ -57,8 +86,18 @@ void solver_decompose(struct solver * ctx, Constraint_TC * c) {
 			Place_T * from_place_type = lookup(c->from);
 			solver_add_new_flows(ctx, from_place_type->basetype_id, to_type, c->config_id);
 		} break;
+		case ID_SYMBOL_TYPE: {
+			if (ID_IS(c->to, ID_TC_SHAPE)) {
+				Symbol_T symbol_type = LOOKUP(c->from, Symbol_T);
+				a_symbol symbol = LOOKUP(symbol_type.symbol_id, a_symbol);
+				Shape_TC * shape = lookup(c->to);
+				a_symbol shape_symbol = LOOKUP(shape->member_id, a_symbol);
+
+
+				println("symbol lookedup: {s}", ast_to_string(symbol.node_id));
+			}
+		 }
 		case ID_REF_TYPE:
-		case ID_SYMBOL_TYPE:
 		case ID_NUMERIC_TYPE: // println("{s} <: {s}", type_to_str(c->from), type_to_str(c->to));
 		break;
 		default:

@@ -3,6 +3,8 @@
 #include "parser/AST.h"
 #include "common/ID.h"
 
+char check_has_member(ID node_id, ID member_name_id);
+
 void checker_check_if(ID node_id, const Arena templates);
 void checker_check_while(ID node_id, const Arena templates);
 

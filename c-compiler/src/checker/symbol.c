@@ -46,7 +46,7 @@ ID qualify_symbol(a_symbol * symbol, enum id_type type_to_find) {
 
 	ID name_id = ARENA_GET(symbol->name_ids, name_ids_stepped, ID);
 	ID next_id = module_lookup_id(module, name_id, type_to_find);
-	
+
 	// Last name id
 	if (name_ids_stepped + 1 == symbol->name_ids.size) {
 		return symbol->node_id = next_id;
@@ -84,7 +84,7 @@ ID qualify_symbol(a_symbol * symbol, enum id_type type_to_find) {
 							a_symbol sym = LOOKUP(struct_child_id, a_symbol);
 
 							if (id_is_equal(sym.name_id, next_name_id)) {
-								return  symbol->node_id = sym.info.node_id;
+								return symbol->node_id = sym.info.node_id;
 							}
 						} break;
 						default:

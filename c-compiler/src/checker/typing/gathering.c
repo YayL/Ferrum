@@ -2,6 +2,19 @@
 
 #include "parser/AST.h"
 #include "tables/registry_manager.h"
+#include "checker/symbol.h"
+
+ID find_template(const Arena templates, ID name_id) {
+	for (size_t i = 0; i < templates.size; ++i) {
+		struct template_variable t_var = ARENA_GET(templates, i, struct template_variable);
+
+		if (id_is_equal(t_var.name_id, name_id)) {
+			return t_var.variable_id;
+		}
+	}
+
+	return INVALID_ID;
+}
 
 ID replace_templates_in_type_with_template_variables(ID type_id, const Arena templates) {
 	switch (type_id.type) {
@@ -105,15 +118,7 @@ ID replace_templates_in_type_with_template_variables(ID type_id, const Arena tem
 			}
 
 			a_symbol symbol = LOOKUP(symbol_type.symbol_id, a_symbol);
-			ID template_var_type = INVALID_ID;
-
-			for (size_t i = 0; i < templates.size; ++i) {
-				struct template_variable t_var = ARENA_GET(templates, i, struct template_variable);
-				if (symbol.name_ids.size == 1 && id_is_equal(t_var.name_id, symbol.name_id)) {
-					template_var_type = t_var.variable_id;
-					break;
-				}
-			}
+			ID template_var_type = find_template(templates, symbol.name_id);
 
 			// Not a template symbol?
 			if (ID_IS_INVALID(template_var_type)) {
@@ -158,23 +163,55 @@ void generate_template_list_constraints(Arena arena, Arena * templates) {
 		a_symbol template_symbol = LOOKUP(template_id, a_symbol);
 		ASSERT1(template_symbol.name_ids.size == 1);
 
-		Variable_TC * variable = tc_allocate(ID_TC_VARIABLE);
-		struct template_variable new_var = { .variable_id = variable->variable_id, .name_id = template_symbol.name_id };
-		ARENA_APPEND(templates, new_var);
-
+		// If no constraint is specified
 		if (ID_IS_INVALID(template_symbol.node_id)) {
+			Variable_TC * variable = tc_allocate(ID_TC_VARIABLE);
+			struct template_variable new_var = { .variable_id = variable->variable_id, .name_id = template_symbol.name_id };
+			ARENA_APPEND(templates, new_var);
 			continue;
 		}
+
+		// If has constraint
 
 		ASSERT1(ID_IS(template_symbol.node_id, ID_AST_VARIABLE));
 		a_variable t_s_var = LOOKUP(template_symbol.node_id, a_variable);
 		ASSERT1(!ID_IS_INVALID(t_s_var.type_id));
 
-		Constraint_TC * constraint = tc_allocate(ID_TC_CONSTRAINT);
-		constraint->from = replace_templates_in_type_with_template_variables(t_s_var.type_id, *templates);
-		constraint->to = new_var.variable_id;
+		// Check if constraint is a group
+		if (ID_IS(t_s_var.type_id, ID_SYMBOL_TYPE)) {
+			// println("var: {s} | {s}", type_to_str(t_s_var.type_id), id_type_to_string(t_s_var.type_id.type));
+			Symbol_T c_symbol_type = LOOKUP(t_s_var.type_id, Symbol_T);
+			ASSERT1(!ID_IS_INVALID(c_symbol_type.symbol_id));
+			a_symbol * c_symbol = lookup(c_symbol_type.symbol_id);
 
-		// println("{s} <: {s}", type_to_str(constraint->from), type_to_str(constraint->to));
+			if (c_symbol->name_ids.size == 1) {
+				ID template_var = find_template(*templates, c_symbol->name_id);
+				if (!ID_IS_INVALID(template_var)) {
+					goto just_add;
+				}
+			}
+
+			if (ID_IS_INVALID(qualify_symbol(c_symbol, ID_SYMBOL_TYPE))) {
+				FATAL("Unable to qualify \"{s}\"", interner_lookup_str(c_symbol->name_id)._ptr);
+			}
+			
+			// Is a group
+			if (ID_IS(c_symbol->node_id, ID_AST_GROUP)) {
+				Variable_TC * variable = tc_allocate(ID_TC_VARIABLE);
+				struct template_variable new_var = { .variable_id = variable->variable_id, .name_id = template_symbol.name_id };
+				ARENA_APPEND(templates, new_var);
+
+				Constraint_TC * constraint = tc_allocate(ID_TC_CONSTRAINT);
+				constraint->from = new_var.variable_id;
+				constraint->to = t_s_var.type_id;
+				continue;
+			}
+		}
+
+just_add:
+		struct template_variable new_var = { .variable_id = replace_templates_in_type_with_template_variables(t_s_var.type_id, *templates), .name_id = template_symbol.name_id };
+		// println("Just adding: {s} = {s}", interner_lookup_str(new_var.name_id)._ptr, type_to_str(new_var.variable_id));
+		ARENA_APPEND(templates, new_var);
 	}
 }
 
@@ -197,16 +234,27 @@ void generate_template_constraints(ID node_id, Arena * templates) {
 				ASSERT1(template_symbol.name_ids.size == 1);
 
                 for (size_t j = 0; j < templates->size; ++j) {
-					if (id_is_equal(ARENA_GET(*templates, j, struct template_variable).name_id, template_symbol.name_id)) {
+					struct template_variable var = ARENA_GET(*templates, j, struct template_variable);
+					if (id_is_equal(var.name_id, template_symbol.name_id)) {
 						// println("{s}", ast_to_string(node_id));
 						FATAL("Duplicate template \"{s}\"", interner_lookup_str(template_symbol.name_id)._ptr);
 					}
                 }
 
+				if (!ID_IS_INVALID(template_symbol.node_id)) {
+					println("template node: {s}", ast_to_string(template_symbol.node_id));
+				}
+
 				Variable_TC * variable = tc_allocate(ID_TC_VARIABLE);
 				struct template_variable new_var = { .variable_id = variable->variable_id, .name_id = template_symbol.name_id };
 				ARENA_APPEND(templates, new_var);
             }
+
+			// println("templates: {i} | {s}", templates->size, ast_to_string(node_id));
+			//
+			// for (size_t i = 0; i < templates->size; ++i) {
+			// 	println("{i}) {s}", i + 1, type_to_str(ARENA_GET(*templates, i, struct template_variable).variable_id));
+			// }
         } break;
         case ID_AST_STRUCT: {
             a_structure _struct = LOOKUP(node_id, a_structure);
@@ -218,6 +266,7 @@ void generate_template_constraints(ID node_id, Arena * templates) {
 
 			generate_template_list_constraints(impl.generics, templates);
 			generate_template_list_constraints(impl.templates, templates);
+			
         } break;
         default:
             FATAL("Invalid id type: {s}", id_type_to_string(node_id.type));

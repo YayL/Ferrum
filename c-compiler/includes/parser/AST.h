@@ -24,7 +24,7 @@ struct AST_info {
 
 typedef struct a_root {
     struct AST_info info;
-    char * entry_point;
+    ID entry_point;
     khash_t(map_string_to_id) modules;
 } a_root;
 

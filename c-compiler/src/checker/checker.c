@@ -18,6 +18,26 @@ ID get_interner_id(ID node_id) {
     }
 }
 
+char check_has_member(ID node_id, ID member_name_id) {
+    ASSERT1(ID_IS(node_id, ID_AST_SYMBOL));
+    a_symbol symbol = LOOKUP(node_id, a_symbol);
+
+    switch (symbol.node_id.type) {
+        case ID_AST_STRUCT: {
+            a_structure _struct = LOOKUP(symbol.node_id, a_structure);
+            for (size_t i = 0; i < _struct.members.size; ++i) {
+                if (id_is_equal(member_name_id, get_interner_id(ARENA_GET(_struct.members, i, ID)))) {
+                    return 1;
+                }
+            }
+        } break;
+        case ID_AST_IMPL: FATAL("Not implemented");
+        default: return 0;
+    }
+
+    return 0;
+}
+
 ID checker_check_expr_node(ID node_id, const Arena templates) {
     ID ret_value;
     switch (node_id.type) {
@@ -543,15 +563,23 @@ void checker_check_module(ID node_id) {
 
 void checker_check(a_root root) {
     ID module_id;
+
+    // checker_check_module(root.entry_point);
+    // struct solver solver = {0};
+    // solver_initialize(&solver);
+    // solver_process_worklist(&solver);
+    // exit(0);
+
+    // println("entry: {s}", root.entry_point);
     kh_foreach_value(&root.modules, module_id, {
         checker_check_module(module_id);
     });
 
     println("Time for solver");
 
-    struct solver solver;
-    solver_initialize(&solver);
-    solver_process_worklist(&solver);
+    // struct solver solver;
+    // solver_initialize(&solver);
+    // solver_process_worklist(&solver);
 
     // perform main function lookup on root.entry_point module
 }

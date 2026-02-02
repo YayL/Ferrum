@@ -845,9 +845,7 @@ void parser_parse(a_root * root, char * path) {
     parser.root = root;
     parser.current_scope_id = root->info.node_id;
 
-    root->entry_point = path;
-
-    add_module(&parser, path);
+    root->entry_point = add_module(&parser, path);
 
     while (parser.modules_to_parse.size > 0) {
         path = ARENA_POP(&parser.modules_to_parse, char *);
