@@ -1,5 +1,6 @@
 #include "checker/checker.h"
 
+#include "parser/AST.h"
 #include "checker/context.h"
 #include "checker/symbol.h"
 #include "tables/registry_manager.h"
@@ -71,11 +72,27 @@ ID checker_check_symbol(ID node_id, const Arena templates) {
         symbol->node_id = context_lookup_declaration(symbol->name_id);
     }
 
-    if (ID_IS_INVALID(symbol->node_id)) {
-        FATAL("Unable to find symbol: {s}", interner_lookup_str(symbol->name_id)._ptr);
+    if (id_is_equal(symbol->info.scope_id, ast_get_scope_id(symbol->node_id))) {
+        return replace_templates_in_type_with_template_variables(ast_get_type_of(symbol->node_id), templates);
     }
 
-    return replace_templates_in_type_with_template_variables(ast_get_type_of(symbol->node_id), templates);
+    switch (symbol->node_id.type) {
+        case ID_AST_FUNCTION: {
+            Arena temp_templates = {0};
+            generate_template_constraints(symbol->node_id, &temp_templates);
+            return replace_templates_in_type_with_template_variables(ast_get_type_of(symbol->node_id), temp_templates);
+        } break;
+        case ID_AST_VARIABLE: {
+            Arena temp_templates = {0};
+            generate_template_constraints(symbol->node_id, &temp_templates);
+            ID type_id = replace_templates_in_type_with_template_variables(ast_get_type_of(symbol->node_id), temp_templates);
+            return type_id;
+        }
+        case ID_INVALID_TYPE: FATAL("Unable to find symbol: {s}", interner_lookup_str(symbol->name_id)._ptr);
+        default: break;
+    }
+
+    return ast_get_type_of(symbol->node_id);
 }
 
 ID checker_check_op_member_access(a_operator * op, const Arena templates) {
@@ -111,17 +128,17 @@ ID checker_check_op_call(a_operator * op, const Arena templates) {
         ARENA_APPEND(&args_type->types, checker_check_expr_node(ARENA_GET(args.children, i, ID), templates));
     }
 
-    Fn_T * fn_type = type_allocate(ID_FN_TYPE);
-    fn_type->arg_type = args_type->info.type_id;
+    Fn_T * caller_type = type_allocate(ID_FN_TYPE);
+    caller_type->arg_type = args_type->info.type_id;
 
     Variable_TC * output_var = tc_allocate(ID_TC_VARIABLE);
-    fn_type->ret_type = output_var->variable_id;
+    caller_type->ret_type = output_var->variable_id;
 
     Constraint_TC * constraint = tc_allocate(ID_TC_CONSTRAINT);
-    constraint->from = fn_type->info.type_id;
-    constraint->to = lhs_type_id;
+    constraint->from = lhs_type_id;
+    constraint->to = caller_type->info.type_id;
 
-    return fn_type->ret_type;
+    return caller_type->ret_type;
 }
 
 ID checker_check_op(ID node_id, const Arena templates) {
@@ -180,8 +197,8 @@ ID checker_check_op(ID node_id, const Arena templates) {
         config->dimension_choice = i;
 
         Constraint_TC * constraint = tc_allocate(ID_TC_CONSTRAINT);
-        constraint->from = signature_id ;
-        constraint->to = candidate_type_id;
+        constraint->to = signature_id;
+        constraint->from = candidate_type_id;
         constraint->config_id = config->config_id;
 
     }
@@ -229,7 +246,8 @@ ID checker_check_variable(ID node_id, const Arena templates) {
         place_type->basetype_id = variable_tc->variable_id;
     }
 
-    return replace_templates_in_type_with_template_variables(variable->type_id, templates);
+    ID type_id = replace_templates_in_type_with_template_variables(variable->type_id, templates);
+    return type_id;
 }
 
 void checker_check_if(ID node_id, const Arena templates) {
@@ -571,12 +589,6 @@ void checker_check(a_root root) {
     kh_foreach_value(&root.modules, module_id, {
         checker_check_module(module_id);
     });
-
-    println("Time for solver");
-
-    struct solver solver;
-    solver_initialize(&solver);
-    solver_process_worklist(&solver);
 
     // perform main function lookup on root.entry_point module
 }

@@ -17,6 +17,10 @@ ID find_template(const Arena templates, ID name_id) {
 }
 
 ID replace_templates_in_type_with_template_variables(ID type_id, const Arena templates) {
+	if (templates.size == 0) {
+		return type_id;
+	}
+
 	switch (type_id.type) {
 		case ID_NUMERIC_TYPE:
 			return type_id;
@@ -221,6 +225,12 @@ void generate_template_constraints(ID node_id, Arena * templates) {
 	}
 
     switch (node_id.type) {
+		case ID_AST_VARIABLE: {
+			a_variable * variable = lookup(node_id);
+			if  (!ID_IS(variable->info.scope_id, ID_AST_MODULE)) {
+				generate_template_constraints(variable->info.scope_id, templates);
+			}
+		} break;
         case ID_AST_FUNCTION: {
             a_function function = LOOKUP(node_id, a_function);
 			if (!ID_IS(function.info.scope_id, ID_AST_MODULE)) {

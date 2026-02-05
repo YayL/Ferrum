@@ -21,35 +21,37 @@ void solver_initialize(struct solver * ctx) {
 void solver_decompose(struct solver * ctx, Constraint_TC * c) {
 	ASSERT1(!ID_IS(c->from, ID_TC_VARIABLE) && !ID_IS(c->to, ID_TC_VARIABLE));
 
-	if (!ID_IS(c->from, ID_PLACE_TYPE) && ID_IS(c->to, ID_PLACE_TYPE)) {
-		FATAL("A non-place can not flow into a place");
-	}
+	switch (c->to.type) {
+		case ID_TC_SHAPE: {
+			if (!ID_IS(c->from, ID_SYMBOL_TYPE)) {
+				ID basetype_id;
+				switch (c->from.type) {
+					case ID_PLACE_TYPE: basetype_id = LOOKUP(c->from, Place_T).basetype_id; break;
+					case ID_REF_TYPE: basetype_id = LOOKUP(c->from, Ref_T).basetype_id; break;
+					default:
+					  FATAL("Shape constraint on non symbol type: {s}", type_to_str(c->from));
+				}
 
-	if (ID_IS(c->to, ID_TC_SHAPE)) {
-		if (!ID_IS(c->from, ID_SYMBOL_TYPE)) {
-			ID basetype_id;
-			switch (c->from.type) {
-				case ID_PLACE_TYPE: basetype_id = LOOKUP(c->from, Place_T).basetype_id; break;
-				case ID_REF_TYPE: basetype_id = LOOKUP(c->from, Ref_T).basetype_id; break;
-				default:
-				  FATAL("Shape constraint on non symbol type: {s}", type_to_str(c->from));
+				solver_add_new_flows(ctx, basetype_id, c->to, c->config_id);
+				return;
+			} 
+
+			Symbol_T symbol = LOOKUP(c->from, Symbol_T);
+			Shape_TC * shape = lookup(c->to);
+			ID member_name_id = ast_get_interner_id(shape->member_id);
+
+			if (!check_has_member(symbol.symbol_id, member_name_id)) {
+				FATAL("{s} does not have member \"{s}\"", interner_lookup_str(ast_get_interner_id(symbol.symbol_id))._ptr, interner_lookup_str(ast_get_interner_id(shape->member_id))._ptr);
 			}
 
-			solver_add_new_flows(ctx, basetype_id, c->to, c->config_id);
 			return;
-		} 
-
-		Symbol_T symbol = LOOKUP(c->from, Symbol_T);
-		Shape_TC * shape = lookup(c->to);
-		ID member_name_id = ast_get_interner_id(shape->member_id);
-
-		if (!check_has_member(symbol.symbol_id, member_name_id)) {
-			FATAL("{s} does not have member \"{s}\"", interner_lookup_str(ast_get_interner_id(symbol.symbol_id))._ptr, interner_lookup_str(ast_get_interner_id(shape->member_id))._ptr);
-		} else {
-			println("{s} has member \"{s}\"", interner_lookup_str(member_name_id)._ptr);
-		}
-
-		return;
+		} break;
+		case ID_PLACE_TYPE: {
+			if (!ID_IS(c->to, ID_PLACE_TYPE)) {
+				FATAL("A place can not flow into a non-place");
+			}
+		} break;
+		default: break;
 	}
 
 	switch (c->from.type) {
@@ -74,6 +76,8 @@ void solver_decompose(struct solver * ctx, Constraint_TC * c) {
 			for (size_t i = 0; i < arg_count; ++i) {
 				solver_add_new_flows(ctx, ARENA_GET(from_args_type.types, i, ID), ARENA_GET(to_args_type.types, i, ID), config_id);
 			}
+
+			solver_add_new_flows(ctx, from.ret_type, to.ret_type, config_id);
 		} break;
 		case ID_PLACE_TYPE: {
 			ID to_type = c->to;
