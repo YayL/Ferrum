@@ -4,19 +4,19 @@ trait #Addition<Term1Type, Term2Type, SumType> {
     fn inline #OP_ADDITION(first: Term1Type, second: Term2Type) -> SumType
 }
 
-impl<T: numeric::Signed> #Addition<Term1Type: T, Term2Type: T, SumType: T> {
+impl<T> #Addition<Term1Type: T, Term2Type: T, SumType: T> where numeric::Signed<T> {
     fn inline #OP_ADDITION(first: Term1Type, second: Term2Type) -> SumType {
         #llvm_op("add nsw", first, second)
     }
 }
 
-impl<T: numeric::Unsigned> #Addition<Term1Type: T, Term2Type: T, SumType: T> {
+impl<T> #Addition<Term1Type: T, Term2Type: T, SumType: T> where numeric::Unsigned<T> {
     fn inline #OP_ADDITION(first: Term1Type, second: Term2Type) -> SumType {
         #llvm_op("add nuw", first, second)
     }
 }
 
-impl<T: numeric::Float> #Addition<Term1Type: T, Term2Type: T, SumType: T> {
+impl<T> #Addition<Term1Type: T, Term2Type: T, SumType: T> where numeric::Float<T> {
     fn inline #OP_ADDITION(first: Term1Type, second: Term2Type) -> SumType {
         #llvm_op("fadd", first, second)
     }

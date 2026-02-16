@@ -3,13 +3,16 @@
 #include "tables/registry_manager.h"
 #include "checker/checker.h"
 
-void solver_add_new_flows(struct solver * ctx, ID from, ID to, ID config_id);
+void solver_add_new_flows(struct solver * ctx, ID from, ID to, DdNode * choice);
 void solver_link_constraint(Constraint_TC * constraint);
-ID config_merge(ID config1_id, ID config2_id, char * is_impossible_flag);
 
 void solver_initialize(struct solver * ctx) {
 	ctx->worklist = DEQUE_INIT(ID);
+	ctx->err_constraints = arena_init(sizeof(ID));
+	ctx->resolver = dimension_resolver_init();
+
 	LOOP_OVER_REGISTRY(Constraint_TC, c, {
+		/* println("{s} <: {s}", type_to_str(c->from), type_to_str(c->to)); */
 		solver_link_constraint(c);
 
 		if (!ID_IS(c->from, ID_TC_VARIABLE) || !ID_IS(c->to, ID_TC_VARIABLE)) {
@@ -32,7 +35,7 @@ void solver_decompose(struct solver * ctx, Constraint_TC * c) {
 					  FATAL("Shape constraint on non symbol type: {s}", type_to_str(c->from));
 				}
 
-				solver_add_new_flows(ctx, basetype_id, c->to, c->config_id);
+				solver_add_new_flows(ctx, basetype_id, c->to, c->choice);
 				return;
 			} 
 
@@ -41,80 +44,100 @@ void solver_decompose(struct solver * ctx, Constraint_TC * c) {
 			ID member_name_id = ast_get_interner_id(shape->member_id);
 
 			if (!check_has_member(symbol.symbol_id, member_name_id)) {
-				FATAL("{s} does not have member \"{s}\"", interner_lookup_str(ast_get_interner_id(symbol.symbol_id))._ptr, interner_lookup_str(ast_get_interner_id(shape->member_id))._ptr);
+				FATAL("{s} does not have member \"{s}\"", 
+						interner_lookup_str(ast_get_interner_id(symbol.symbol_id))._ptr,
+						interner_lookup_str(ast_get_interner_id(shape->member_id))._ptr
+					);
 			}
 
 			return;
-		} break;
-		case ID_PLACE_TYPE: {
-			if (!ID_IS(c->to, ID_PLACE_TYPE)) {
-				FATAL("A place can not flow into a non-place");
-			}
-		} break;
-		default: break;
-	}
-
-	switch (c->from.type) {
-		case ID_FN_TYPE: {
-			if (!ID_IS(c->to, ID_FN_TYPE)) {
-				break;
-			}
-
-			Fn_T from = LOOKUP(c->from, Fn_T), to = LOOKUP(c->to, Fn_T);
-			ASSERT1(ID_IS(from.arg_type, ID_TUPLE_TYPE));
-			ASSERT1(ID_IS(to.arg_type, ID_TUPLE_TYPE));
-
-			Tuple_T from_args_type = LOOKUP(from.arg_type, Tuple_T);
-			Tuple_T to_args_type = LOOKUP(to.arg_type, Tuple_T);
-
-			if (from_args_type.types.size != to_args_type.types.size) {
-				FATAL("Incompatible argument counts");
-			}
-
-			const ID config_id = c->config_id;
-			const size_t arg_count = from_args_type.types.size;
-			for (size_t i = 0; i < arg_count; ++i) {
-				solver_add_new_flows(ctx, ARENA_GET(from_args_type.types, i, ID), ARENA_GET(to_args_type.types, i, ID), config_id);
-			}
-
-			solver_add_new_flows(ctx, from.ret_type, to.ret_type, config_id);
-		} break;
-		case ID_PLACE_TYPE: {
-			ID to_type = c->to;
-			if (ID_IS(c->to, ID_PLACE_TYPE)) {
-				Place_T * place_type = lookup(c->to);
-				to_type = place_type->basetype_id;
-			}
-
-			Place_T * from_place_type = lookup(c->from);
-			solver_add_new_flows(ctx, from_place_type->basetype_id, to_type, c->config_id);
+		}
+		case ID_TC_DIMENSION: {
+			Dimension_TC * dimension = lookup(c->to);
+			dimension_init_choices(ctx->resolver, dimension);
 		} break;
 		case ID_SYMBOL_TYPE: {
-			if (ID_IS(c->to, ID_TC_SHAPE)) {
-				Symbol_T symbol_type = LOOKUP(c->from, Symbol_T);
-				a_symbol symbol = LOOKUP(symbol_type.symbol_id, a_symbol);
-				Shape_TC * shape = lookup(c->to);
-				a_symbol shape_symbol = LOOKUP(shape->member_id, a_symbol);
+			Symbol_T symbol_type = LOOKUP(c->to, Symbol_T);
+			a_symbol symbol = LOOKUP(symbol_type.symbol_id, a_symbol);
+			ASSERT1(!ID_IS_INVALID(symbol.node_id));
 
+		} break;
+	}
 
-				println("symbol lookedup: {s}", ast_to_string(symbol.node_id));
+	if (c->from.type == c->to.type) {
+		switch (c->from.type) {
+			case ID_FN_TYPE: {
+				Fn_T from = LOOKUP(c->from, Fn_T), to = LOOKUP(c->to, Fn_T);
+				ASSERT1(ID_IS(from.arg_type, ID_TUPLE_TYPE));
+				ASSERT1(ID_IS(to.arg_type, ID_TUPLE_TYPE));
+
+				Tuple_T from_args_type = LOOKUP(from.arg_type, Tuple_T);
+				Tuple_T to_args_type = LOOKUP(to.arg_type, Tuple_T);
+
+				if (from_args_type.types.size != to_args_type.types.size) {
+					FATAL("Incompatible argument counts");
+				}
+
+				DdNode * choice = c->choice;
+				const size_t arg_count = from_args_type.types.size;
+				for (size_t i = 0; i < arg_count; ++i) {
+					ID to_type = ARENA_GET(to_args_type.types, i, ID);
+					ID from_type = ARENA_GET(from_args_type.types, i, ID);
+
+					// These are supposed to be swapped; the call-site arguments flow into the called functions parameters
+					solver_add_new_flows(ctx, to_type, from_type, choice);
+				}
+
+				solver_add_new_flows(ctx, from.ret_type, to.ret_type, choice);
+				return;
+			} break;
+			case ID_PLACE_TYPE: {
+				if (!type_check_equal(c->from, c->to)) {
+					break;
+				}
+
+				Place_T * from = lookup(c->from), * to = lookup(c->to);
+				solver_add_new_flows(ctx, from->basetype_id, to->basetype_id, c->choice);
+				return;
 			}
-		 }
-		case ID_REF_TYPE:
-		case ID_NUMERIC_TYPE: // println("{s} <: {s}", type_to_str(c->from), type_to_str(c->to));
-		break;
-		default:
-			FATAL("Unimplemented from type: {s}", id_type_to_string(c->from.type));
+			case ID_REF_TYPE: {
+				if (!type_check_equal(c->from, c->to)) {
+					break;
+				}
+
+				Ref_T * from = lookup(c->from), * to = lookup(c->to);
+				solver_add_new_flows(ctx, from->basetype_id, to->basetype_id, c->choice);
+				return;
+			}
+			case ID_SYMBOL_TYPE: {
+				if (!type_check_equal(c->from, c->to)) {
+					break;
+				}
+
+				Symbol_T from_symbol_type = LOOKUP(c->from, Symbol_T), to_symbol_type = LOOKUP(c->to, Symbol_T);
+				a_symbol from_symbol = LOOKUP(from_symbol_type.symbol_id, a_symbol), to_symbol = LOOKUP(to_symbol_type.symbol_id, a_symbol);
+
+				for (size_t i = 0; i < from_symbol_type.templates.size; ++i) {
+					ID from_symbol_template = ARENA_GET(from_symbol_type.templates, i, ID);
+					ID to_symbol_template = ARENA_GET(to_symbol_type.templates, i, ID);
+					solver_add_new_flows(ctx, from_symbol_template, to_symbol_template, c->choice);
+				}
+
+				return;
+			}
+			default:
+				FATAL("Unimplemented type id: {s}", id_type_to_string(c->from.type));
+		}
 	}
 }
 
 void solver_process_worklist(struct solver * ctx) {
 	while (ctx->worklist.size > 0) {
+		const struct registry_manager manager = registry_manager_get();
 		ID constraint_id = DEQUE_FRONT(ID, &ctx->worklist);
 		DEQUE_POP_FRONT(ID, &ctx->worklist);
 
 		Constraint_TC * c = lookup(constraint_id);
-		println("{s} <: {s}", type_to_str(c->from), type_to_str(c->to));
 
 		// Propogate forward:
 		// Turn FROM -> To and To -> Next
@@ -126,11 +149,12 @@ void solver_process_worklist(struct solver * ctx) {
 			ID next_constraint_id = to_var->outgoing_head;
 			while (!ID_IS_INVALID(next_constraint_id)) {
 				Constraint_TC * outgoing = lookup(next_constraint_id);
-				char is_impossible = 0;
-				ID new_config = config_merge(c->config_id, outgoing->config_id, &is_impossible);
+				DdNode * merged_choice = Cudd_bddAnd(ctx->resolver.manager, c->choice, outgoing->choice);
 
-				if (!is_impossible) {
-					solver_add_new_flows(ctx, c->from, outgoing->to, new_config);
+				if (merged_choice != Cudd_ReadLogicZero(ctx->resolver.manager)) {
+					solver_add_new_flows(ctx, c->from, outgoing->to, merged_choice);
+				} else {
+					Cudd_RecursiveDeref(ctx->resolver.manager, merged_choice);
 				}
 
 				next_constraint_id = outgoing->next_outgoing_for_from;
@@ -147,11 +171,12 @@ void solver_process_worklist(struct solver * ctx) {
 			ID prev_constraint_id = from_var->incoming_head;
 			while (!ID_IS_INVALID(prev_constraint_id)) {
 				Constraint_TC * incoming = lookup(prev_constraint_id);
-				char is_impossible = 0;
-				ID new_config = config_merge(c->config_id, incoming->config_id, &is_impossible);
+				DdNode * merged_choice = Cudd_bddAnd(ctx->resolver.manager, c->choice, incoming->choice);
 
-				if (!is_impossible) {
-					solver_add_new_flows(ctx, incoming->from, c->to, new_config);
+				if (merged_choice != Cudd_ReadLogicZero(ctx->resolver.manager)) {
+					solver_add_new_flows(ctx, incoming->from, c->to, merged_choice);
+				} else {
+					Cudd_RecursiveDeref(ctx->resolver.manager, merged_choice);
 				}
 
 				prev_constraint_id = incoming->next_incoming_for_to;
@@ -160,12 +185,26 @@ void solver_process_worklist(struct solver * ctx) {
 
 		// If neither side is a variable then check if it makes sense
 		if (!ID_IS(c->from, ID_TC_VARIABLE) && !ID_IS(c->to, ID_TC_VARIABLE)) {
-			// println("{s} <: {s}", type_to_str(c->from), type_to_str(c->to));
-
 			solver_decompose(ctx, c);
+		} else if (ID_IS(c->from, ID_PLACE_TYPE)) {
+			Place_T * place = lookup(c->from);
+			if (!ID_IS(place->basetype_id, ID_TC_VARIABLE)) {
+				solver_add_new_flows(ctx, place->basetype_id, c->to, c->choice);
+			}
 		}
+
+		println("{s} <: {s}", type_to_str(c->from), type_to_str(c->to));
 	}
 
+	println("Dimensions: {i}", registry_manager_get().Dimension_TC.entries.item_count);
+	println("Errors gathered: {i}", ctx->err_constraints.size);
+
+	Arena errs = ctx->err_constraints;
+	for (size_t i = 0; i < errs.size; ++i) {
+		Constraint_TC constraint = LOOKUP(ARENA_GET(errs, i, ID), Constraint_TC);
+
+		println("{i}) {s} <: {s}", i + 1, type_to_str(constraint.from), type_to_str(constraint.to));
+	}
 }
 
 void solver_link_constraint(Constraint_TC * constraint) {
@@ -188,7 +227,7 @@ void solver_link_constraint(Constraint_TC * constraint) {
 	}
 }
 
-void solver_add_new_flows(struct solver * ctx, ID from, ID to, ID config_id) {
+void solver_add_new_flows(struct solver * ctx, ID from, ID to, DdNode * choice) {
 	if (id_is_equal(from, to)) {
 		return;
 	}
@@ -196,60 +235,9 @@ void solver_add_new_flows(struct solver * ctx, ID from, ID to, ID config_id) {
 	Constraint_TC * constraint = tc_allocate(ID_TC_CONSTRAINT);
 	constraint->from = from;
 	constraint->to = to;
-	constraint->config_id = config_id;
+	constraint->choice = choice;
 
 	solver_link_constraint(constraint);
 
 	DEQUE_PUSH_BACK(ID, &ctx->worklist, constraint->constraint_id);
-}
-
-ID config_merge(ID config1_id, ID config2_id, char * is_impossible_flag) {
-	if (ID_IS_INVALID(config1_id)) {
-		return config2_id;
-	} else if (ID_IS_INVALID(config2_id)) {
-		return config1_id;
-	}
-
-	Configuration_TC * config1_it = lookup(config1_id), * config2_it;
-	Configuration_TC * config2 = config2_it = lookup(config2_id);
-
-	Configuration_TC * new_config = tc_allocate(ID_TC_CONFIGURATION);
-	Configuration_TC * new_config_it = new_config;
-	char conflict = 0;
-
-	// Append all configs in config1 that are not in config2
-	do {
-		Configuration_TC * config2_it = config2;
-		conflict = 0;
-		do {
-			if (id_is_equal(config1_it->dimension_id, config2_it->dimension_id) && config1_it->dimension_choice != config2_it->dimension_choice) {
-				conflict = 1;
-			}
-		} while (!ID_IS_INVALID(config2_it->next_config) && (config2_it = lookup(config2_it->next_config), 1));
-
-		if (!conflict) {
-			new_config_it->dimension_id = config1_it->dimension_id;
-			new_config_it->dimension_choice = config1_it->dimension_choice;
-
-			Configuration_TC * temp = tc_allocate(ID_TC_CONFIGURATION);
-			new_config_it->next_config = temp->config_id;
-			new_config_it = temp;
-		} else {
-			*is_impossible_flag = 1;
-		}
-	} while (!ID_IS_INVALID(config1_it->next_config) && (config1_it = lookup(config1_it->next_config), 1));
-
-	// Append all configs in config2
-	config2_it = config2;
-	do {
-		new_config_it->dimension_id = config2_it->dimension_id;
-		new_config_it->dimension_choice = config2_it->dimension_choice;
-
-		Configuration_TC * temp = tc_allocate(ID_TC_CONFIGURATION);
-		new_config_it->next_config = temp->config_id;
-		new_config_it = temp;
-	} while (!ID_IS_INVALID(config2_it->next_config) && (config2_it = lookup(config2_it->next_config), 1));
-
-	// If not impossible it will just be the config1 extended with on config2
-	return new_config->config_id;
 }

@@ -17,7 +17,6 @@ void _symbol_table_insert(struct symbol_table * table, ID name_id, ID node_id) {
 		case ID_AST_DECLARATION:
 		case ID_AST_FUNCTION: symbol_map_insert(&table->declarations, name_id, node_id); break;
 		case ID_AST_STRUCT: 
-		case ID_AST_GROUP:
 		case ID_AST_ENUM: symbol_map_insert(&table->types, name_id, node_id); break;
 		case ID_AST_TRAIT: symbol_map_insert(&table->traits, name_id, node_id); break;
 		case ID_AST_IMPORT: symbol_map_insert(&table->imports, name_id, node_id); break;
@@ -43,10 +42,6 @@ void symbol_table_insert(struct symbol_table * table, ID node_id) {
 		case ID_AST_ENUM: {
 			a_enumeration enumeration = LOOKUP(node_id, a_enumeration);
 			_symbol_table_insert(table, enumeration.name_id, node_id);
-		} break;
-		case ID_AST_GROUP: {
-			a_group group = LOOKUP(node_id, a_group);
-			_symbol_table_insert(table, group.name_id, node_id);
 		} break;
 		case ID_AST_TRAIT: {
 			a_trait trait = LOOKUP(node_id, a_trait);

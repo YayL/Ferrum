@@ -8,12 +8,17 @@ Context context;
 void context_init(ID implicit_cast_trait) {
 	context = (Context) {
 		.symbol_table = symbol_table_init(),
-		.implicit_cast_trait = implicit_cast_trait 
+		.implicit_cast_trait = implicit_cast_trait,
+		.implicit_casts = kh_init(map_type_id_to_arena)
 	};
 }
 
 ID context_get_implicit_cast_trait() {
 	return context.implicit_cast_trait;
+}
+
+khash_t(map_type_id_to_arena) * context_get_implicit_casts() {
+	return &context.implicit_casts;
 }
 
 ID context_lookup_declaration(ID name_id) {
@@ -130,4 +135,44 @@ void context_enter_module(a_module module) {
 
 void context_exit_module(a_module module) {
 	symbol_table_clear(&context.symbol_table);
+}
+
+Arena * context_find_implicit_casts(ID type_id) {
+	khint_t k = kh_get(map_type_id_to_arena, &context.implicit_casts, type_id);
+
+	if (k == kh_end(&context.implicit_casts)) {
+		return NULL;
+	}
+
+	return &kh_value(&context.implicit_casts, k);
+}
+
+void context_add_implicit_cast(ID type_id, ID implicit_cast) {
+	int ret_code;
+	khint_t k = kh_put(map_type_id_to_arena, &context.implicit_casts, type_id, &ret_code);
+
+	if (ret_code == KH_PUT_ALREADY_PRESENT) {
+		ARENA_APPEND(&kh_value(&context.implicit_casts, k), implicit_cast);
+		return;
+	}
+
+	ASSERT(ret_code == KH_PUT_SUCCESS, "An error occured while adding implicit cast. Error code {i}", ret_code);
+
+	Arena arena = arena_init(sizeof(ID));
+	ARENA_APPEND(&arena, implicit_cast);
+
+	kh_value(&context.implicit_casts, k) = arena;
+}
+
+void context_add_implicit_casts(ID type_id, Arena arena) {
+	int ret_code;
+	khint_t k = kh_put(map_type_id_to_arena, &context.implicit_casts, type_id, &ret_code);
+
+	if (ret_code == KH_PUT_ALREADY_PRESENT) {
+		arena_extend(&kh_value(&context.implicit_casts, k), arena);
+		return;
+	}
+
+	ASSERT(ret_code == KH_PUT_SUCCESS, "An error occured while adding implicit cast. Error code {i}", ret_code);
+	kh_value(&context.implicit_casts, k) = arena;
 }

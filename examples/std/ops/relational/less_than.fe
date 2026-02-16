@@ -4,13 +4,13 @@ trait #Less_Than<LeftType, RightType, RetType> {
     fn inline #OP_LESS_THAN(left: LeftType, right: RightType) -> RetType
 }
 
-impl<T: numeric::Signed> #Less_Than<LeftType: T, RightType: T, RetType: bool> {
+impl<T> #Less_Than<LeftType: T, RightType: T, RetType: bool> where numeric::Signed<T> {
     fn inline #OP_LESS_THAN(left: LeftType, right: RightType) -> RetType {
         #llvm_op("icmp slt", left, right)
     }
 }
 
-impl<T: numeric::Unsigned> #Less_Than<LeftType: T, RightType: T, RetType: bool> {
+impl<T> #Less_Than<LeftType: T, RightType: T, RetType: bool> where numeric::Unsigned<T> {
     fn inline #OP_LESS_THAN(left: LeftType, right: RightType) -> RetType {
         #llvm_op("icmp ult", left, right)
     }

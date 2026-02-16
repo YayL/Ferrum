@@ -1,13 +1,18 @@
 group Signed as (i8, i16, i32, i64, i128)
 group Unsigned as (u8, u16, u32, u64, u128)
-group Float as (f16, f32, f64, f128)
+group Float as (f8, f16, f32, f64, f128)
 
-group Integer as (Signed, Unsigned)
-group Numeric as (Signed, Unsigned, Float)
+trait Integer<T> {}
+impl<T> Integer<T: T> where Signed<T> {}
+impl<T> Integer<T: T> where Unsigned<T> {}
+
+trait Numeric<T> {}
+impl<T> Numeric<T: T> where Integer<T> {}
+impl<T> Numeric<T: T> where Float<T> {}
 
 import "../ops/cast/cast" as cast
 
-impl<T: Numeric, U: Numeric> cast::#Castable<From: T, To: U> {
+impl<T, U> cast::#Castable<From: T, To: U> where Numeric<T>, Numeric<U> {
 	fn inline #OP_CAST(value: From) -> To {
 		#llvm_cast(#llvm_load(value), To)
 	}

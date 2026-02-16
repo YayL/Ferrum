@@ -4,19 +4,19 @@ trait #Subtraction<Term1Type, Term2Type, DiffType> {
     fn inline #OP_SUBTRACTION(first: Term1Type, second: Term2Type) -> DiffType
 }
 
-impl<T: numeric::Signed> #Subtraction<Term1Type: T, Term2Type: T, DiffType: T> {
+impl<T> #Subtraction<Term1Type: T, Term2Type: T, DiffType: T> where numeric::Signed<T> {
     fn inline #OP_SUBTRACTION(first: Term1Type, second: Term2Type) -> DiffType {
         #llvm_op("sub nsw", first, second)
     }
 }
 
-impl<T: numeric::Unsigned> #Subtraction<Term1Type: T, Term2Type: T, DiffType: T> {
+impl<T> #Subtraction<Term1Type: T, Term2Type: T, DiffType: T> where numeric::Unsigned<T> {
     fn inline #OP_SUBTRACTION(first: Term1Type, second: Term2Type) -> DiffType {
         #llvm_op("sub nuw", first, second)
     }
 }
 
-impl<T: numeric::Float> #Subtraction<Term1Type: T, Term2Type: T, DiffType: T> {
+impl<T> #Subtraction<Term1Type: T, Term2Type: T, DiffType: T> where numeric::Float<T> {
     fn inline #OP_SUBTRACTION(first: Term1Type, second: Term2Type) -> DiffType {
         #llvm_op("fsub", first, second)
     }

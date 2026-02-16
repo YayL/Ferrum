@@ -24,8 +24,11 @@ static struct registry_manager registry_manager_init() {
 static inline void type_init_intrinsic_type(enum id_type type, void * type_ref) {
     switch (type) {
         case ID_TUPLE_TYPE:
-            ((Tuple_T *) type_ref)->types = arena_init(sizeof(ID)); break;
+            ((Tuple_T *) type_ref)->types = arena_init(sizeof(ID));
+            break;
         case ID_SYMBOL_TYPE:
+            ((Symbol_T *) type_ref)->templates = arena_init(sizeof(ID));
+            break;
         case ID_PLACE_TYPE:
         case ID_FN_TYPE:
         case ID_NUMERIC_TYPE:

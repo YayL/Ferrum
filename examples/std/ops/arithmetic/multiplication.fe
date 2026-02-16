@@ -4,19 +4,19 @@ trait #Multiplication<Factor1Type, Factor2Type, ProductType> {
     fn inline #OP_MULTIPLICATION(first: Factor1Type, second: Factor2Type) -> ProductType
 }
 
-impl<T: numeric::Signed> #Multiplication<Factor1Type: T, Factor2Type: T, ProductType: T> {
+impl<T> #Multiplication<Factor1Type: T, Factor2Type: T, ProductType: T> where numeric::Signed<T> {
     fn inline #OP_MULTIPLICATION(first: Factor1Type, second: Factor2Type) -> ProductType {
         #llvm_op("mul nsw", first, second)
     }
 }
 
-impl<T: numeric::Unsigned> #Multiplication<Factor1Type: T, Factor2Type: T, ProductType: T> {
+impl<T> #Multiplication<Factor1Type: T, Factor2Type: T, ProductType: T> where numeric::Unsigned<T> {
     fn inline #OP_MULTIPLICATION(first: Factor1Type, second: Factor2Type) -> ProductType {
         #llvm_op("mul nuw", first, second)
     }
 }
 
-impl<T: numeric::Float> #Multiplication<Factor1Type: T, Factor2Type: T, ProductType: T> {
+impl<T> #Multiplication<Factor1Type: T, Factor2Type: T, ProductType: T> where numeric::Float<T> {
     fn inline #OP_MULTIPLICATION(first: Factor1Type, second: Factor2Type) -> ProductType {
         #llvm_op("fmul", first, second)
     }

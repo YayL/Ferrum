@@ -8,7 +8,6 @@
 	f(ID_SYMBOL,			"SymbolID",			symbol_map_entry,		SYMBOL)
 
 #define TYPE_CHECKING_REGISTRY_KINDS(f) \
-	f(ID_TC_CONFIGURATION,	"ConfigurationID",	Configuration_TC,	TC)	\
 	f(ID_TC_CONSTRAINT,		"ConstraintID",		Constraint_TC,		TC)	\
 	f(ID_TC_DIMENSION,		"DimensionID",		Dimension_TC,		TC)	\
 	f(ID_TC_GENERIC,		"GenericID",		Generic_TC,			TC)	\
@@ -48,8 +47,7 @@
     f(ID_AST_STRUCT,		"Struct",			a_structure,			AST) \
     f(ID_AST_ENUM,			"Enum",				a_enumeration,			AST) \
     f(ID_AST_TRAIT,			"Trait",			a_trait,				AST) \
-    f(ID_AST_IMPL,			"Implementation",	a_implementation,		AST) \
-	f(ID_AST_GROUP,			"Group",			a_group,				AST)
+    f(ID_AST_IMPL,			"Implementation",	a_implementation,		AST)
 
 #define REGISTRY_KINDS(f) \
 	OTHER_REGISTRY_KINDS(f) \

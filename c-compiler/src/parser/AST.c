@@ -38,16 +38,19 @@ void ast_init_node(enum id_type type, void * node_ref) {
         case ID_AST_STRUCT:
             ((a_structure *) node_ref)->declarations = arena_init(sizeof(ID));
             ((a_structure *) node_ref)->members = arena_init(sizeof(ID));
+            ((a_structure *) node_ref)->templates = arena_init(sizeof(ID));
             ((a_structure *) node_ref)->name_id = INVALID_ID;
             break;
         case ID_AST_TRAIT:
             ((a_trait *) node_ref)->children = arena_init(sizeof(ID));
             ((a_trait *) node_ref)->implementations = arena_init(sizeof(ID));
             ((a_trait *) node_ref)->where = arena_init(sizeof(ID));
+            ((a_trait *) node_ref)->templates = arena_init(sizeof(ID));
             ((a_trait *) node_ref)->name_id = INVALID_ID;
             break;
         case ID_AST_IMPL:
             ((a_implementation *) node_ref)->members = arena_init(sizeof(ID));
+            ((a_implementation *) node_ref)->templates = arena_init(sizeof(ID));
             ((a_implementation *) node_ref)->where = arena_init(sizeof(ID));
             ((a_implementation *) node_ref)->trait_symbol_id = INVALID_ID;
             break;
@@ -61,7 +64,6 @@ void ast_init_node(enum id_type type, void * node_ref) {
             ((a_operator *) node_ref)->right_id = INVALID_ID;
             ((a_operator *) node_ref)->type_id = INVALID_ID;
             ((a_operator *) node_ref)->op = operator_get(OP_NOT_FOUND);
-        case ID_AST_GROUP:
         case ID_AST_VARIABLE:
         case ID_AST_IMPORT:
         case ID_AST_FUNCTION:
@@ -328,13 +330,6 @@ char * ast_to_string(ID node_id) {
             const char * var_name = interner_lookup_str(var.name_id)._ptr;
             ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, var_name, type_to_str(var.type_id));
         } break;
-
-        case ID_AST_GROUP: {
-            a_group group = LOOKUP(node_id, a_group);
-            const char * group_name = interner_lookup_str(group.name_id)._ptr;
-            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, group_name, type_to_str(group.type_id));
-        } break;
-
         case ID_AST_LITERAL: {
             a_literal literal = LOOKUP(node_id, a_literal);
             const char * fmt_string = "";

@@ -4,25 +4,25 @@ trait #Indexable<RefType, BaseType, IndexType> {
     fn inline #OP_SUBSCRIPT(ref: RefType, index: IndexType) -> BaseType
 }
 
-impl<T, U: numeric::Unsigned> #Indexable<RefType: &T, BaseType: Place<T>, IndexType: U> {
+impl<T, U> #Indexable<RefType: &T, BaseType: Place<T>, IndexType: U> where numeric::Unsigned<U> {
     fn inline #OP_SUBSCRIPT(ref: RefType, index: IndexType) -> BaseType {
         #llvm_getelementptr(ref, offset)
     }
 }
 
-impl<T, U: numeric::Unsigned> #Indexable<RefType: &mut T, BaseType: MutPlace<T>, IndexType: U> {
+impl<T, U> #Indexable<RefType: &mut T, BaseType: MutPlace<T>, IndexType: U> where numeric::Unsigned<U> {
     fn inline #OP_SUBSCRIPT(ref: RefType, index: IndexType) -> BaseType {
         #llvm_getelementptr(ref, offset)
     }
 }
 
-impl<T, U: numeric::Unsigned> #Indexable<RefType: [_]T, BaseType: Place<T>, IndexType: U> {
+impl<T, U> #Indexable<RefType: [_]T, BaseType: Place<T>, IndexType: U> where numeric::Unsigned<U> {
     fn inline #OP_SUBSCRIPT(ref: RefType, index: IndexType) -> BaseType {
         #llvm_getelementptr(ref, offset)
     }
 }
 
-impl<T, U: numeric::Unsigned> #Indexable<RefType: MutPlace<[_]T>, BaseType: MutPlace<T>, IndexType: U> {
+impl<T, U> #Indexable<RefType: MutPlace<[_]T>, BaseType: MutPlace<T>, IndexType: U> where numeric::Unsigned<U> {
     fn inline #OP_SUBSCRIPT(ref: RefType, index: IndexType) -> BaseType {
         #llvm_getelementptr(ref, offset)
     }

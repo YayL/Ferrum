@@ -53,6 +53,7 @@ typedef struct a_function {
 
     Arena arguments;
     Arena templates;
+    Arena where;
 
     char is_inline;
     char is_static;
@@ -109,13 +110,6 @@ typedef struct a_implementation {
     Arena where;
     Arena members;
 } a_implementation;
-
-typedef struct a_group {
-    struct AST_info info;
-    ID name_id;
-    ID type_id;
-    Arena templates;
-} a_group;
 
 typedef struct a_operator {
     struct AST_info info;

@@ -7,6 +7,6 @@ trait #Pre_Increment<ValueType, RetType> {
 
 impl<T> #Pre_Increment<ValueType: MutPlace<T>, RetType: T> where addition::#Addition<T, T, T> {
 	fn inline #OP_PRE_INCREMENT(value: ValueType) -> RetType {
-		value = value + 1 to T
+		value = value + (1 to T)
 	}
 }

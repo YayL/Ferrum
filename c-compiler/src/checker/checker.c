@@ -9,11 +9,15 @@
 
 char check_has_member(ID node_id, ID member_name_id) {
     ASSERT1(ID_IS(node_id, ID_AST_SYMBOL));
-    a_symbol symbol = LOOKUP(node_id, a_symbol);
+    a_symbol * symbol = lookup(node_id);
 
-    switch (symbol.node_id.type) {
+    if (ID_IS_INVALID(symbol->node_id)) {
+        qualify_symbol(symbol, ID_SYMBOL_TYPE);
+    }
+
+    switch (symbol->node_id.type) {
         case ID_AST_STRUCT: {
-            a_structure _struct = LOOKUP(symbol.node_id, a_structure);
+            a_structure _struct = LOOKUP(symbol->node_id, a_structure);
             for (size_t i = 0; i < _struct.members.size; ++i) {
                 if (id_is_equal(member_name_id, ast_get_interner_id(ARENA_GET(_struct.members, i, ID)))) {
                     return 1;
@@ -95,6 +99,15 @@ ID checker_check_symbol(ID node_id, const Arena templates) {
     return ast_get_type_of(symbol->node_id);
 }
 
+void checker_generate_member_function_call_dimension(ID member_name_id, ID bounded_by_dimension) {
+    Dimension_TC * dimension = tc_allocate(ID_TC_DIMENSION);
+    dimension->candidates = member_function_index_lookup(member_name_id);
+
+    Constraint_TC * constraint = tc_allocate(ID_TC_CONSTRAINT);
+    constraint->from = bounded_by_dimension;
+    constraint->to = dimension->dimension_id;
+}
+
 ID checker_check_op_member_access(a_operator * op, const Arena templates) {
     ID lhs_type_id = checker_check_expr_node(op->left_id, templates);
 
@@ -109,7 +122,9 @@ ID checker_check_op_member_access(a_operator * op, const Arena templates) {
     constraint->from = lhs_type_id;
     constraint->to = shape->shape_id;
 
-    return result_var->variable_id;
+    op->type_id = lhs_type_id;
+
+    return shape->shape_id;
 }
 
 ID checker_check_op_call(a_operator * op, const Arena templates) {
@@ -122,7 +137,18 @@ ID checker_check_op_call(a_operator * op, const Arena templates) {
     a_expression args = LOOKUP(op->right_id, a_expression);
 
     Tuple_T * args_type = type_allocate(ID_TUPLE_TYPE);
-    arena_grow(&args_type->types, args.children.size);
+
+    if (ID_IS(lhs_type_id, ID_TC_SHAPE)) {
+        ASSERT1(ID_IS(op->left_id, ID_AST_OP));
+        a_operator * l_op = lookup(op->left_id);
+        ID l_l_type = ast_get_type_of(l_op->left_id);
+        ASSERT1(!ID_IS_INVALID(l_l_type));
+
+        arena_grow(&args_type->types, args.children.size + 1);
+        ARENA_APPEND(&args_type->types, l_l_type);
+    } else {
+        arena_grow(&args_type->types, args.children.size);
+    }
 
     for (size_t i = 0; i < args.children.size; ++i) {
         ARENA_APPEND(&args_type->types, checker_check_expr_node(ARENA_GET(args.children, i, ID), templates));
@@ -134,9 +160,18 @@ ID checker_check_op_call(a_operator * op, const Arena templates) {
     Variable_TC * output_var = tc_allocate(ID_TC_VARIABLE);
     caller_type->ret_type = output_var->variable_id;
 
+    if (ID_IS(lhs_type_id, ID_TC_SHAPE)) {
+        Shape_TC * shape = lookup(lhs_type_id);
+        lhs_type_id = shape->requirement_id;
+
+        checker_generate_member_function_call_dimension(ast_get_interner_id(shape->member_id), shape->requirement_id);
+    }
+
     Constraint_TC * constraint = tc_allocate(ID_TC_CONSTRAINT);
     constraint->from = lhs_type_id;
     constraint->to = caller_type->info.type_id;
+
+    op->type_id = caller_type->ret_type;
 
     return caller_type->ret_type;
 }
@@ -178,32 +213,8 @@ ID checker_check_op(ID node_id, const Arena templates) {
 
     ASSERT(candidates.size > 0, "No implementations found for operator: {s}", interner_lookup_str(name_id)._ptr);
 
-    Dimension_TC * dimension = tc_allocate(ID_TC_DIMENSION);
-    dimension->candidates = candidates;
-
-    Arena template_arena = {0};
-    const ID signature_id = replace_templates_in_type_with_template_variables(req_sig->info.type_id, templates);
-    const ID dimension_id = dimension->dimension_id;
-
-    for (size_t i = 0; i < candidates.size; ++i) {
-        ID candidate_decl_id = ARENA_GET(candidates, i, ID);
-        Arena template_arena = {0};
-        generate_template_constraints(candidate_decl_id, &template_arena);
-
-        ID candidate_type_id = replace_templates_in_type_with_template_variables(ast_get_type_of(candidate_decl_id), template_arena);
-
-        Configuration_TC * config = tc_allocate(ID_TC_CONFIGURATION);
-        config->dimension_id = dimension_id;
-        config->dimension_choice = i;
-
-        Constraint_TC * constraint = tc_allocate(ID_TC_CONSTRAINT);
-        constraint->to = signature_id;
-        constraint->from = candidate_type_id;
-        constraint->config_id = config->config_id;
-
-    }
-
-    // println("To: {s}", type_to_str(signature_id));
+    ID call_site_type_id = replace_templates_in_type_with_template_variables(req_sig->info.type_id, templates);
+    checker_generate_member_function_call_dimension(name_id, call_site_type_id);
 
     return op->type_id = result_var->variable_id;
 }
@@ -289,9 +300,8 @@ void checker_check_for(ID node_id, const Arena templates) {
 void checker_check_return(ID node_id, const Arena templates) {
     a_return_statement return_statement = LOOKUP(node_id, a_return_statement);
 
-    checker_check_expression(return_statement.expression_id, templates);
+    ID ret_type = checker_check_expression(return_statement.expression_id, templates);
 }
-
 
 void checker_check_struct(ID node_id) {
     a_structure _struct = LOOKUP(node_id, a_structure);
@@ -329,79 +339,9 @@ void checker_check_struct(ID node_id) {
     context_remove_template_list(_struct.templates);
 }
 
-void checker_check_impl(ID node_id) {
-    // a_implementation impl = LOOKUP(node_id, a_implementation);
-    // struct AST * node = get_symbol(impl.name, ast->scope),
-    //            * temp1,
-    //            * temp2;
-    //
-    // if (node == NULL) {
-    //     FATAL("Invalid trait '{s}' for impl", impl.name);
-    // }
-    //
-    // a_trait trait = node->value.trait;
-    //
-    // if (trait.children->size != impl.members->size) {
-    //     FATAL("Trait '{s}' is not fully implemented for {s}", impl.name, type_to_str(*impl.type));
-    // }
-    //
-    // size_t size = impl.members->size;
-    // char * name1, * name2;
-    //
-    // for (int i = 0; i < size; ++i) {
-    //     char found = 0;
-    //     temp1 = list_at(impl.members, i);
-    //     name1 = get_name(temp1);
-    //     for (int j = 0; j < size; ++j) {
-    //         temp2 = list_at(trait.children, j);
-    // 
-    //         if (temp1->type == temp2->type && !strcmp(name1, get_name(temp2))) {
-    //             found = 1;
-    //             break;
-    //         }
-    //     }
-    //     if (!found) {
-    //         FATAL("Trait '{s}' is not validly implemented for {s}. Correct member definitions", impl.name, type_to_str(*impl.type));
-    //     }
-    // }
-    //
-    // struct arena arena;
-    // if (impl.type->intrinsic != ITuple) {
-    //     arena = arena_init(sizeof(Type));
-    //     ARENA_APPEND(&arena, impl.type);
-    // } else {
-    //     arena = impl.type->value.tuple.types;
-    // }
-    //
-    // if (ast->scope->type != ID_AST_MODULE) {
-    //     FATAL("impl is not at module scope?");
-    // }
-    //
-    // a_module module = ast->scope->value.module;
-    //
-    // for (int i = 0; i < arena.size; ++i) {
-    //     Type * type = arena_get(arena, i); // current type/marker that is to be added to
-    //     ASSERT1(type != NULL);
-    //     for (int j = 0; j < impl.members->size; ++j) {
-    //         temp2 = list_at(impl.members, j);
-    //         checker_check_function(temp2);
-    //         add_member_function(*type, list_at(impl.members, j), ast->scope);
-    //     }
-    // }
-    //
-    // return ast;
+void checker_check_impl(ID node_id) { }
 
-}
-
-void checker_check_trait(ID node_id) {
-    // a_trait trait = LOOKUP(node_id, a_trait);
-
-    // struct AST * node = get_symbol(trait.name, ast->scope);
-    //
-    // if (ast != node) {
-    //     FATAL("Multiple definitions for trait '{s}'", trait.name);
-    // }
-}
+void checker_check_trait(ID node_id) { }
 
 void checker_check_scope(ID node_id, const Arena templates) {
     a_scope scope = LOOKUP(node_id, a_scope);
@@ -549,7 +489,6 @@ void checker_check_definitions(ID node_id) {
             checker_check_impl(node_id); break;
         case ID_AST_IMPORT:
             checker_check_import(node_id); break;
-        case ID_AST_GROUP: break;
         default:
             FATAL("Invalid AST type: {s}", id_type_to_string(node_id.type));
     }
@@ -570,20 +509,8 @@ void checker_check_module(ID node_id) {
 void checker_check(a_root root) {
     ID module_id;
 
-    // checker_check_module(root.entry_point);
-    // struct solver solver = {0};
-    // solver_initialize(&solver);
-    // solver_process_worklist(&solver);
-    //
-    // const struct registry_manager manager = registry_manager_get();
-    // println("\nVars: {i}", manager.Variable_TC.entries.item_count);
-    // println("Constraints: {i}", manager.Constraint_TC.entries.item_count);
-    // println("Shapes: {i}", manager.Shape_TC.entries.item_count);
-    // println("Generics: {i}", manager.Generic_TC.entries.item_count);
-    // println("Configurations: {i}", manager.Configuration_TC.entries.item_count);
-    // println("Dimensions: {i}", manager.Dimension_TC.entries.item_count);
-    //
-    // exit(0);
+    checker_check_module(root.entry_point);
+    return;
 
     // println("entry: {s}", root.entry_point);
     kh_foreach_value(&root.modules, module_id, {

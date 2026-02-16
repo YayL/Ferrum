@@ -4,7 +4,7 @@ struct Slice<T> {
 	let buf: &T
 	let length: u32
 
-	fn static new<U: numeric::Unsigned>(buf: &T, length: U) -> Self {
+	fn static new<U>(buf: &T, length: U) -> Self where numeric::Unsigned<U> {
 		let new_slice: Self
 
 		new_slice.buf = buf
@@ -15,7 +15,7 @@ struct Slice<T> {
 }
 
 import "../ops/address/subscript" as subscript
-impl<T, U: numeric::Unsigned> subscript::#Indexable<RefType: Slice<T>, BaseType: T, IndexType: U> {
+impl<T, U> subscript::#Indexable<RefType: Slice<T>, BaseType: T, IndexType: U> where numeric::Unsigned<U> {
     fn inline #OP_SUBSCRIPT(ref: RefType, index: IndexType) -> BaseType {
 		ref.buf[index]
 	}

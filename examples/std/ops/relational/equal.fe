@@ -4,13 +4,13 @@ trait #Equal<LeftType, RightType, ResultType> {
 	fn inline #OP_EQUAL(left: LeftType, right: RightType) -> ResultType
 }
 
-impl<T: numeric::Integer> #Equal<LeftType: T, RightType: T, ResultType: bool> {
+impl<T> #Equal<LeftType: T, RightType: T, ResultType: bool> where numeric::Integer<T> {
 	fn inline #OP_EQUAL(left: LeftType, right: RightType) -> ResultType {
 		#llvm_op("icmp eq", left, right)
 	}
 }
 
-impl<T: numeric::Float> #Equal<LeftType: T, RightType: T, ResultType: bool> {
+impl<T> #Equal<LeftType: T, RightType: T, ResultType: bool> where numeric::Float<T> {
 	fn inline #OP_EQUAL(left: LeftType, right: RightType) -> ResultType {
 		#llvm_op("fcmp ueq", left, right)
 	}

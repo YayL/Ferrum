@@ -58,6 +58,7 @@ void * arena_next(Arena * arena) {
 		arena->arena = malloc(arena->item_size * arena->capacity);
 		ASSERT1(arena->arena != NULL);
 	} else if (arena->capacity <= arena->size) {
+		ASSERT1(arena->capacity != 0);
 		arena_grow(arena, arena->capacity * ARENA_GROWTH_RATE);
 	}
 
@@ -67,6 +68,7 @@ void * arena_next(Arena * arena) {
 void arena_extend(Arena * dest, const Arena src) {
 	ASSERT1(dest != NULL);
 	ASSERT(dest->item_size == src.item_size, "To extend an arena the item_sizes must be the same");
+
 	if (src.size == 0) {
 		return;
 	}

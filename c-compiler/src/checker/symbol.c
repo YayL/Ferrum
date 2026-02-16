@@ -14,7 +14,7 @@
 ID module_lookup_id(a_module * module, ID name_id, enum id_type type_to_find) {
 	SYMBOL_MAP_LOOKUP(type_to_find == ID_INVALID_TYPE || type_to_find == ID_AST_FUNCTION || type_to_find == ID_AST_DECLARATION, &module->sym_table.declarations, name_id);
 	SYMBOL_MAP_LOOKUP(type_to_find == ID_INVALID_TYPE || type_to_find == ID_SYMBOL_TYPE, &module->sym_table.types, name_id);
-	SYMBOL_MAP_LOOKUP(type_to_find == ID_INVALID_TYPE || type_to_find == ID_AST_TRAIT, &module->sym_table.traits, name_id);
+	SYMBOL_MAP_LOOKUP(type_to_find == ID_INVALID_TYPE || type_to_find == ID_SYMBOL_TYPE || type_to_find == ID_AST_TRAIT, &module->sym_table.traits, name_id);
 
 	return INVALID_ID;
 }
@@ -37,6 +37,7 @@ ID qualify_symbol(a_symbol * symbol, enum id_type type_to_find) {
 			name_ids_stepped = i;
 			break;
 		}
+
 		ASSERT1(ID_IS(entry.node_id, ID_AST_IMPORT));
 		a_import import = LOOKUP(entry.node_id, a_import);
 		

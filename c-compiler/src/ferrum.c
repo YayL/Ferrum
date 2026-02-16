@@ -77,7 +77,6 @@ void ferrum_compile(char * file_path) {
     println("Constraints: {i}", manager.Constraint_TC.entries.item_count);
     println("Shapes: {i}", manager.Shape_TC.entries.item_count);
     println("Generics: {i}", manager.Generic_TC.entries.item_count);
-    println("Configurations: {i}", manager.Configuration_TC.entries.item_count);
     println("Dimensions: {i}", manager.Dimension_TC.entries.item_count);
     puts(LINE_BREAKER);
 

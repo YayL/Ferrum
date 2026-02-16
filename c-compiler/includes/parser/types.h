@@ -69,5 +69,8 @@ ID ast_to_type(ID node_id);
 
 ID type_from_arena(Arena arena);
 
+uint64_t type_id_to_hash(ID type);
+char type_check_equal(ID type_id1, ID type_id2);
+
 // struct AST * get_self_type(ID first_id, ID second_id);
 // Type replace_self_in_type(ast, Type self);

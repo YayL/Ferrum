@@ -206,6 +206,14 @@ ID parser_parse_id(struct Parser * parser) {
     return symbol->info.node_id;
 }
 
+void parser_parse_where(struct Parser * parser, Arena * arena) {
+    parser_eat_keyword(parser, KEYWORD_WHERE);
+
+    do {
+        ARENA_APPEND(arena, parser_parse_type(parser));
+    } while (parser->lexer.tok.type == TOKEN_COMMA && (parser_eat(parser, TOKEN_COMMA), 1));
+}
+
 ID parser_parse_symbol(struct Parser * parser) {
     a_symbol * symbol = ast_allocate(ID_AST_SYMBOL, parser->current_scope_id);
 
@@ -471,11 +479,7 @@ ID parser_parse_impl(struct Parser * parser) {
     impl->templates = parser_parse_template_list(parser);
 
     if (parser->lexer.tok.type == TOKEN_ID) {
-        parser_eat_keyword(parser, KEYWORD_WHERE);
-
-        do {
-            ARENA_APPEND(&impl->where, parser_parse_type(parser));
-        } while (parser->lexer.tok.type == TOKEN_COMMA && (parser_eat(parser, TOKEN_COMMA), 1));
+        parser_parse_where(parser, &impl->where);
     }
 
     parser_eat(parser, TOKEN_LBRACE);
@@ -503,17 +507,52 @@ ID parser_parse_impl(struct Parser * parser) {
 
 ID parser_parse_group(struct Parser * parser) {
     parser_eat_keyword(parser, KEYWORD_GROUP);
-    a_group * group = ast_allocate(ID_AST_GROUP, parser->current_scope_id);
+    a_trait * trait = ast_allocate(ID_AST_TRAIT, parser->current_scope_id);
+    a_symbol * trait_symbol = ast_allocate(ID_AST_SYMBOL, parser->current_scope_id);
+    ID trait_symbol_id = trait_symbol->info.node_id;
 
-    group->name_id = parser->lexer.tok.interner_id;
+    trait_symbol->name_id = trait->name_id = parser->lexer.tok.interner_id;
+    trait_symbol->name_ids.size = 1;
+    trait_symbol->node_id = trait->info.node_id;
     parser_eat(parser, TOKEN_ID);
 
-    group->templates = parser_parse_template_list(parser);
+    Arena template_list = parser_parse_template_list(parser);
+
+    ID T_name_id = interner_intern(source_span_init_from_string(STRING_FROM_LITERAL("T")));
+    a_symbol * trait_template_symbol = ast_allocate(ID_AST_VARIABLE, parser->current_scope_id);
+    trait_template_symbol->name_id = T_name_id;
+    trait_template_symbol->name_ids.size = 1;
+
+    ARENA_APPEND(&trait->templates, trait_template_symbol->info.node_id);
+
     parser_eat_keyword(parser, KEYWORD_AS);
+    parser_eat(parser, TOKEN_LPAREN);
 
-    group->type_id = parser_parse_type(parser);
+    if (parser->lexer.tok.type != TOKEN_RPAREN) {
+        do {
+            a_implementation * impl = ast_allocate(ID_AST_IMPL, parser->current_scope_id);
+            impl->generics = template_list;
+            impl->trait_symbol_id = trait_symbol_id;
 
-    return group->info.node_id;
+            a_variable * impl_var = ast_allocate(ID_AST_VARIABLE, impl->info.node_id);
+            impl_var->name_id = T_name_id;
+            impl_var->type_id = parser_parse_type(parser);
+
+            ASSERT(!ID_IS(impl_var->type_id, ID_TUPLE_TYPE), "Groups do not allowed tuples");
+
+            a_symbol * impl_template_symbol = ast_allocate(ID_AST_SYMBOL, parser->current_scope_id);
+            impl_template_symbol->name_id = T_name_id;
+            impl_template_symbol->name_ids.size = 1;
+            impl_template_symbol->node_id = impl_var->info.node_id;
+
+            arena_grow(&impl->templates, 1);
+            ARENA_APPEND(&impl->templates, impl_template_symbol->info.node_id);
+        } while (parser->lexer.tok.type == TOKEN_COMMA && (parser_eat(parser, TOKEN_COMMA), 1));
+    }
+
+    parser_eat(parser, TOKEN_RPAREN);
+
+    return trait->info.node_id;
 }
 
 ID parser_parse_declaration(struct Parser * parser) {
@@ -735,10 +774,14 @@ ID parser_parse_function(struct Parser * parser) {
         fn->ret_type = VOID_TYPE;
     }
 
+    if (parser->lexer.tok.type == TOKEN_ID) {
+        function->where = arena_init(sizeof(ID));
+        parser_parse_where(parser, &function->where);
+    }
+
     if (parser->lexer.tok.type == TOKEN_LBRACE) {
         function->body_id = parser_parse_scope(parser);
     } else {
-        // parser_eat(parser, TOKEN_LINE_BREAK);
         function->body_id = INVALID_ID;
     }
 

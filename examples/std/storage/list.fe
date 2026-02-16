@@ -15,7 +15,7 @@ struct List<T> {
         return list
     }
 
-    fn reserve<U: numeric::Unsigned>(self: &mut Self, additional: U) -> void {
+    fn reserve<U>(self: &mut Self, additional: U) -> void where numeric::Unsigned<U> {
         let item: T
         self.capacity = self.size + additional to u64
         // self.buf = realloc(self.buf, #sizeof(item) * self.capacity)
@@ -29,7 +29,7 @@ struct List<T> {
         self.buf[self.size++] = item
     }
 
-    fn at<U: numeric::Unsigned>(self: Self, index: U) -> T {
+    fn at<U>(self: Self, index: U) -> T where numeric::Unsigned<U> {
         self.buf[index]
     }
     

@@ -4,6 +4,7 @@
 #include "parser/keywords.h"
 #include "parser/parser.h"
 #include "tables/registry_manager.h"
+#include "checker/symbol.h"
 
 struct registry_manager types_manager;
 
@@ -356,7 +357,93 @@ const char * type_to_str(ID type_id) {
             ASSERT1(symbol.name_ids.size == 1);
             return format("Shape(\"{s}\", Req: {s})", interner_lookup_str(symbol.name_id)._ptr, type_to_str(shape.requirement_id));
         }
+        case ID_TC_DIMENSION: {
+            Dimension_TC dimension = LOOKUP(type_id, Dimension_TC);
+            return format("Dimension(Candidates: {i}, Bits: {i})", dimension.candidates.size, dimension.bit_variables.size);
+        }
         default: 
             FATAL("Unimplemented type_to_str type: {s}", id_type_to_string(type_id.type));
     }
+}
+
+uint64_t type_id_to_hash(ID type) {
+    switch (type.type) {
+        case ID_NUMERIC_TYPE: {
+            Numeric_T numeric = LOOKUP(type, Numeric_T);
+            return type.type | ((numeric.type << 5 | numeric.width) << 10);
+        }
+        case ID_REF_TYPE: {
+            Ref_T ref = LOOKUP(type, Ref_T);
+            return ref.is_mut | ref.depth << 6 | type.type << 1;
+        }
+        case ID_ARRAY_TYPE: {
+            Array_T arr = LOOKUP(type, Array_T);
+            return (arr.size << 4) | type.type;
+        }
+        case ID_SYMBOL_TYPE: type = LOOKUP(type, Symbol_T).symbol_id;
+        case ID_AST_SYMBOL: {
+            a_symbol * symbol = lookup(type);
+            println("sym: {s}", ast_to_string(type));
+
+            if (ID_IS_INVALID(symbol->node_id)) {
+                qualify_symbol(symbol, ID_SYMBOL_TYPE);
+            }
+
+            union sym_temp {
+                ID id;
+                uint64_t value;
+            } temp;
+            temp.id = symbol->node_id;
+
+            return temp.value | type.type;
+        }
+        case ID_TUPLE_TYPE: {
+            Tuple_T tuple = LOOKUP(type, Tuple_T);
+
+            uint64_t hash = 0;
+
+            for (size_t i = 0; i < tuple.types.size; ++i) {
+                hash |= type_id_to_hash(ARENA_GET(tuple.types, i, ID)) << ((i * 3) % 16);
+            }
+
+            return hash | type.type;
+        }
+        case ID_PLACE_TYPE: {
+            Place_T place = LOOKUP(type, Place_T);
+            return place.is_mut | type.type;
+        }
+        case ID_FN_TYPE: {
+            Fn_T fn = LOOKUP(type, Fn_T);
+
+            return type_id_to_hash(fn.arg_type) | type_id_to_hash(fn.ret_type) | type.type;
+        }
+        default:
+            FATAL("Not implemented type_id({s}) hash", id_type_to_string(type.type));
+    }
+}
+
+char type_check_equal(ID type_id1, ID type_id2) {
+	if (type_id1.type != type_id2.type) {
+		return 0;
+	}
+
+	switch (type_id1.type) {
+		case ID_PLACE_TYPE: {
+			return LOOKUP(type_id1, Place_T).is_mut == LOOKUP(type_id2, Place_T).is_mut;
+		}
+		case ID_REF_TYPE: {
+			Ref_T ref1 = LOOKUP(type_id1, Ref_T), ref2 = LOOKUP(type_id2, Ref_T);
+			return ref1.is_mut == ref2.is_mut && ref1.depth == ref2.depth;
+		}
+		case ID_SYMBOL_TYPE: {
+			Symbol_T symbol_type1 = LOOKUP(type_id1, Symbol_T), symbol_type2 = LOOKUP(type_id2, Symbol_T);
+			a_symbol symbol1 = LOOKUP(symbol_type1.symbol_id, a_symbol), symbol2 = LOOKUP(symbol_type2.symbol_id, a_symbol);
+			ASSERT1(!ID_IS_INVALID(symbol1.node_id));
+			ASSERT1(!ID_IS_INVALID(symbol2.node_id));
+
+			return id_is_equal(symbol1.node_id, symbol2.node_id);
+		}
+		default:
+			FATAL("Unimplemented id {s}", id_type_to_string(type_id1.type));
+	}
 }

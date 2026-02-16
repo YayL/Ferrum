@@ -2,30 +2,24 @@
 
 #include "common/ID.h"
 #include "common/memory/arena.h"
+#include <cudd.h>
 
 typedef struct constraint_tc {
 	ID constraint_id;
 
 	ID from;
 	ID to;
-	ID config_id;
+	DdNode * choice;
 
 	// Solver info
 	ID next_incoming_for_to; // Next constraint where 'to' is the same
 	ID next_outgoing_for_from; // Next constraint where 'from' is the same
 } Constraint_TC;
 
-typedef struct configuration_tc {
-	ID config_id;
-
-	ID dimension_id;
-	uint32_t dimension_choice;
-	ID next_config;
-} Configuration_TC;
-
 typedef struct dimension_tc {
 	ID dimension_id;
 
+	Arena bit_variables;
 	Arena candidates;
 } Dimension_TC;
 
@@ -60,10 +54,6 @@ static inline void tc_node_init(ID id, void * node) {
 			((Constraint_TC *) node)->to = INVALID_ID;
 			((Constraint_TC *) node)->next_incoming_for_to = INVALID_ID;
 			((Constraint_TC *) node)->next_outgoing_for_from = INVALID_ID;
-		} break;
-		case ID_TC_CONFIGURATION: {
-			((Configuration_TC *) node)->dimension_id = INVALID_ID;
-			((Configuration_TC *) node)->dimension_choice = 0;
 		} break;
 		case ID_TC_GENERIC: {
 			((Generic_TC *) node)->generic_id = id;
