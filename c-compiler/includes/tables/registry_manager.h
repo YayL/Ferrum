@@ -80,11 +80,16 @@ static inline void registry_manager_remove(struct registry_manager * manager, ID
     }
 }
 
+#define AST_REGISTRY_MANAGER_REGISTRY_FREE(ENUM, STR, TYPE, ...) registry_free(&(manager->TYPE));
+static inline void registry_manager_free(struct registry_manager * manager) {
+    REGISTRY_KINDS(AST_REGISTRY_MANAGER_REGISTRY_FREE);
+}
+
 #define LOOP_OVER_REGISTRY(TYPE, VAR, CODE) { \
-	Registry registry = registry_manager_get().TYPE; \
-	for (size_t i = 0, block = 0; block < registry.entries.block_count; ++block) { \
-		for (size_t bi = 0; bi < registry.entries.block_max_item_count && i < registry.entries.item_count; ++bi, ++i) { \
-			TYPE * VAR = block_arena_get_ref(registry.entries, i); \
+	Registry _REGISTRY = registry_manager_get().TYPE; \
+	for (size_t _I = 0, _BLOCK = 0; _BLOCK < _REGISTRY.entries.block_count; ++_BLOCK) { \
+		for (size_t _BI = 0; _BI < _REGISTRY.entries.block_max_item_count && _I < _REGISTRY.entries.item_count; ++_BI, ++_I) { \
+			TYPE * VAR = block_arena_get_ref(_REGISTRY.entries, _I); \
 			CODE \
 		} \
 	} \

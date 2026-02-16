@@ -117,9 +117,8 @@ typedef struct a_operator {
     ID left_id;
     ID right_id;
     ID type_id;
-    struct function_definition {
-        ID function_id;
-    } definition;
+
+    ID dimension_id;
 } a_operator;
 
 typedef struct a_symbol {

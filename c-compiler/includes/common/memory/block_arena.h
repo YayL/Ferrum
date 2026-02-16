@@ -12,6 +12,7 @@ typedef struct block_arena {
 
 
 BArena block_arena_init(uint32_t item_size);
+void block_arena_free(BArena * barena);
 
 void block_arena_add_block(BArena * barena);
 void block_arena_remove(BArena * barena, uint32_t remove_count);

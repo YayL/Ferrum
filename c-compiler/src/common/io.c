@@ -45,7 +45,6 @@ void write_file(const char * filename, char * write_buffer) {
 }
 
 char * get_abs_path(const char * path) {
-
     char buf[PATH_MAX + 1] = {0};
     realpath(path, buf);
 

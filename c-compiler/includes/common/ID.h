@@ -12,7 +12,8 @@
 	f(ID_TC_DIMENSION,		"DimensionID",		Dimension_TC,		TC)	\
 	f(ID_TC_GENERIC,		"GenericID",		Generic_TC,			TC)	\
 	f(ID_TC_SHAPE,			"ShapeId",			Shape_TC,			TC)	\
-	f(ID_TC_VARIABLE,		"VariableID",		Variable_TC,		TC)
+	f(ID_TC_VARIABLE,		"VariableID",		Variable_TC,		TC) \
+	f(ID_TC_CAST,			"CastID",			Cast_TC,			TC)
 
 #define TYPE_REGISTRY_KINDS(f) \
 	f(ID_NUMERIC_TYPE,	"NumericT",		Numeric_T,	TYPE) \
@@ -71,8 +72,8 @@ typedef struct id {
 } ID;
 
 #define INVALID_ID ((ID) { .type = ID_INVALID_TYPE, .id = 0 })
-#define ID_IS_INVALID(ID) (ID.type == ID_INVALID_TYPE)
-#define ID_IS(ID, TYPE) (ID.type == TYPE)
+#define ID_IS_INVALID(ID) ((ID).type == ID_INVALID_TYPE)
+#define ID_IS(ID, TYPE) ((ID).type == TYPE)
 
 static inline ID id_init(COMPILER_ID_TYPE id, enum id_type type) {
 	return (ID) { .id = id, .type = type };

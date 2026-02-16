@@ -38,6 +38,15 @@ char lexer_is_operator_char(char c) {
     return 0;
 }
 
+
+/* Candidates
+ * DOWN
+ * UP
+ * RIGHT
+ * FORW
+ * BACK
+*/
+
 void lexer_parse_operator(struct Lexer * lexer) {
     // arr is an buf keeping track of the indeces of all possible operators matching the string so far and that are longer than current matching
     int arr[sizeof(op_list) / sizeof(op_list[0])] = {0}, arr_index = 0, arr_size;

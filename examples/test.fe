@@ -1,10 +1,15 @@
 import "std/lib" as std
 
 fn main(argc: i32) -> i32 {
-    let const1 = 1
-    let const2 = 2
-    let const3 = 3
-    let mut x = 5
-
-    x = x + const1
+    let x: i32 = 10
+    let y: i32 = x
 }
+
+/*
+// let x: i32 = 10
+(MutPlace<1?>, 1?) -> 1? -> (2?, i32) -> 3?
+
+// let y: u32 = x
+6? <: Cast(Variable: x, Types: [Place<i32>, i32])
+(MutPlace<4?>, 4?) -> 4? -> (5?, 6?) -> 7?
+*/

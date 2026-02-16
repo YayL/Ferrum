@@ -5,6 +5,7 @@
 #include "parser/parser.h"
 #include "tables/registry_manager.h"
 #include "checker/symbol.h"
+#include "common/math.h"
 
 struct registry_manager types_manager;
 
@@ -359,43 +360,45 @@ const char * type_to_str(ID type_id) {
         }
         case ID_TC_DIMENSION: {
             Dimension_TC dimension = LOOKUP(type_id, Dimension_TC);
-            return format("Dimension(Candidates: {i}, Bits: {i})", dimension.candidates.size, dimension.bit_variables.size);
+            return format("Dimension(Candidates: {i}, Bits: {i})", dimension.candidates.size, dimension.bit_count);
+        }
+        case ID_TC_CAST: {
+            Cast_TC cast = LOOKUP(type_id, Cast_TC);
+            return format("Cast(Var: {s}, {s})", type_to_str(cast.variable_id), type_to_str(cast.dimension_id));
         }
         default: 
             FATAL("Unimplemented type_to_str type: {s}", id_type_to_string(type_id.type));
     }
 }
 
+// Imporant that these are not dependant on their ID unless it's know that there is only one instance of it
 uint64_t type_id_to_hash(ID type) {
     switch (type.type) {
         case ID_NUMERIC_TYPE: {
             Numeric_T numeric = LOOKUP(type, Numeric_T);
-            return type.type | ((numeric.type << 5 | numeric.width) << 10);
+            return hash_combine(type.type, hash_combine(numeric.type, numeric.width));
         }
         case ID_REF_TYPE: {
             Ref_T ref = LOOKUP(type, Ref_T);
-            return ref.is_mut | ref.depth << 6 | type.type << 1;
+            return hash_combine(ref.is_mut, hash_combine(ref.depth, type.type));
         }
         case ID_ARRAY_TYPE: {
             Array_T arr = LOOKUP(type, Array_T);
-            return (arr.size << 4) | type.type;
+            return hash_combine(type.type, arr.size);
         }
         case ID_SYMBOL_TYPE: type = LOOKUP(type, Symbol_T).symbol_id;
         case ID_AST_SYMBOL: {
             a_symbol * symbol = lookup(type);
-            println("sym: {s}", ast_to_string(type));
-
-            if (ID_IS_INVALID(symbol->node_id)) {
-                qualify_symbol(symbol, ID_SYMBOL_TYPE);
-            }
+            ASSERT1(!ID_IS_INVALID(symbol->node_id));
 
             union sym_temp {
                 ID id;
                 uint64_t value;
-            } temp;
+            } temp = {0};
+
             temp.id = symbol->node_id;
 
-            return temp.value | type.type;
+            return hash_combine(type.type, temp.value);
         }
         case ID_TUPLE_TYPE: {
             Tuple_T tuple = LOOKUP(type, Tuple_T);
@@ -403,20 +406,33 @@ uint64_t type_id_to_hash(ID type) {
             uint64_t hash = 0;
 
             for (size_t i = 0; i < tuple.types.size; ++i) {
-                hash |= type_id_to_hash(ARENA_GET(tuple.types, i, ID)) << ((i * 3) % 16);
+                hash = hash_combine(hash, type_id_to_hash(ARENA_GET(tuple.types, i, ID)));
             }
 
-            return hash | type.type;
+            return hash_combine(type.type, hash);
         }
         case ID_PLACE_TYPE: {
             Place_T place = LOOKUP(type, Place_T);
-            return place.is_mut | type.type;
+            // return hash_combine(type.type, hash_combine(place.is_mut, type_id_to_hash(place.basetype_id)));
+            return hash_combine(type.type, place.is_mut);
         }
         case ID_FN_TYPE: {
             Fn_T fn = LOOKUP(type, Fn_T);
-
-            return type_id_to_hash(fn.arg_type) | type_id_to_hash(fn.ret_type) | type.type;
+            return hash_combine(type.type, hash_combine(type_id_to_hash(fn.arg_type), type_id_to_hash(fn.ret_type)));
         }
+        case ID_TC_SHAPE:
+        case ID_TC_DIMENSION:
+        case ID_TC_VARIABLE: {
+            union sym_temp {
+                ID id;
+                uint64_t value;
+            } temp = {0};
+
+            temp.id = type;
+
+            return temp.value;
+        }
+        case ID_VOID_TYPE: return VOID_TYPE.id;
         default:
             FATAL("Not implemented type_id({s}) hash", id_type_to_string(type.type));
     }
@@ -437,12 +453,100 @@ char type_check_equal(ID type_id1, ID type_id2) {
 		}
 		case ID_SYMBOL_TYPE: {
 			Symbol_T symbol_type1 = LOOKUP(type_id1, Symbol_T), symbol_type2 = LOOKUP(type_id2, Symbol_T);
-			a_symbol symbol1 = LOOKUP(symbol_type1.symbol_id, a_symbol), symbol2 = LOOKUP(symbol_type2.symbol_id, a_symbol);
-			ASSERT1(!ID_IS_INVALID(symbol1.node_id));
-			ASSERT1(!ID_IS_INVALID(symbol2.node_id));
+			a_symbol * symbol1 = lookup(symbol_type1.symbol_id), * symbol2 = lookup(symbol_type2.symbol_id);
 
-			return id_is_equal(symbol1.node_id, symbol2.node_id);
+            ASSERT1(!ID_IS_INVALID(symbol1->node_id));
+            ASSERT1(!ID_IS_INVALID(symbol2->node_id));
+
+			return id_is_equal(symbol1->node_id, symbol2->node_id);
 		}
+        case ID_NUMERIC_TYPE: {
+            Numeric_T num1 = LOOKUP(type_id1, Numeric_T), num2 = LOOKUP(type_id2, Numeric_T);
+            return num1.type == num2.type && num1.width == num2.width;
+        }
+        case ID_FN_TYPE: {
+            Fn_T fn1 = LOOKUP(type_id1, Fn_T), fn2 = LOOKUP(type_id2, Fn_T);
+            return type_check_equal(fn1.ret_type, fn2.ret_type) && type_check_equal(fn1.arg_type, fn2.arg_type);
+        }
+        case ID_TC_DIMENSION:
+        case ID_TC_VARIABLE: return id_is_equal(type_id1, type_id2);
+        case ID_VOID_TYPE: return 1;
+		default:
+			FATAL("Unimplemented id {s}", id_type_to_string(type_id1.type));
+	}
+}
+
+char type_check_deep_equal(ID type_id1, ID type_id2) {
+	if (type_id1.type != type_id2.type) {
+		return 0;
+	}
+
+	switch (type_id1.type) {
+		case ID_PLACE_TYPE: {
+            Place_T place1 = LOOKUP(type_id1, Place_T), place2 = LOOKUP(type_id2, Place_T);
+			return place1.is_mut == place2.is_mut && type_check_deep_equal(place1.basetype_id, place2.basetype_id);
+		}
+		case ID_REF_TYPE: {
+			Ref_T ref1 = LOOKUP(type_id1, Ref_T), ref2 = LOOKUP(type_id2, Ref_T);
+			return ref1.is_mut == ref2.is_mut && ref1.depth == ref2.depth && type_check_deep_equal(ref1.basetype_id, ref2.basetype_id);
+		}
+		case ID_ARRAY_TYPE: {
+			Array_T arr1= LOOKUP(type_id1, Array_T), arr2 = LOOKUP(type_id2, Array_T);
+			return arr1.size == arr2.size && type_check_deep_equal(arr1.basetype_id, arr2.basetype_id);
+		}
+		case ID_SYMBOL_TYPE: {
+			Symbol_T symbol_type1 = LOOKUP(type_id1, Symbol_T), symbol_type2 = LOOKUP(type_id2, Symbol_T);
+
+            if (symbol_type1.templates.size != symbol_type2.templates.size) {
+                return 0;
+            }
+
+			a_symbol * symbol1 = lookup(symbol_type1.symbol_id), * symbol2 = lookup(symbol_type2.symbol_id);
+            ASSERT1(!ID_IS_INVALID(symbol1->node_id));
+            ASSERT1(!ID_IS_INVALID(symbol2->node_id));
+
+            if (!id_is_equal(symbol1->node_id, symbol2->node_id)) {
+                return 0;
+            }
+
+            for (size_t i = 0; i < symbol_type1.templates.size; ++i) {
+                if (!type_check_deep_equal(ARENA_GET(symbol_type1.templates, i, ID), ARENA_GET(symbol_type2.templates, i, ID))) {
+                    return 0;
+                }
+            }
+
+            return 1;
+		}
+        case ID_NUMERIC_TYPE: {
+            Numeric_T num1 = LOOKUP(type_id1, Numeric_T), num2 = LOOKUP(type_id2, Numeric_T);
+            return num1.type == num2.type && num1.width == num2.width;
+        }
+        case ID_FN_TYPE: {
+            Fn_T fn1 = LOOKUP(type_id1, Fn_T), fn2 = LOOKUP(type_id2, Fn_T);
+            return type_check_deep_equal(fn1.ret_type, fn2.ret_type) && type_check_deep_equal(fn1.arg_type, fn2.arg_type);
+        }
+        case ID_TUPLE_TYPE: {
+            if (id_is_equal(type_id1, type_id2)) {
+                return 1;
+            }
+
+            Tuple_T tuple1 = LOOKUP(type_id1, Tuple_T), tuple2 = LOOKUP(type_id2, Tuple_T);
+            if (tuple1.types.size != tuple2.types.size) {
+                return 0;
+            }
+
+            for (size_t i = 0; i < tuple1.types.size; ++i) {
+                if (!type_check_deep_equal(ARENA_GET(tuple1.types, i, ID), ARENA_GET(tuple2.types, i, ID))) {
+                    return 0;
+                }
+            }
+
+            return 1;
+        }
+        case ID_TC_SHAPE:
+        case ID_TC_DIMENSION:
+        case ID_TC_VARIABLE: return id_is_equal(type_id1, type_id2);
+        case ID_VOID_TYPE: return 1;
 		default:
 			FATAL("Unimplemented id {s}", id_type_to_string(type_id1.type));
 	}

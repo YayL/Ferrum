@@ -55,7 +55,6 @@ void lexer_advance(struct Lexer * lexer) {
     lexer->pos++;
 }
 
-
 void lexer_update(struct Lexer * lexer, unsigned int increment) {
     const unsigned int offset = lexer->index + increment;
     while (lexer->index < offset) {

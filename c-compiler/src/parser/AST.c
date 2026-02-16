@@ -51,6 +51,7 @@ void ast_init_node(enum id_type type, void * node_ref) {
         case ID_AST_IMPL:
             ((a_implementation *) node_ref)->members = arena_init(sizeof(ID));
             ((a_implementation *) node_ref)->templates = arena_init(sizeof(ID));
+            ((a_implementation *) node_ref)->generics = arena_init(sizeof(ID));
             ((a_implementation *) node_ref)->where = arena_init(sizeof(ID));
             ((a_implementation *) node_ref)->trait_symbol_id = INVALID_ID;
             break;
@@ -59,12 +60,14 @@ void ast_init_node(enum id_type type, void * node_ref) {
             ((a_symbol *) node_ref)->node_id = INVALID_ID;
             break;
         case ID_AST_OP:
-            ((a_operator *) node_ref)->definition.function_id = INVALID_ID;
+            ((a_operator *) node_ref)->dimension_id = INVALID_ID;
             ((a_operator *) node_ref)->left_id = INVALID_ID;
             ((a_operator *) node_ref)->right_id = INVALID_ID;
             ((a_operator *) node_ref)->type_id = INVALID_ID;
             ((a_operator *) node_ref)->op = operator_get(OP_NOT_FOUND);
         case ID_AST_VARIABLE:
+            ((a_variable *) node_ref)->name_id = INVALID_ID;
+            ((a_variable *) node_ref)->type_id = INVALID_ID;
         case ID_AST_IMPORT:
         case ID_AST_FUNCTION:
         case ID_AST_DECLARATION:
@@ -378,9 +381,15 @@ void print_ast(const char * template, ID node_id) {
 void * get_scope(enum id_type type, ID scope_id) {
     void * node = NULL;
 
+
     while (!ID_IS(scope_id, ID_AST_ROOT) && !ID_IS(scope_id, type)) {
+        ASSERT1(!ID_IS_INVALID(scope_id));
         node = lookup(scope_id);
         scope_id = ((struct AST_info *) node)->scope_id;
+    }
+
+    if (!ID_IS(scope_id, type)) {
+        return NULL;
     }
 
     node = lookup(scope_id);

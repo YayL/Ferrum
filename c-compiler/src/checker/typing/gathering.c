@@ -3,6 +3,7 @@
 #include "parser/AST.h"
 #include "tables/registry_manager.h"
 #include "checker/symbol.h"
+#include "checker/context.h"
 
 ID find_template(const Arena templates, ID name_id) {
 	ASSERT1(ID_IS(name_id, ID_INTERNER));
@@ -17,11 +18,7 @@ ID find_template(const Arena templates, ID name_id) {
 	return INVALID_ID;
 }
 
-ID replace_templates_in_type_with_template_variables(ID type_id, const Arena templates) {
-	if (templates.size == 0) {
-		return type_id;
-	}
-
+ID _replace_templates_in_type_with_template_variables(ID type_id, const Arena templates, char allow_cast) {
 	switch (type_id.type) {
 		case ID_NUMERIC_TYPE:
 			return type_id;
@@ -33,7 +30,7 @@ ID replace_templates_in_type_with_template_variables(ID type_id, const Arena tem
 
 			for (size_t i = 0; i < tuple.types.size; ++i) {
 				ID type_id = ARENA_GET(tuple.types, i, ID);
-				fixed_type_id = replace_templates_in_type_with_template_variables(type_id, templates);
+				fixed_type_id = replace_templates_in_type_with_template_variables(type_id, templates, allow_cast);
 				if (!id_is_equal(type_id, fixed_type_id)) {
 					failed_index = i;
 					break;
@@ -60,7 +57,7 @@ ID replace_templates_in_type_with_template_variables(ID type_id, const Arena tem
 			// Fill in rest unknown fixed
 			for (size_t i = failed_index + 1; i < tuple.types.size; ++i) {
 				ID type_id = ARENA_GET(tuple.types, i, ID);
-				fixed_type_id = replace_templates_in_type_with_template_variables(type_id, templates);
+				fixed_type_id = replace_templates_in_type_with_template_variables(type_id, templates, allow_cast);
 				ARENA_APPEND(&new_tuple->types, fixed_type_id);
 			}
 
@@ -68,7 +65,7 @@ ID replace_templates_in_type_with_template_variables(ID type_id, const Arena tem
 		}
 		case ID_ARRAY_TYPE: {
 			Array_T array = LOOKUP(type_id, Array_T);
-			ID fixed_type = replace_templates_in_type_with_template_variables(array.basetype_id, templates);
+			ID fixed_type = replace_templates_in_type_with_template_variables(array.basetype_id, templates, allow_cast);
 			if (id_is_equal(fixed_type, array.basetype_id)) {
 				return type_id; // Nothing changed
 			}
@@ -81,7 +78,7 @@ ID replace_templates_in_type_with_template_variables(ID type_id, const Arena tem
 		}
 		case ID_REF_TYPE: {
 			Ref_T ref = LOOKUP(type_id, Ref_T);
-			ID fixed_type = replace_templates_in_type_with_template_variables(ref.basetype_id, templates);
+			ID fixed_type = replace_templates_in_type_with_template_variables(ref.basetype_id, templates, allow_cast);
 			if (id_is_equal(fixed_type, ref.basetype_id)) {
 				return type_id; // Nothing changed
 			}
@@ -95,7 +92,7 @@ ID replace_templates_in_type_with_template_variables(ID type_id, const Arena tem
 		}
 		case ID_PLACE_TYPE: {
 			Place_T place = LOOKUP(type_id, Place_T);
-			ID fixed_type = replace_templates_in_type_with_template_variables(place.basetype_id, templates);
+			ID fixed_type = replace_templates_in_type_with_template_variables(place.basetype_id, templates, allow_cast);
 			if (id_is_equal(place.basetype_id, fixed_type)) {
 				return type_id; // Nothing changed
 			}
@@ -108,6 +105,11 @@ ID replace_templates_in_type_with_template_variables(ID type_id, const Arena tem
 		}
 		case ID_SYMBOL_TYPE: {
 			Symbol_T * symbol_type = lookup(type_id);
+			a_symbol * symbol = lookup(symbol_type->symbol_id);
+
+			if (ID_IS_INVALID(symbol->node_id)) {
+				qualify_symbol(symbol, ID_SYMBOL_TYPE);
+			}
 
 			if (symbol_type->templates.size != 0) {
 				Symbol_T * new_symbol = type_allocate(ID_SYMBOL_TYPE);
@@ -116,14 +118,13 @@ ID replace_templates_in_type_with_template_variables(ID type_id, const Arena tem
 				arena_grow(&new_symbol->templates, symbol_type->templates.size);
 
 				for (size_t i = 0; i < symbol_type->templates.size; ++i) {
-					ARENA_APPEND(&new_symbol->templates, replace_templates_in_type_with_template_variables(ARENA_GET(symbol_type->templates, i, ID), templates));
+					ARENA_APPEND(&new_symbol->templates, replace_templates_in_type_with_template_variables(ARENA_GET(symbol_type->templates, i, ID), templates, allow_cast));
 				}
 
 				return new_symbol->info.type_id;
 			}
 
-			a_symbol symbol = LOOKUP(symbol_type->symbol_id, a_symbol);
-			ID template_var_type = find_template(templates, symbol.name_id);
+			ID template_var_type = find_template(templates, symbol->name_id);
 
 			// Not a template symbol?
 			if (ID_IS_INVALID(template_var_type)) {
@@ -135,8 +136,8 @@ ID replace_templates_in_type_with_template_variables(ID type_id, const Arena tem
 		case ID_FN_TYPE: {
 			Fn_T fn_type = LOOKUP(type_id, Fn_T);
 
-			ID fixed_arg_type = replace_templates_in_type_with_template_variables(fn_type.arg_type, templates);
-			ID fixed_ret_type = replace_templates_in_type_with_template_variables(fn_type.ret_type, templates);
+			ID fixed_arg_type = replace_templates_in_type_with_template_variables(fn_type.arg_type, templates, allow_cast);
+			ID fixed_ret_type = replace_templates_in_type_with_template_variables(fn_type.ret_type, templates, allow_cast);
 
 			// Nothing changed
 			if (id_is_equal(fixed_arg_type, fn_type.arg_type) && id_is_equal(fixed_ret_type, fn_type.ret_type)) {
@@ -150,6 +151,10 @@ ID replace_templates_in_type_with_template_variables(ID type_id, const Arena tem
 
 			return new_fn_type->info.type_id;
 		}
+		case ID_TC_SHAPE: {
+			Shape_TC shape = LOOKUP(type_id, Shape_TC);
+			return shape.requirement_id;
+		}
 		case ID_TC_VARIABLE: {
 			return type_id;
 		}
@@ -158,6 +163,42 @@ ID replace_templates_in_type_with_template_variables(ID type_id, const Arena tem
 		default:
 			FATAL("Invalid ID type: {s}", id_type_to_string(type_id.type));
 	}
+}
+
+static inline ID generate_cast_constraint(ID type_id, const Arena templates) {
+	ID fixed_type_id = _replace_templates_in_type_with_template_variables(type_id, templates, 1);
+	if (ID_IS(fixed_type_id, ID_TC_VARIABLE)) {
+		return fixed_type_id;
+	}
+
+	Arena * candidates = context_find_implicit_casts(fixed_type_id);
+
+	if (candidates == NULL) {
+		return fixed_type_id;
+	}
+
+	Dimension_TC * dimension = tc_allocate(ID_TC_DIMENSION);
+	dimension->candidates = *candidates;
+
+	Variable_TC * variable = tc_allocate(ID_TC_VARIABLE);
+
+	Cast_TC * cast = tc_allocate(ID_TC_CAST);
+	cast->dimension_id = dimension->dimension_id;
+	cast->variable_id = variable->variable_id;
+
+	Constraint_TC * constraint1 = tc_allocate(ID_TC_CONSTRAINT);
+	constraint1->from = fixed_type_id;
+	constraint1->to = cast->cast_id;
+
+	return variable->variable_id;
+}
+
+ID replace_templates_in_type_with_template_variables(ID type_id, const Arena templates, char allow_cast) {
+	if (allow_cast) {
+		return generate_cast_constraint(type_id, templates);
+	}
+
+	return _replace_templates_in_type_with_template_variables(type_id, templates, allow_cast);
 }
 
 void populate_template_list(Arena arena, Arena * templates) {
@@ -179,7 +220,7 @@ void populate_template_list(Arena arena, Arena * templates) {
 		a_variable t_s_var = LOOKUP(template_symbol.node_id, a_variable);
 		ASSERT1(!ID_IS_INVALID(t_s_var.type_id));
 
-		struct template_variable new_var = { .variable_id = replace_templates_in_type_with_template_variables(t_s_var.type_id, *templates), .name_id = template_symbol.name_id };
+		struct template_variable new_var = { .variable_id = replace_templates_in_type_with_template_variables(t_s_var.type_id, *templates, 0), .name_id = template_symbol.name_id };
 		ARENA_APPEND(templates, new_var);
 	}
 }

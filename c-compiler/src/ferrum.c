@@ -62,9 +62,10 @@ void ferrum_compile(char * file_path) {
     asprintf(&checker_time, "Time for checker:\t%.3fms", (double)time / 1000);
     puts("checker done");
 
-    start_timer();
     struct solver solver;
     solver_initialize(&solver);
+
+    start_timer();
     solver_process_worklist(&solver);
     time = stop_timer();
     total += time;
@@ -72,7 +73,7 @@ void ferrum_compile(char * file_path) {
     puts("checker done");
 
     puts("\n" LINE_BREAKER);
-    const struct registry_manager manager = registry_manager_get();
+    struct registry_manager manager = registry_manager_get();
     println("Vars: {i}", manager.Variable_TC.entries.item_count);
     println("Constraints: {i}", manager.Constraint_TC.entries.item_count);
     println("Shapes: {i}", manager.Shape_TC.entries.item_count);
@@ -113,4 +114,7 @@ void ferrum_compile(char * file_path) {
     // puts(optimization_time);
     puts(LINE_BREAKER);
     printf("Total: %.3fms\n", (double)total / 1000);
+
+    Cudd_Quit(solver.resolver.manager);
+    registry_manager_free(&manager);
 }

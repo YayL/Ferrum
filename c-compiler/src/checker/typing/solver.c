@@ -3,16 +3,22 @@
 #include "tables/registry_manager.h"
 #include "checker/checker.h"
 
-void solver_add_new_flows(struct solver * ctx, ID from, ID to, DdNode * choice);
+struct invalid_flow {
+	ID constraint_id;
+	DdNode * from, * to;
+};
+
+void solver_add_new_flow(struct solver * ctx, ID from, ID to, DdNode * from_choice, DdNode * to_choice);
 void solver_link_constraint(Constraint_TC * constraint);
 
 void solver_initialize(struct solver * ctx) {
 	ctx->worklist = DEQUE_INIT(ID);
-	ctx->err_constraints = arena_init(sizeof(ID));
+	ctx->err_constraints = arena_init(sizeof(struct invalid_flow));
 	ctx->resolver = dimension_resolver_init();
+	ctx->constraints = kh_init(map_type_id_pair_to_constraint);
 
 	LOOP_OVER_REGISTRY(Constraint_TC, c, {
-		/* println("{s} <: {s}", type_to_str(c->from), type_to_str(c->to)); */
+		// println("{s} <: {s}", type_to_str(c->from), type_to_str(c->to));
 		solver_link_constraint(c);
 
 		if (!ID_IS(c->from, ID_TC_VARIABLE) || !ID_IS(c->to, ID_TC_VARIABLE)) {
@@ -21,8 +27,19 @@ void solver_initialize(struct solver * ctx) {
 	});
 }
 
+void solver_add_invalid(struct solver * ctx, Constraint_TC * constraint, DdNode * from_choice, DdNode * to_choice) {
+	if (constraint->choice != NULL) {
+		resolver_add_invalid_choice(&ctx->resolver, constraint->choice);
+	}
+
+	struct invalid_flow flow = { .constraint_id = constraint->constraint_id, .from = from_choice, .to = to_choice };
+	ARENA_APPEND(&ctx->err_constraints, flow);
+}
+
 void solver_decompose(struct solver * ctx, Constraint_TC * c) {
 	ASSERT1(!ID_IS(c->from, ID_TC_VARIABLE) && !ID_IS(c->to, ID_TC_VARIABLE));
+
+	println("{s} <: {s}", type_to_str(c->from), type_to_str(c->to));
 
 	switch (c->to.type) {
 		case ID_TC_SHAPE: {
@@ -35,7 +52,7 @@ void solver_decompose(struct solver * ctx, Constraint_TC * c) {
 					  FATAL("Shape constraint on non symbol type: {s}", type_to_str(c->from));
 				}
 
-				solver_add_new_flows(ctx, basetype_id, c->to, c->choice);
+				solver_add_new_flow(ctx, basetype_id, c->to, NULL, c->choice);
 				return;
 			} 
 
@@ -54,13 +71,53 @@ void solver_decompose(struct solver * ctx, Constraint_TC * c) {
 		}
 		case ID_TC_DIMENSION: {
 			Dimension_TC * dimension = lookup(c->to);
-			dimension_init_choices(ctx->resolver, dimension);
-		} break;
-		case ID_SYMBOL_TYPE: {
-			Symbol_T symbol_type = LOOKUP(c->to, Symbol_T);
-			a_symbol symbol = LOOKUP(symbol_type.symbol_id, a_symbol);
-			ASSERT1(!ID_IS_INVALID(symbol.node_id));
 
+			const ID dimension_id = c->to;
+			Arena candidates = dimension->candidates;
+			for (size_t i = 0; i < candidates.size; ++i) {
+				ID candidate_id = ARENA_GET(candidates, i, ID);
+				DdNode * choice = dimension_get_choice(ctx->resolver, dimension_id, i);
+
+				Arena temp_templates = {0};
+				generate_template_constraints(candidate_id, &temp_templates);
+
+				if (ID_IS(candidate_id, ID_AST_FUNCTION)) {
+					a_function function = LOOKUP(candidate_id, a_function);
+					ID to_type = replace_templates_in_type_with_template_variables(function.type, temp_templates, 0);
+					solver_add_new_flow(ctx, to_type, c->from, choice, c->choice);
+				}
+
+				arena_free(temp_templates);
+			}
+
+			return;
+		} break;
+		case ID_TC_CAST: {
+			Cast_TC * cast = lookup(c->to);
+			Dimension_TC * dimension = lookup(cast->dimension_id);
+
+			const ID dimension_id = cast->dimension_id, from_id = c->from, cast_variable_id = cast->variable_id;
+			Arena candidates = dimension->candidates;
+			for (size_t i = 0; i < candidates.size; ++i) {
+				ID candidate_id = ARENA_GET(candidates, i, ID);
+				DdNode * choice = dimension_get_choice(ctx->resolver, dimension_id, i);
+
+				Arena temp_templates = {0};
+				generate_template_constraints(candidate_id, &temp_templates);
+
+				ASSERT1(ID_IS(candidate_id, ID_AST_IMPL));
+				a_implementation impl = LOOKUP(candidate_id, a_implementation);
+				ID impl_from_type_id = replace_templates_in_type_with_template_variables(ast_get_type_of(ARENA_GET(impl.templates, 0, ID)), temp_templates, 0);
+				ID impl_to_type_id = replace_templates_in_type_with_template_variables(ast_get_type_of(ARENA_GET(impl.templates, 1, ID)), temp_templates, 0);
+				// println("{s} -> {s} | {s}", type_to_str(impl_from_type_id), type_to_str(impl_to_type_id), type_to_str(ast_get_type_of(ARENA_GET(impl.templates, 1, ID))));
+
+				solver_add_new_flow(ctx, from_id, impl_from_type_id, c->choice, choice);
+				solver_add_new_flow(ctx, impl_to_type_id, cast_variable_id, choice, c->choice);
+
+				arena_free(temp_templates);
+			}
+
+			return;
 		} break;
 	}
 
@@ -84,11 +141,11 @@ void solver_decompose(struct solver * ctx, Constraint_TC * c) {
 					ID to_type = ARENA_GET(to_args_type.types, i, ID);
 					ID from_type = ARENA_GET(from_args_type.types, i, ID);
 
-					// These are supposed to be swapped; the call-site arguments flow into the called functions parameters
-					solver_add_new_flows(ctx, to_type, from_type, choice);
+					solver_add_new_flow(ctx, to_type, from_type, choice, NULL);
 				}
 
-				solver_add_new_flows(ctx, from.ret_type, to.ret_type, choice);
+				// These are supposed to be swapped; the function return value flows into the called call-site return value
+				solver_add_new_flow(ctx, from.ret_type, to.ret_type, NULL, choice);
 				return;
 			} break;
 			case ID_PLACE_TYPE: {
@@ -97,18 +154,23 @@ void solver_decompose(struct solver * ctx, Constraint_TC * c) {
 				}
 
 				Place_T * from = lookup(c->from), * to = lookup(c->to);
-				solver_add_new_flows(ctx, from->basetype_id, to->basetype_id, c->choice);
+				solver_add_new_flow(ctx, from->basetype_id, to->basetype_id, c->choice, NULL);
+
+				if (from->is_mut) {
+					solver_add_new_flow(ctx, to->basetype_id, from->basetype_id, c->choice, NULL);
+				}
+
 				return;
-			}
+			} break;
 			case ID_REF_TYPE: {
 				if (!type_check_equal(c->from, c->to)) {
 					break;
 				}
 
 				Ref_T * from = lookup(c->from), * to = lookup(c->to);
-				solver_add_new_flows(ctx, from->basetype_id, to->basetype_id, c->choice);
+				solver_add_new_flow(ctx, from->basetype_id, to->basetype_id, c->choice, NULL);
 				return;
-			}
+			} break;
 			case ID_SYMBOL_TYPE: {
 				if (!type_check_equal(c->from, c->to)) {
 					break;
@@ -120,15 +182,23 @@ void solver_decompose(struct solver * ctx, Constraint_TC * c) {
 				for (size_t i = 0; i < from_symbol_type.templates.size; ++i) {
 					ID from_symbol_template = ARENA_GET(from_symbol_type.templates, i, ID);
 					ID to_symbol_template = ARENA_GET(to_symbol_type.templates, i, ID);
-					solver_add_new_flows(ctx, from_symbol_template, to_symbol_template, c->choice);
+					solver_add_new_flow(ctx, from_symbol_template, to_symbol_template, c->choice, NULL);
 				}
 
 				return;
 			}
+			case ID_NUMERIC_TYPE: {
+				if (!type_check_equal(c->from, c->to)) {
+					break;
+				}
+				return;
+			} break;
 			default:
 				FATAL("Unimplemented type id: {s}", id_type_to_string(c->from.type));
 		}
 	}
+
+	solver_add_invalid(ctx, c, NULL, NULL);
 }
 
 void solver_process_worklist(struct solver * ctx) {
@@ -146,18 +216,11 @@ void solver_process_worklist(struct solver * ctx) {
 			Variable_TC * to_var = lookup(c->to);
 			// println("Forward: {s} <: {s}", type_to_str(c->from), type_to_str(c->to));
 
-			ID next_constraint_id = to_var->outgoing_head;
+			ID next_constraint_id = to_var->upper_bound;
 			while (!ID_IS_INVALID(next_constraint_id)) {
 				Constraint_TC * outgoing = lookup(next_constraint_id);
-				DdNode * merged_choice = Cudd_bddAnd(ctx->resolver.manager, c->choice, outgoing->choice);
-
-				if (merged_choice != Cudd_ReadLogicZero(ctx->resolver.manager)) {
-					solver_add_new_flows(ctx, c->from, outgoing->to, merged_choice);
-				} else {
-					Cudd_RecursiveDeref(ctx->resolver.manager, merged_choice);
-				}
-
-				next_constraint_id = outgoing->next_outgoing_for_from;
+				solver_add_new_flow(ctx, c->from, outgoing->to, c->choice, outgoing->choice);
+				next_constraint_id = outgoing->prev_upper_bound_for_from;
 			}
 		}
 
@@ -168,76 +231,133 @@ void solver_process_worklist(struct solver * ctx) {
 			Variable_TC * from_var = lookup(c->from);
 			// println("Backward: {s} <: {s}", type_to_str(c->from), type_to_str(c->to));
 
-			ID prev_constraint_id = from_var->incoming_head;
+			ID prev_constraint_id = from_var->lower_bound;
 			while (!ID_IS_INVALID(prev_constraint_id)) {
 				Constraint_TC * incoming = lookup(prev_constraint_id);
-				DdNode * merged_choice = Cudd_bddAnd(ctx->resolver.manager, c->choice, incoming->choice);
-
-				if (merged_choice != Cudd_ReadLogicZero(ctx->resolver.manager)) {
-					solver_add_new_flows(ctx, incoming->from, c->to, merged_choice);
-				} else {
-					Cudd_RecursiveDeref(ctx->resolver.manager, merged_choice);
-				}
-
-				prev_constraint_id = incoming->next_incoming_for_to;
+				solver_add_new_flow(ctx, incoming->from, c->to, incoming->choice, c->choice);
+				prev_constraint_id = incoming->prev_lower_bound_for_to;
 			}
 		}
 
 		// If neither side is a variable then check if it makes sense
 		if (!ID_IS(c->from, ID_TC_VARIABLE) && !ID_IS(c->to, ID_TC_VARIABLE)) {
 			solver_decompose(ctx, c);
-		} else if (ID_IS(c->from, ID_PLACE_TYPE)) {
-			Place_T * place = lookup(c->from);
-			if (!ID_IS(place->basetype_id, ID_TC_VARIABLE)) {
-				solver_add_new_flows(ctx, place->basetype_id, c->to, c->choice);
-			}
-		}
-
-		println("{s} <: {s}", type_to_str(c->from), type_to_str(c->to));
+		} 
 	}
 
 	println("Dimensions: {i}", registry_manager_get().Dimension_TC.entries.item_count);
 	println("Errors gathered: {i}", ctx->err_constraints.size);
-
-	Arena errs = ctx->err_constraints;
-	for (size_t i = 0; i < errs.size; ++i) {
-		Constraint_TC constraint = LOOKUP(ARENA_GET(errs, i, ID), Constraint_TC);
-
-		println("{i}) {s} <: {s}", i + 1, type_to_str(constraint.from), type_to_str(constraint.to));
-	}
+	
+	resolver_print_possibilities(ctx->resolver);
 }
+
+/*
+0: 1? <: 2? [prev_lower_to: NULL, prev_upper_from: NULL]	| 1? [upper: 0], 2? [lower: 0]
+1: 2? <: 3? [prev_lower_to: NULL, prev_upper_from: NULL]	| 2? [lower: 0, upper: 1], 3? [lower: 1]
+
+2: 1? <: 3? [prev_lower_to: 1, prev_upper_from: 0]			| 1? [upper: 2], 3? [lower: 2]
+
+3: i32 <: 1? [prev_lower_to: NULL, prev_upper_from: NULL]	| 1? [lower: 3, upper: 2]
+
+4: i32 <: 3? [prev_lower_to: 2, prev_upper_from: NULL]		| 3? [lower: 4]
+5: i32 <: 2? [prev_lower_to: 0, prev_upper_from: NULL]		| 2? [lower: 5, upper: 1]
+
+6: i32 <: 3? [prev_lower_to: 4, prev_upper_from: NULL]		| 3? [lower: 6]
+*/
 
 void solver_link_constraint(Constraint_TC * constraint) {
 	if (ID_IS(constraint->from, ID_TC_VARIABLE)) {
 		Variable_TC * var = lookup(constraint->from);
 
-		constraint->next_outgoing_for_from = var->outgoing_head;
-		var->outgoing_head = constraint->constraint_id;
+		constraint->prev_upper_bound_for_from = var->upper_bound;
+		var->upper_bound = constraint->constraint_id;
 	} else {
-		constraint->next_outgoing_for_from = INVALID_ID;
+		constraint->prev_upper_bound_for_from = INVALID_ID;
 	}
 
 	if (ID_IS(constraint->to, ID_TC_VARIABLE)) {
 		Variable_TC * var = lookup(constraint->to);
 
-		constraint->next_incoming_for_to = var->incoming_head;
-		var->incoming_head = constraint->constraint_id;
+		constraint->prev_lower_bound_for_to = var->lower_bound;
+		var->lower_bound = constraint->constraint_id;
 	} else {
-		constraint->next_incoming_for_to = INVALID_ID;
+		constraint->prev_lower_bound_for_to = INVALID_ID;
 	}
 }
 
-void solver_add_new_flows(struct solver * ctx, ID from, ID to, DdNode * choice) {
-	if (id_is_equal(from, to)) {
-		return;
+ID solver_lookup_existing_constraint(struct solver * ctx, ID from, ID to) {
+	khint_t k = kh_get(map_type_id_pair_to_constraint, &ctx->constraints, TYPE_IDS_TO_CONSTRAINT_PAIR(from, to));
+
+	if (k == kh_end(&ctx->constraints)) {
+		return INVALID_ID;
 	}
 
-	Constraint_TC * constraint = tc_allocate(ID_TC_CONSTRAINT);
-	constraint->from = from;
-	constraint->to = to;
-	constraint->choice = choice;
+	return kh_value(&ctx->constraints, k);
+}
 
-	solver_link_constraint(constraint);
+void solver_add_new_flow(struct solver * ctx, ID from, ID to, DdNode * from_choice, DdNode * to_choice) {
+	DdNode * choice = NULL;
 
-	DEQUE_PUSH_BACK(ID, &ctx->worklist, constraint->constraint_id);
+	if (from_choice != NULL && to_choice != NULL) {
+		choice = Cudd_bddAnd(ctx->resolver.manager, from_choice, to_choice);
+		Cudd_Ref(choice);
+	} else if (from_choice != NULL) {
+		choice = from_choice;
+	} else if (to_choice != NULL) {
+		choice = to_choice;
+	}
+
+	ID constraint_id = solver_lookup_existing_constraint(ctx, from, to);
+	Constraint_TC * constraint;
+
+	if (!ID_IS_INVALID(constraint_id)) {
+		ASSERT1(ID_IS(constraint_id, ID_TC_CONSTRAINT));
+		constraint = lookup(constraint_id);
+
+		ASSERT1(type_check_deep_equal(constraint->from, from) && type_check_deep_equal(constraint->to, to));
+		// println("Already exists ({s} <: {s}): {s} <: {s}", type_to_str(from), type_to_str(to), type_to_str(constraint->from), type_to_str(constraint->to));
+
+		if (constraint->choice == NULL) {
+			Cudd_Ref(choice);
+			constraint->choice = choice;
+		} else {
+			if (constraint->choice == choice) {
+				return;
+			}
+
+			DdNode * merged_choice = Cudd_bddOr(ctx->resolver.manager, constraint->choice, choice);
+			Cudd_Ref(merged_choice);
+
+			if (merged_choice == constraint->choice) {
+				Cudd_RecursiveDeref(ctx->resolver.manager, merged_choice);
+				return;
+			}
+
+			Cudd_RecursiveDeref(ctx->resolver.manager, constraint->choice);
+			constraint->choice = merged_choice;
+		}
+	} else {
+		constraint = tc_allocate(ID_TC_CONSTRAINT);
+		constraint->from = from;
+		constraint->to = to;
+		constraint->choice = choice;
+
+		println("\t{s} <: {s}", type_to_str(constraint->from), type_to_str(constraint->to));
+
+		int ret_code;
+		khint_t k = kh_put(map_type_id_pair_to_constraint, &ctx->constraints, TYPE_IDS_TO_CONSTRAINT_PAIR(from, to), &ret_code);
+		ASSERT1(ret_code != KH_PUT_ALREADY_PRESENT);
+		ASSERT(ret_code == KH_PUT_SUCCESS, "Error code: {i}", ret_code);
+
+		kh_value(&ctx->constraints, k) = constraint->constraint_id;
+
+		solver_link_constraint(constraint);
+		constraint_id = constraint->constraint_id;
+	}
+
+	DEQUE_PUSH_BACK(ID, &ctx->worklist, constraint_id);
+
+	if (constraint->choice == Cudd_ReadLogicZero(ctx->resolver.manager)) {
+		solver_add_invalid(ctx, constraint, from_choice, to_choice);
+	}
 }

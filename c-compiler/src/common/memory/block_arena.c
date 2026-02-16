@@ -25,15 +25,27 @@ BArena block_arena_init(uint32_t item_size) {
 	return barena;
 }
 
+void block_arena_free(BArena * barena) {
+	ASSERT1(barena->block_count != 0);
+	free(barena->blocks[0]);
+
+	for (size_t i = 1; i < barena->block_count; i *= 2) {
+		free(barena->blocks[i]);
+	}
+
+	free(barena->blocks);
+}
+
 void block_arena_add_block(BArena * barena) {
 	ASSERT1(barena != NULL);
 
-	size_t initial_block_count = barena->block_count;
+	size_t initial_block_count = 0;
 	if (barena->blocks == NULL) {
 		barena->block_count = BARENA_INITIAL_BLOCK_COUNT;
 		barena->blocks = malloc(sizeof(*barena->blocks) * barena->block_count);
 	} else {
 		ASSERT1(barena->block_count != 0);
+		initial_block_count = barena->block_count;
 		barena->block_count = barena->block_count * 2;
 		barena->blocks = realloc(barena->blocks, sizeof(*barena->blocks) * barena->block_count);
 	}

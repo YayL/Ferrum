@@ -16,6 +16,10 @@ static inline struct registry registry_init(enum id_type valid_type, unsigned in
 	};
 }
 
+static inline void registry_free(struct registry * registry) {
+	block_arena_free(&registry->entries);
+}
+
 static inline void * registry_lookup(struct registry registry, ID key) {
 	ASSERT1(key.type == registry.valid_type);
 	ASSERT1(key.id > 0);

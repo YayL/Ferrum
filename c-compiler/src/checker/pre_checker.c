@@ -61,16 +61,22 @@ ID find_implicit_cast_trait() {
 	FATAL("Unable to find \"#ImplicitCast\" trait");
 }
 
-void index_implicit_casts() {
+void index_implicit_casts(ID root_id) {
 	a_trait imp_cast_trait = LOOKUP(context_get_implicit_cast_trait(), a_trait);
 
-	a_implementation * identity_impl = ast_allocate(ID_AST_IMPL, INVALID_ID);
+	a_implementation * identity_impl = ast_allocate(ID_AST_IMPL, root_id);
 
-	identity_impl->trait_symbol_id = imp_cast_trait.info.node_id;
+	a_symbol * trait_symbol = ast_allocate(ID_AST_SYMBOL, root_id);
+	trait_symbol->node_id = imp_cast_trait.info.node_id;
+	trait_symbol->name_id = imp_cast_trait.name_id;
+	ARENA_APPEND(&trait_symbol->name_ids, imp_cast_trait.name_id);
+
+	identity_impl->trait_symbol_id = trait_symbol->info.node_id;
 
 	a_symbol * identity_impl_generic_template_symbol = ast_allocate(ID_AST_SYMBOL, identity_impl->info.node_id);
 	identity_impl_generic_template_symbol->name_ids.size = 0;
 	identity_impl_generic_template_symbol->name_id = interner_intern(source_span_init_from_string(STRING_FROM_LITERAL("T")));
+	ARENA_APPEND(&identity_impl_generic_template_symbol->name_ids, identity_impl_generic_template_symbol->name_id);
 
 	Symbol_T * identity_impl_generic_template_type = type_allocate(ID_SYMBOL_TYPE);
 	identity_impl_generic_template_type->symbol_id = identity_impl_generic_template_symbol->info.node_id;
@@ -84,7 +90,7 @@ void index_implicit_casts() {
 	identity_type_from_variable->type_id = identity_impl_generic_template_type->info.type_id;
 
 	identity_type_from_symbol->name_id = identity_type_from_variable->name_id;
-	identity_type_from_symbol->name_ids.size = 0;
+	ARENA_APPEND(&identity_type_from_symbol->name_ids, identity_type_from_variable->name_id);
 	identity_type_from_symbol->node_id = identity_type_from_variable->info.node_id;
 
 	a_symbol * identity_type_to_symbol = ast_allocate(ID_AST_SYMBOL, identity_impl->info.node_id);
@@ -94,7 +100,7 @@ void index_implicit_casts() {
 	identity_type_to_variable->type_id = identity_impl_generic_template_type->info.type_id;
 
 	identity_type_to_symbol->name_id = identity_type_to_variable->name_id;
-	identity_type_to_symbol->name_ids.size = 0;
+	ARENA_APPEND(&identity_type_to_symbol->name_ids, identity_type_to_variable->name_id);
 	identity_type_to_symbol->node_id = identity_type_to_variable->info.node_id;
 
 	arena_grow(&identity_impl->templates, 2);
@@ -144,7 +150,7 @@ void index_implicit_casts() {
 void pre_checker(a_root * root) {
 	resolve_impls();
 	context_init(find_implicit_cast_trait());
-	index_implicit_casts();
+	index_implicit_casts(root->info.node_id);
 
 	// LOOP_OVER_REGISTRY(a_symbol, symbol, {
 	// 	if (ID_IS(symbol->node_id, ID_PLACE_TYPE)) {
