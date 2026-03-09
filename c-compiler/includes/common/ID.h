@@ -8,9 +8,9 @@
 	f(ID_SYMBOL,			"SymbolID",			symbol_map_entry,		SYMBOL)
 
 #define TYPE_CHECKING_REGISTRY_KINDS(f) \
-	f(ID_TC_CONSTRAINT,		"ConstraintID",		Constraint_TC,		TC)	\
+	f(ID_TC_GROUP,			"GroupID",			Group_TC,			TC) \
+	f(ID_TC_REQUIREMENT,	"RequirementID",	Requirement_TC,		TC) \
 	f(ID_TC_DIMENSION,		"DimensionID",		Dimension_TC,		TC)	\
-	f(ID_TC_GENERIC,		"GenericID",		Generic_TC,			TC)	\
 	f(ID_TC_SHAPE,			"ShapeId",			Shape_TC,			TC)	\
 	f(ID_TC_VARIABLE,		"VariableID",		Variable_TC,		TC) \
 	f(ID_TC_CAST,			"CastID",			Cast_TC,			TC)
@@ -74,13 +74,10 @@ typedef struct id {
 #define INVALID_ID ((ID) { .type = ID_INVALID_TYPE, .id = 0 })
 #define ID_IS_INVALID(ID) ((ID).type == ID_INVALID_TYPE)
 #define ID_IS(ID, TYPE) ((ID).type == TYPE)
+#define ID_IS_EQUAL(ID1, ID2) ((ID1).type == (ID2).type && (ID1).id == (ID2).id)
 
 static inline ID id_init(COMPILER_ID_TYPE id, enum id_type type) {
 	return (ID) { .id = id, .type = type };
-}
-
-static inline char id_is_equal(ID id1, ID id2) {
-	return id1.type == id2.type && id1.id == id2.id;
 }
 
 #define _ID_GEN_ID_TO_TYPE_STRING_CASE(ENUM, STR, ...) case ENUM: return STR;

@@ -33,7 +33,7 @@ void symbol_map_remove(struct symbol_map * symbol_map, ID name_id) {
 	ASSERT1(ID_IS(symbol_id, ID_SYMBOL));
 
 	struct symbol_map_entry entry = LOOKUP(symbol_id, struct symbol_map_entry);
-	ASSERT1(id_is_equal(entry.symbol_id, symbol_id));
+	ASSERT1(ID_IS_EQUAL(entry.symbol_id, symbol_id));
 
 	if (!ID_IS_INVALID(entry.shadowed_symbol_id)) {
 		kh_value(&symbol_map->map, k) = entry.shadowed_symbol_id;

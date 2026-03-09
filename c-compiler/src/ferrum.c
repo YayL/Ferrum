@@ -4,7 +4,6 @@
 #include "parser/parser.h"
 #include "checker/pre_checker.h"
 #include "checker/checker.h"
-#include "checker/typing/solver.h"
 // #include "codegen/gen.h"
 
 #include "tables/interner.h"
@@ -36,7 +35,6 @@ void ferrum_compile(char * file_path) {
          * parser_time,
          * pre_checker_time,
          * checker_time,
-         * solver_time,
          * gen_time,
          * optimization_time;
     long time, total = 0;
@@ -62,22 +60,12 @@ void ferrum_compile(char * file_path) {
     asprintf(&checker_time, "Time for checker:\t%.3fms", (double)time / 1000);
     puts("checker done");
 
-    struct solver solver;
-    solver_initialize(&solver);
-
-    start_timer();
-    solver_process_worklist(&solver);
-    time = stop_timer();
-    total += time;
-    asprintf(&solver_time, "Time for solver:\t%.3fms", (double)time / 1000);
-    puts("checker done");
-
     puts("\n" LINE_BREAKER);
     struct registry_manager manager = registry_manager_get();
+    println("Groups: {i}", manager.Group_TC.entries.item_count);
+    println("Requirements: {i}", manager.Requirement_TC.entries.item_count);
     println("Vars: {i}", manager.Variable_TC.entries.item_count);
-    println("Constraints: {i}", manager.Constraint_TC.entries.item_count);
     println("Shapes: {i}", manager.Shape_TC.entries.item_count);
-    println("Generics: {i}", manager.Generic_TC.entries.item_count);
     println("Dimensions: {i}", manager.Dimension_TC.entries.item_count);
     puts(LINE_BREAKER);
 
@@ -109,12 +97,10 @@ void ferrum_compile(char * file_path) {
     puts(parser_time);
     puts(pre_checker_time);
     puts(checker_time);
-    puts(solver_time);
     // puts(gen_time);
     // puts(optimization_time);
     puts(LINE_BREAKER);
     printf("Total: %.3fms\n", (double)total / 1000);
 
-    Cudd_Quit(solver.resolver.manager);
     registry_manager_free(&manager);
 }

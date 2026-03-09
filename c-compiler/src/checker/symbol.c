@@ -81,14 +81,14 @@ ID qualify_symbol(a_symbol * symbol, enum id_type type_to_find) {
 						case ID_AST_FUNCTION: {
 							a_function func = LOOKUP(struct_child_id, a_function);
 
-							if (id_is_equal(func.name_id, next_name_id)) {
+							if (ID_IS_EQUAL(func.name_id, next_name_id)) {
 								return symbol->node_id = func.info.node_id;
 							}
 						} break;
 						case ID_AST_SYMBOL: {
 							a_symbol sym = LOOKUP(struct_child_id, a_symbol);
 
-							if (id_is_equal(sym.name_id, next_name_id)) {
+							if (ID_IS_EQUAL(sym.name_id, next_name_id)) {
 								return symbol->node_id = sym.info.node_id;
 							}
 						} break;
@@ -107,7 +107,7 @@ ID qualify_symbol(a_symbol * symbol, enum id_type type_to_find) {
 
 #define DECLARATION_CHECK_IF_TYPE(DECLARATION, NAME_ID, TYPE) \
 	TYPE type = LOOKUP(DECLARATION, TYPE); \
-	if (id_is_equal(type.name_id, NAME_ID)) { return DECLARATION; }
+	if (ID_IS_EQUAL(type.name_id, NAME_ID)) { return DECLARATION; }
 
 ID qualify_declaration(Arena declarations, ID declaration_name_id) {
 	for (size_t i = 0; i < declarations.size; ++i) {
