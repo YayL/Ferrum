@@ -3,14 +3,13 @@
 #include "common/ID.h"
 #include <cudd.h>
 #include "math.h"
+#include "checker/typing/typechecker.h"
 
 typedef struct dimension_resolution {
 	DdManager * manager;
 	DdNode * state;
 	uint32_t bit_variable_count;
 } Dim_Resolver;
-
-#include "checker/typing/gathering.h"
 
 Dim_Resolver dimension_resolver_init();
 void print_possibilities(Dim_Resolver resolver, DdNode * state);

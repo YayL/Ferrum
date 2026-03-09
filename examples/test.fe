@@ -1,7 +1,8 @@
 import "std/lib" as std
 
 fn main(argc: i32) -> i32 {
-    let x: u32 = 10 to u32
+    let x: i32 = 10
+    let y: u32 = x
 }
 
 /*

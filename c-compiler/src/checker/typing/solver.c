@@ -1,393 +1,400 @@
 #include "checker/typing/solver.h"
 
+#include "parser/types.h"
 #include "tables/registry_manager.h"
-#include "checker/checker.h"
+#include "checker/typing/gathering.h"
+#include "checker/typing/groups.h"
+#include "checker/symbol.h"
 
-struct invalid_flow {
-	ID constraint_id;
-	DdNode * from, * to;
-};
+// void solver_initialize(struct solver * ctx) {
+//         ctx->worklist = DEQUE_INIT(ID);
+//         ctx->err_constraints = arena_init(sizeof(struct invalid_flow));
+//         ctx->resolver = dimension_resolver_init();
+//         ctx->constraints = kh_init(map_type_id_pair_to_constraint);
+//
+//         LOOP_OVER_REGISTRY(Constraint_TC, c, {
+//                 // println("{s} <: {s}", type_to_str(c->from), type_to_str(c->to));
+//                 solver_link_constraint(c);
+//
+//                 if (!ID_IS(c->from, ID_TC_VARIABLE) || !ID_IS(c->to, ID_TC_VARIABLE)) {
+//                         DEQUE_PUSH_BACK(ID, &ctx->worklist, c->constraint_id);
+//                 }
+//         });
+// }
 
-void solver_link_constraint(Constraint_TC * constraint);
+void generate_template_constraints(Solver * solver, ID node_id, Arena * templates, DdNode * parent_choice);
 
-void solver_initialize(struct solver * ctx) {
-	ctx->worklist = DEQUE_INIT(ID);
-	ctx->err_constraints = arena_init(sizeof(struct invalid_flow));
-	ctx->resolver = dimension_resolver_init();
-	ctx->constraints = kh_init(map_type_id_pair_to_constraint);
-
-	LOOP_OVER_REGISTRY(Constraint_TC, c, {
-		// println("{s} <: {s}", type_to_str(c->from), type_to_str(c->to));
-		solver_link_constraint(c);
-
-		if (!ID_IS(c->from, ID_TC_VARIABLE) || !ID_IS(c->to, ID_TC_VARIABLE)) {
-			DEQUE_PUSH_BACK(ID, &ctx->worklist, c->constraint_id);
-		}
-	});
+void solver_initialize(Solver * solver) {
+	solver->resolver = dimension_resolver_init();
+	// solver->err_constraints = arena_init(sizeof(struct invalid_flow));
 }
 
-void solver_add_invalid(struct solver * ctx, Constraint_TC * constraint, DdNode * from_choice, DdNode * to_choice) {
-	if (constraint->choice != NULL) {
-		resolver_add_invalid_choice(&ctx->resolver, constraint->choice);
-	}
+char solver_decompose_same(Solver * solver, ID id1, ID id2, DdNode * world) {
+	ASSERT1(id1.type == id2.type);
 
-	struct invalid_flow flow = { .constraint_id = constraint->constraint_id, .from = from_choice, .to = to_choice };
-	ARENA_APPEND(&ctx->err_constraints, flow);
-}
+	println("{s} == {s}", type_to_str(id1), type_to_str(id2));
 
-void solver_decompose(struct solver * ctx, Constraint_TC * c) {
-	ASSERT1(!ID_IS(c->from, ID_TC_VARIABLE) && !ID_IS(c->to, ID_TC_VARIABLE));
-
-	println("{s} <: {s}", type_to_str(c->from), type_to_str(c->to));
-
-	switch (c->to.type) {
-		case ID_TC_SHAPE: {
-			if (!ID_IS(c->from, ID_SYMBOL_TYPE)) {
-				ID basetype_id;
-				switch (c->from.type) {
-					case ID_PLACE_TYPE: basetype_id = LOOKUP(c->from, Place_T).basetype_id; break;
-					case ID_REF_TYPE: basetype_id = LOOKUP(c->from, Ref_T).basetype_id; break;
-					default:
-					  FATAL("Shape constraint on non symbol type: {s}", type_to_str(c->from));
-				}
-
-				solver_add_new_flow(ctx, basetype_id, c->to, NULL, c->choice);
-				return;
-			} 
-
-			Symbol_T symbol = LOOKUP(c->from, Symbol_T);
-			Shape_TC * shape = lookup(c->to);
-			ID member_name_id = ast_get_interner_id(shape->member_id);
-
-			if (!check_has_member(symbol.symbol_id, member_name_id)) {
-				FATAL("{s} does not have member \"{s}\"", 
-						interner_lookup_str(ast_get_interner_id(symbol.symbol_id))._ptr,
-						interner_lookup_str(ast_get_interner_id(shape->member_id))._ptr
-					);
+	switch (id1.type) {
+		case ID_TUPLE_TYPE: {
+			Tuple_T tuple1 = LOOKUP(id1, Tuple_T), tuple2 = LOOKUP(id2, Tuple_T);
+			if (tuple1.types.size != tuple2.types.size) {
+				ERROR("Incompatiable tuple sizes");
+				return 0;
 			}
-
-			return;
-		}
-		case ID_TC_DIMENSION: {
-			Dimension_TC * dimension = lookup(c->to);
-
-			const ID dimension_id = c->to, from_id = c->from;
-			Arena candidates = dimension->candidates;
-			for (size_t i = 0; i < candidates.size; ++i) {
-				ID candidate_id = ARENA_GET(candidates, i, ID);
-				DdNode * choice = dimension_get_choice(ctx->resolver, dimension_id, i);
-
-				Arena temp_templates = {0};
-				generate_template_constraints(candidate_id, &temp_templates, ctx, choice);
-
-				switch (candidate_id.type) {
-					case ID_AST_FUNCTION: {
-						a_function function = LOOKUP(candidate_id, a_function);
-						ID to_type = replace_templates_in_type_with_template_variables(function.type, temp_templates, 0);
-						solver_add_new_flow(ctx, to_type, c->from, choice, c->choice);
-					} break;
-					case ID_AST_IMPL: {
-						a_implementation impl = LOOKUP(candidate_id, a_implementation);
-						const Tuple_T tuple_type = LOOKUP(c->from, Tuple_T);
-						ASSERT1(tuple_type.types.size == impl.templates.size);
-
-						for (size_t i = 0; i < impl.templates.size; ++i) {
-							ID impl_replaced_type = replace_templates_in_type_with_template_variables(ast_get_type_of(ARENA_GET(impl.templates, i, ID)), temp_templates, 0);
-							solver_add_new_flow(ctx, ARENA_GET(tuple_type.types, i, ID), impl_replaced_type, NULL, choice);
-						}
-						
-					} break;
-					default: FATAL("Unhandled candidate type: {s}", id_type_to_string(candidate_id.type));
-				}
-
-				arena_free(temp_templates);
+			
+			for (size_t i = 0; i < tuple1.types.size; ++i) {
+				solver_unify(solver, ARENA_GET(tuple1.types, i, ID), ARENA_GET(tuple2.types, i, ID), world);
 			}
-
-			return;
 		} break;
-		case ID_TC_CAST: {
-			Cast_TC * cast = lookup(c->to);
-			Dimension_TC * dimension = lookup(cast->dimension_id);
-
-			const ID dimension_id = cast->dimension_id, from_id = c->from, cast_variable_id = cast->variable_id;
-			Arena candidates = dimension->candidates;
-			for (size_t i = 0; i < candidates.size; ++i) {
-				ID candidate_id = ARENA_GET(candidates, i, ID);
-				DdNode * choice = dimension_get_choice(ctx->resolver, dimension_id, i);
-
-				Arena temp_templates = {0};
-				generate_template_constraints(candidate_id, &temp_templates, ctx, choice);
-
-				ASSERT1(ID_IS(candidate_id, ID_AST_IMPL));
-				a_implementation impl = LOOKUP(candidate_id, a_implementation);
-				ID impl_from_type_id = replace_templates_in_type_with_template_variables(ast_get_type_of(ARENA_GET(impl.templates, 0, ID)), temp_templates, 0);
-				ID impl_to_type_id = replace_templates_in_type_with_template_variables(ast_get_type_of(ARENA_GET(impl.templates, 1, ID)), temp_templates, 0);
-				// println("{s} -> {s} | {s}", type_to_str(impl_from_type_id), type_to_str(impl_to_type_id), type_to_str(ast_get_type_of(ARENA_GET(impl.templates, 1, ID))));
-
-				solver_add_new_flow(ctx, from_id, impl_from_type_id, c->choice, choice);
-				solver_add_new_flow(ctx, impl_to_type_id, cast_variable_id, choice, c->choice);
-
-				arena_free(temp_templates);
-			}
-
-			return;
+		case ID_FN_TYPE: {
+			Fn_T fn1 = LOOKUP(id1, Fn_T), fn2 = LOOKUP(id2, Fn_T);
+			
+			solver_decompose_same(solver, fn1.arg_type, fn2.arg_type, world);
+			solver_unify(solver, fn1.ret_type, fn2.ret_type, world);
 		} break;
-	}
-
-	if (c->from.type == c->to.type) {
-		switch (c->from.type) {
-			case ID_FN_TYPE: {
-				Fn_T from = LOOKUP(c->from, Fn_T), to = LOOKUP(c->to, Fn_T);
-				ASSERT1(ID_IS(from.arg_type, ID_TUPLE_TYPE));
-				ASSERT1(ID_IS(to.arg_type, ID_TUPLE_TYPE));
-
-				Tuple_T from_args_type = LOOKUP(from.arg_type, Tuple_T);
-				Tuple_T to_args_type = LOOKUP(to.arg_type, Tuple_T);
-
-				if (from_args_type.types.size != to_args_type.types.size) {
-					FATAL("Incompatible argument counts");
-				}
-
-				DdNode * choice = c->choice;
-				const size_t arg_count = from_args_type.types.size;
-				for (size_t i = 0; i < arg_count; ++i) {
-					ID to_type = ARENA_GET(to_args_type.types, i, ID);
-					ID from_type = ARENA_GET(from_args_type.types, i, ID);
-
-					solver_add_new_flow(ctx, to_type, from_type, choice, NULL);
-				}
-
-				// These are supposed to be swapped; the function return value flows into the called call-site return value
-				solver_add_new_flow(ctx, from.ret_type, to.ret_type, NULL, choice);
-				return;
-			} break;
-			case ID_PLACE_TYPE: {
-				if (!type_check_equal(c->from, c->to)) {
-					break;
-				}
-
-				Place_T * from = lookup(c->from), * to = lookup(c->to);
-				solver_add_new_flow(ctx, from->basetype_id, to->basetype_id, c->choice, NULL);
-
-				if (from->is_mut) {
-					solver_add_new_flow(ctx, to->basetype_id, from->basetype_id, c->choice, NULL);
-				}
-
-				return;
-			} break;
-			case ID_REF_TYPE: {
-				if (!type_check_equal(c->from, c->to)) {
-					break;
-				}
-
-				Ref_T * from = lookup(c->from), * to = lookup(c->to);
-				solver_add_new_flow(ctx, from->basetype_id, to->basetype_id, c->choice, NULL);
-				return;
-			} break;
-			case ID_SYMBOL_TYPE: {
-				if (!type_check_equal(c->from, c->to)) {
-					break;
-				}
-
-				Symbol_T from_symbol_type = LOOKUP(c->from, Symbol_T), to_symbol_type = LOOKUP(c->to, Symbol_T);
-				a_symbol from_symbol = LOOKUP(from_symbol_type.symbol_id, a_symbol), to_symbol = LOOKUP(to_symbol_type.symbol_id, a_symbol);
-
-				for (size_t i = 0; i < from_symbol_type.templates.size; ++i) {
-					ID from_symbol_template = ARENA_GET(from_symbol_type.templates, i, ID);
-					ID to_symbol_template = ARENA_GET(to_symbol_type.templates, i, ID);
-					solver_add_new_flow(ctx, from_symbol_template, to_symbol_template, c->choice, NULL);
-				}
-
-				return;
+		case ID_PLACE_TYPE: {
+			Place_T place1 = LOOKUP(id1, Place_T), place2 = LOOKUP(id2, Place_T);
+			
+			if (place1.is_mut != place2.is_mut) {
+				ERROR("Invalid place mutability");
+				return 0;
 			}
-			case ID_NUMERIC_TYPE: {
-				if (!type_check_equal(c->from, c->to)) {
-					break;
-				}
-				return;
-			} break;
-			default:
-				FATAL("Unimplemented type id: {s}", id_type_to_string(c->from.type));
-		}
+
+			solver_unify(solver, place1.basetype_id, place2.basetype_id, world);
+		} break;
+		case ID_NUMERIC_TYPE: {
+			Numeric_T num1 = LOOKUP(id1, Numeric_T), num2 = LOOKUP(id2, Numeric_T);
+			if (!(num1.type == num2.type && num1.width == num2.width)) {
+				ERROR("Not equivalent numeric types: {s} != {s}", type_to_str(id1), type_to_str(id2));
+				return 0;
+			}
+
+			return 1;
+		} break;
+		default: FATAL("Unimplemented type: {s}", id_type_to_string(id1.type));
 	}
 
-	solver_add_invalid(ctx, c, NULL, NULL);
+	return 1;
 }
 
-void solver_process_worklist(struct solver * ctx) {
-	while (ctx->worklist.size > 0) {
-		ID constraint_id = DEQUE_FRONT(ID, &ctx->worklist);
-		DEQUE_POP_FRONT(ID, &ctx->worklist);
-
-		Constraint_TC * c = lookup(constraint_id);
-
-		// Propogate forward:
-		// Turn FROM -> To and To -> Next
-		// Into: From -> Next (Transitive property)
-		if (ID_IS(c->to, ID_TC_VARIABLE)) {
-			Variable_TC * to_var = lookup(c->to);
-			// println("Forward: {s} <: {s}", type_to_str(c->from), type_to_str(c->to));
-
-			ID next_constraint_id = to_var->upper_bound;
-			while (!ID_IS_INVALID(next_constraint_id)) {
-				Constraint_TC * outgoing = lookup(next_constraint_id);
-				solver_add_new_flow(ctx, c->from, outgoing->to, c->choice, outgoing->choice);
-				next_constraint_id = outgoing->prev_upper_bound_for_from;
-			}
-		}
-
-		// Propogate backward:
-		// Prev -> From and From -> To
-		// Into: Prev -> To (Transitive property)
-		if (ID_IS(c->from, ID_TC_VARIABLE)) {
-			Variable_TC * from_var = lookup(c->from);
-			// println("Backward: {s} <: {s}", type_to_str(c->from), type_to_str(c->to));
-
-			ID prev_constraint_id = from_var->lower_bound;
-			while (!ID_IS_INVALID(prev_constraint_id)) {
-				Constraint_TC * incoming = lookup(prev_constraint_id);
-				solver_add_new_flow(ctx, incoming->from, c->to, incoming->choice, c->choice);
-				prev_constraint_id = incoming->prev_lower_bound_for_to;
-			}
-		}
-
-		// If neither side is a variable then check if it makes sense
-		if (!ID_IS(c->from, ID_TC_VARIABLE) && !ID_IS(c->to, ID_TC_VARIABLE)) {
-			solver_decompose(ctx, c);
-		} 
-	}
-
-	println("Dimensions: {i}", registry_manager_get().Dimension_TC.entries.item_count);
-	println("Errors gathered: {i}", ctx->err_constraints.size);
+static inline char solver_decompose_dimension(Solver * solver, ID dimension_id, ID other_id, DdNode * world) {
+	Dimension_TC dimension = LOOKUP(dimension_id, Dimension_TC);
 	
-	print_possibilities(ctx->resolver, ctx->resolver.state);
+	Arena candidates = dimension.candidates;
+	for (size_t i = 0; i < candidates.size; ++i) {
+		ID candidate_id = ARENA_GET(candidates, i, ID);
+		DdNode * choice = dimension_get_choice(solver->resolver, dimension_id, i);
 
-	for (size_t i = 0; i < ctx->err_constraints.size; ++i) {
-		struct invalid_flow flow = ARENA_GET(ctx->err_constraints, i, struct invalid_flow);
-		Constraint_TC c = LOOKUP(flow.constraint_id, Constraint_TC);
-		println("{s} <: {s}", type_to_str(c.from), type_to_str(c.to));
-		print_possibilities(ctx->resolver, c.choice);
+		Arena temp_templates = {0};
+		generate_template_constraints(solver, candidate_id, &temp_templates, choice);
+
+		switch (candidate_id.type) {
+			case ID_AST_FUNCTION: {
+				a_function function = LOOKUP(candidate_id, a_function);
+				ID to_type = replace_templates_in_type_with_template_variables(solver, function.type, temp_templates);
+				println("func: {s} == {s}", type_to_str(other_id), type_to_str(to_type));
+				solver_decompose_same(solver, other_id, to_type, choice);
+			} break;
+			case ID_AST_IMPL: {
+				a_implementation impl = LOOKUP(candidate_id, a_implementation);
+				const Tuple_T tuple_type = LOOKUP(other_id, Tuple_T);
+				ASSERT1(tuple_type.types.size == impl.templates.size);
+
+				for (size_t i = 0; i < impl.templates.size; ++i) {
+					ID impl_replaced_type = replace_templates_in_type_with_template_variables(solver, ast_get_type_of(ARENA_GET(impl.templates, i, ID)), temp_templates);
+					solver_unify(solver, ARENA_GET(tuple_type.types, i, ID), impl_replaced_type, choice);
+				}
+			} break;
+			default: FATAL("Unhandled candidate type: {s}", id_type_to_string(candidate_id.type));
+		}
+
+		arena_free(temp_templates);
 	}
+
+	return 1;
 }
+
+static inline char solver_decompose_cast(Solver * solver, ID cast_id, ID other_id, DdNode * world) {
+	Cast_TC * cast = lookup(cast_id);
+	Dimension_TC * dimension = lookup(cast->dimension_id);
+
+	const ID dimension_id = cast->dimension_id, cast_variable_id = cast->variable_id;
+	Arena candidates = dimension->candidates;
+	for (size_t i = 0; i < candidates.size; ++i) {
+		ID candidate_id = ARENA_GET(candidates, i, ID);
+		DdNode * choice = dimension_get_choice(solver->resolver, dimension_id, i);
+
+		Arena temp_templates = {0};
+		generate_template_constraints(solver, candidate_id, &temp_templates, choice);
+
+		ASSERT1(ID_IS(candidate_id, ID_AST_IMPL));
+		a_implementation impl = LOOKUP(candidate_id, a_implementation);
+		ID impl_from_type_id = replace_templates_in_type_with_template_variables(solver, ast_get_type_of(ARENA_GET(impl.templates, 0, ID)), temp_templates);
+		ID impl_to_type_id = replace_templates_in_type_with_template_variables(solver, ast_get_type_of(ARENA_GET(impl.templates, 1, ID)), temp_templates);
+		// println("{s} -> {s} | {s}", type_to_str(impl_from_type_id), type_to_str(impl_to_type_id), type_to_str(ast_get_type_of(ARENA_GET(impl.templates, 1, ID))));
+
+		solver_unify(solver, other_id, impl_from_type_id, choice);
+		solver_unify(solver, impl_to_type_id, cast_variable_id, choice);
+
+		arena_free(temp_templates);
+	}
+
+	return 1;
+}
+
+char solver_decompose(Solver * solver, ID id1, ID id2, DdNode * world) {
+	ASSERT1(!ID_IS(id1, ID_TC_VARIABLE));
+	ASSERT1(!ID_IS(id2, ID_TC_VARIABLE));
+
+	if (id1.type == id2.type) {
+		return solver_decompose_same(solver, id1, id2, world);
+	}
+
+	println("{s} == {s}", type_to_str(id1), type_to_str(id2));
+
+	switch (id1.type) {
+		case ID_TC_DIMENSION: return solver_decompose_dimension(solver, id1, id2, world);
+		case ID_TC_CAST: return solver_decompose_cast(solver, id1, id2, world);
+		default: break;
+	}
+
+	switch (id2.type) {
+		case ID_TC_DIMENSION: return solver_decompose_dimension(solver, id2, id1, world);
+		case ID_TC_CAST: return solver_decompose_cast(solver, id2, id1, world);
+		default: break;
+	}
+	
+	switch (id1.type) {
+		case ID_TUPLE_TYPE:
+		case ID_PLACE_TYPE:
+		case ID_NUMERIC_TYPE:
+			ERROR("Incompatible types: {s} != {s}", type_to_str(id1), type_to_str(id2));
+			return 0;
+		default: FATAL("Unimplemented type: {s}", id_type_to_string(id1.type));
+	}
+
+	return 1;
+}
+
+void solver_unify(struct solver * solver, ID id1, ID id2, DdNode * world) {
+	ASSERT1(!ID_IS_INVALID(id1));
+	ASSERT1(!ID_IS_INVALID(id2));
+
+	if (!ID_IS(id1, ID_TC_VARIABLE) && !ID_IS(id2, ID_TC_VARIABLE)) {
+		// Both are requirements so decompose into less complex types
+
+		if (!solver_decompose(solver, id1, id2, world)) {
+			solver_add_invalid_world(solver, world);
+		}
+
+		return;
+	} else if (!ID_IS(id2, ID_TC_VARIABLE)) {
+		// ID1 is a variable ID2 is a requirement
+		return solver_add_variable_group_requirement(solver, id1, id2, world);
+	} else if (!ID_IS(id1, ID_TC_VARIABLE)) {
+		// ID2 is a variable ID1 is a requirement
+		return solver_add_variable_group_requirement(solver, id2, id1, world);
+	}
+
+	// Two variables
+	ASSERT1(ID_IS(id1, ID_TC_VARIABLE));
+	ASSERT1(ID_IS(id2, ID_TC_VARIABLE));
+	Variable_TC * const var1 = lookup(id1);
+	Variable_TC * const var2 = lookup(id2);
+	
+	Group_TC * group1;
+	Group_TC * group2;
+	
+	if (ID_IS_INVALID(var1->group_id) && ID_IS_INVALID(var2->group_id)) {
+		group1 = group2 = tc_allocate(ID_TC_GROUP);
+		var1->group_id = var2->group_id = group1->group_id;
+	} else if (ID_IS_INVALID(var1->group_id)) {
+		group1 = group2 = group_find_root_group(var2->group_id);
+		var1->group_id = group1->group_id;
+	} else if (ID_IS_INVALID(var2->group_id)) {
+		group1 = group2 = group_find_root_group(var1->group_id);
+		var2->group_id = group2->group_id;
+	} else {
+		group1 = group_find_root_group(var1->group_id);
+		group2 = group_find_root_group(var2->group_id);
+	}
+
+	if (ID_IS_EQUAL(group1->group_id, group2->group_id)) {
+		return;
+	}
+
+	ASSERT1(ID_IS_INVALID(group1->parent_group_id));
+	ASSERT1(ID_IS_INVALID(group2->parent_group_id));
+
+	Group_TC * parent, * child;
+	if (group1->rank < group2->rank) {
+		parent = group2, child = group1;
+	} else {
+		parent = group1, child= group2;
+	}
+
+	child->parent_group_id = parent->group_id;
+	child->rank = parent->rank + 1; // this shouldn't ever have to be used but good to add anyway
+
+	if (ID_IS_INVALID(child->requirement)) {
+		return;
+	}
+
+	if (ID_IS_INVALID(parent->requirement)) {
+		parent->requirement = child->requirement;
+		return;
+	}
 
 /*
-0: 1? <: 2? [prev_lower_to: NULL, prev_upper_from: NULL]	| 1? [upper: 0], 2? [lower: 0]
-1: 2? <: 3? [prev_lower_to: NULL, prev_upper_from: NULL]	| 2? [lower: 0, upper: 1], 3? [lower: 1]
-
-2: 1? <: 3? [prev_lower_to: 1, prev_upper_from: 0]			| 1? [upper: 2], 3? [lower: 2]
-
-3: i32 <: 1? [prev_lower_to: NULL, prev_upper_from: NULL]	| 1? [lower: 3, upper: 2]
-
-4: i32 <: 3? [prev_lower_to: 2, prev_upper_from: NULL]		| 3? [lower: 4]
-5: i32 <: 2? [prev_lower_to: 0, prev_upper_from: NULL]		| 2? [lower: 5, upper: 1]
-
-6: i32 <: 3? [prev_lower_to: 4, prev_upper_from: NULL]		| 3? [lower: 6]
+*	parent: A -> B
+*	extracted: NULL
+*	child:	C -> D -> E
+*
+*	parent: C -> A -> B
+*	extracted: C | A -> B
+*	child: D -> E
+*
+*	parent: (A & D) -> B
+*	extracted: C | (A & D) -> B
+*	child: E
+*	
+*	parent: E -> (A & D) -> B
+*	extracted: C -> E | (A & D) -> B
+*
+*	parent: C -> E -> (A & D) -> B
 */
 
-void solver_link_constraint(Constraint_TC * constraint) {
-	if (ID_IS(constraint->from, ID_TC_VARIABLE)) {
-		Variable_TC * var = lookup(constraint->from);
+	ID parent_start_requirment_id = parent->requirement;
+	ID next_child_requirement_id = child->requirement;
 
-		constraint->prev_upper_bound_for_from = var->upper_bound;
-		var->upper_bound = constraint->constraint_id;
-	} else {
-		constraint->prev_upper_bound_for_from = INVALID_ID;
-	}
+	Requirement_TC * extracted = NULL;
+	ID first_extracted = INVALID_ID;
+	while (!ID_IS_INVALID(next_child_requirement_id)) {
+		Requirement_TC * child_requirement = lookup(next_child_requirement_id);
 
-	if (ID_IS(constraint->to, ID_TC_VARIABLE)) {
-		Variable_TC * var = lookup(constraint->to);
+		next_child_requirement_id = child_requirement->next_requirement;
+		child_requirement->next_requirement = INVALID_ID;
 
-		constraint->prev_lower_bound_for_to = var->lower_bound;
-		var->lower_bound = constraint->constraint_id;
-	} else {
-		constraint->prev_lower_bound_for_to = INVALID_ID;
-	}
-}
+		solver_add_group_requirement(solver, parent, child_requirement, world);
+		
+		// Didn't find a match and added child_requirement to front of parent's requirement list
+		if (ID_IS_EQUAL(parent->requirement, child_requirement->requirement_id)) {
+			// Move parent requirement back to before child was added
+			parent->requirement = child_requirement->next_requirement;
 
-ID solver_lookup_existing_constraint(struct solver * ctx, ID from, ID to) {
-	khint_t k = kh_get(map_type_id_pair_to_constraint, &ctx->constraints, TYPE_IDS_TO_CONSTRAINT_PAIR(from, to));
-
-	if (k == kh_end(&ctx->constraints)) {
-		return INVALID_ID;
-	}
-
-	return kh_value(&ctx->constraints, k);
-}
-
-void solver_add_new_flow(struct solver * ctx, ID from, ID to, DdNode * from_choice, DdNode * to_choice) {
-	DdNode * choice = NULL;
-
-	if (from_choice != NULL && to_choice != NULL) {
-		choice = Cudd_bddAnd(ctx->resolver.manager, from_choice, to_choice);
-		Cudd_Ref(choice);
-	} else if (from_choice != NULL) {
-		choice = from_choice;
-	} else if (to_choice != NULL) {
-		choice = to_choice;
-	}
-
-	ID constraint_id = solver_lookup_existing_constraint(ctx, from, to);
-	Constraint_TC * constraint;
-
-	if (!ID_IS_INVALID(constraint_id)) {
-		ASSERT1(ID_IS(constraint_id, ID_TC_CONSTRAINT));
-		constraint = lookup(constraint_id);
-
-		ASSERT1(type_check_deep_equal(constraint->from, from) && type_check_deep_equal(constraint->to, to));
-		// println("Already exists ({s} <: {s}): {s} <: {s}", type_to_str(from), type_to_str(to), type_to_str(constraint->from), type_to_str(constraint->to));
-
-		if (constraint->choice == NULL) {
-			if (choice == NULL) {
-				constraint->choice = NULL;
+			if (extracted == NULL) {
+				first_extracted = child_requirement->requirement_id;
+				extracted = child_requirement;
 			} else {
-				Cudd_Ref(choice);
-				constraint->choice = choice;
-			}
-		} else {
-			if (constraint->choice == choice) {
-				return;
+				// Add child requirement as next in extracted
+				extracted->next_requirement = child_requirement->requirement_id;
+				extracted = child_requirement;
 			}
 
-			DdNode * merged_choice = Cudd_bddOr(ctx->resolver.manager, constraint->choice, choice);
-			if (choice == NULL) {
-				merged_choice = constraint->choice;
-			} else {
-				merged_choice = Cudd_bddOr(ctx->resolver.manager, constraint->choice, choice);
-				ASSERT1(merged_choice != NULL);
-				Cudd_Ref(merged_choice);
-			}
-
-			ASSERT1(constraint->choice != NULL);
-			if (merged_choice == constraint->choice) {
-				Cudd_RecursiveDeref(ctx->resolver.manager, merged_choice);
-				return;
-			}
-
-			Cudd_RecursiveDeref(ctx->resolver.manager, constraint->choice);
-			constraint->choice = merged_choice;
+			// Detach extracted from parent
+			extracted->next_requirement = INVALID_ID;
 		}
-	} else {
-		constraint = tc_allocate(ID_TC_CONSTRAINT);
-		constraint->from = from;
-		constraint->to = to;
-		constraint->choice = choice;
-
-		println("\t{s} <: {s}", type_to_str(constraint->from), type_to_str(constraint->to));
-
-		int ret_code;
-		khint_t k = kh_put(map_type_id_pair_to_constraint, &ctx->constraints, TYPE_IDS_TO_CONSTRAINT_PAIR(from, to), &ret_code);
-		ASSERT1(ret_code != KH_PUT_ALREADY_PRESENT);
-		ASSERT(ret_code == KH_PUT_SUCCESS, "Error code: {i}", ret_code);
-
-		kh_value(&ctx->constraints, k) = constraint->constraint_id;
-
-		solver_link_constraint(constraint);
-		constraint_id = constraint->constraint_id;
 	}
 
-	DEQUE_PUSH_BACK(ID, &ctx->worklist, constraint_id);
-
-	if (constraint->choice == Cudd_ReadLogicZero(ctx->resolver.manager)) {
-		solver_add_invalid(ctx, constraint, from_choice, to_choice);
+	if (extracted != NULL) {
+		extracted->next_requirement = parent->requirement;
+		parent->requirement = first_extracted;
 	}
+
+	return;
+}
+
+void generate_trait_implementation_usage_constraints(ID trait_id, Arena passed_template_types, Arena templates, struct solver * ctx, DdNode * parent_choice) {
+	ASSERT1(ID_IS(trait_id, ID_AST_TRAIT));
+	ASSERT1(passed_template_types.size > 0);
+	a_trait * trait = lookup(trait_id);
+	ASSERT1(trait->templates.size == passed_template_types.size); // should've been checked in pre-checker
+
+	Tuple_T * tuple = type_allocate(ID_TUPLE_TYPE);
+	arena_grow(&tuple->types, passed_template_types.size);
+
+	for (size_t i = 0; i < passed_template_types.size; ++i) {
+		ID template = ARENA_GET(passed_template_types, i, ID);
+		ASSERT1(ID_IS(template, ID_SYMBOL_TYPE));
+		Symbol_T symbol_type = LOOKUP(template, Symbol_T);
+		ASSERT1(symbol_type.templates.size == 0);
+
+		ID template_type = find_template(templates, ast_get_interner_id(symbol_type.symbol_id));
+		ARENA_APPEND(&tuple->types, template_type);
+	}
+
+	Dimension_TC * dimension = tc_allocate(ID_TC_DIMENSION);
+	dimension->candidates = trait->implementations;
+
+	println("D{u}: {s}", dimension->dimension_id.id, interner_lookup_str(trait->name_id)._ptr);
+
+	// if (ctx == NULL) {
+	// 	Constraint_TC * constraint = tc_allocate(ID_TC_CONSTRAINT);
+	// 	constraint->from = tuple->info.type_id;
+	// 	constraint->to = dimension->dimension_id;
+	// } else {
+	// 	dimension_init_choices(&ctx->resolver, dimension, parent_choice);
+	// 	solver_add_new_flow(ctx, tuple->info.type_id, dimension->dimension_id, NULL, NULL);
+	// }
+}
+
+void generate_where_constraints(Arena arena, Arena templates, struct solver * ctx, DdNode * parent_choice) {
+	for (size_t i = 0; i < arena.size; ++i) {
+		ID constraint = ARENA_GET(arena, i, ID);
+		ASSERT1(ID_IS(constraint, ID_SYMBOL_TYPE));
+		Symbol_T * symbol_type = lookup(constraint);
+
+		ASSERT1(ID_IS(symbol_type->symbol_id, ID_AST_SYMBOL));
+		a_symbol * symbol = lookup(symbol_type->symbol_id);
+
+		if (ID_IS_INVALID(symbol->node_id)) {
+			ID found = qualify_symbol(symbol, ID_AST_TRAIT);
+			ASSERT1(!ID_IS_INVALID(found));
+		}
+
+		ASSERT1(ID_IS(symbol->node_id, ID_AST_TRAIT));
+		generate_trait_implementation_usage_constraints(symbol->node_id, symbol_type->templates, templates, ctx, parent_choice);
+	}
+}
+
+void generate_template_constraints(Solver * solver, ID node_id, Arena * templates, DdNode * parent_choice) {
+	if (templates->arena == NULL) {
+		*templates = arena_init(sizeof(struct template_variable));
+	}
+
+    switch (node_id.type) {
+		case ID_AST_VARIABLE: {
+			a_variable * variable = lookup(node_id);
+			if  (!ID_IS(variable->info.scope_id, ID_AST_MODULE)) {
+				generate_template_constraints(solver, variable->info.scope_id, templates, parent_choice);
+			}
+		} break;
+        case ID_AST_FUNCTION: {
+            a_function function = LOOKUP(node_id, a_function);
+			if (!ID_IS(function.info.scope_id, ID_AST_MODULE)) {
+				generate_template_constraints(solver, function.info.scope_id, templates, parent_choice);
+			}
+
+			populate_template_list_from_arena(solver, function.templates, templates);
+			generate_where_constraints(function.where, *templates, solver, parent_choice);
+        } break;
+        case ID_AST_STRUCT: {
+            a_structure _struct = LOOKUP(node_id, a_structure);
+
+			populate_template_list_from_arena(solver, _struct.templates, templates);
+        } break;
+        case ID_AST_IMPL: {
+            a_implementation impl = LOOKUP(node_id, a_implementation);
+
+			populate_template_list_from_arena(solver, impl.generics, templates);
+			populate_template_list_from_arena(solver, impl.templates, templates);
+			generate_where_constraints(impl.where, *templates, solver, parent_choice);
+        } break;
+		case ID_AST_SCOPE: {
+			a_scope * scope = lookup(node_id);
+			generate_template_constraints(solver, scope->info.scope_id, templates, parent_choice);
+		} break;
+        default:
+            FATAL("Invalid id type: {s}", id_type_to_string(node_id.type));
+    }
 }

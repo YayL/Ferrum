@@ -156,7 +156,7 @@ Arena _parser_parse_expr(struct Parser * parser, Arena * output, DEQUE_T(Operato
 
                 if (op1.key == ADDRESS_OF
                     && parser->lexer.tok.type == TOKEN_ID 
-                    && id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUT))
+                    && ID_IS_EQUAL(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUT))
                 ) {
                     parser_eat(parser, TOKEN_ID);
                     op1 = operator_get(MUT_ADDRESS_OF);

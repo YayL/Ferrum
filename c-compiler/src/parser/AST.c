@@ -118,7 +118,7 @@ void _print_ast_tree(ID node_id, String pad, char is_last) {
     switch (node_id.type) {
         case ID_AST_ROOT: {
             a_root root = LOOKUP(node_id, a_root);
-            ASSERT1(id_is_equal(root.info.node_id, node_id));
+            ASSERT1(ID_IS_EQUAL(root.info.node_id, node_id));
 
             String next_pad = string_copy(pad);
             ID child_node_id;
@@ -135,7 +135,7 @@ void _print_ast_tree(ID node_id, String pad, char is_last) {
             break;
 #endif
             a_module module = LOOKUP(node_id, a_module);
-            ASSERT1(id_is_equal(module.info.node_id, node_id));
+            ASSERT1(ID_IS_EQUAL(module.info.node_id, node_id));
 
             String next_pad = string_copy(pad);
             ID_AST_TREE_PRINT_CHILDREN(module.members, next_pad);

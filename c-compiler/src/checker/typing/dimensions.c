@@ -6,11 +6,11 @@ Dim_Resolver dimension_resolver_init() {
 	DdManager * manager = Cudd_Init(0, 0, CUDD_UNIQUE_SLOTS, CUDD_CACHE_SLOTS, 0);
 	Dim_Resolver resolver = { .manager = manager, .bit_variable_count = 0, .state = NULL };
 
-	Dimension_TC * dimension;
+	// Dimension_TC * dimension;
 
-	LOOP_OVER_REGISTRY(Dimension_TC, dimension, {
-			dimension_init_choices(&resolver, dimension, NULL);
-	});
+	// LOOP_OVER_REGISTRY(Dimension_TC, dimension, {
+	// 		dimension_init_choices(&resolver, dimension, NULL);
+	// });
 
 	// resolver.state = state;
 	// resolver_print_possibilities(resolver);
@@ -30,6 +30,10 @@ Dim_Resolver dimension_resolver_init() {
 }
 
 DdNode * dimension_get_choice(Dim_Resolver resolver, ID dimension_id, size_t choice) {
+	if (resolver.manager == NULL) {
+		return NULL;
+	}
+
 	Dimension_TC * dimension = lookup(dimension_id);
 	ASSERT1(choice < (1 << dimension->bit_count));
 

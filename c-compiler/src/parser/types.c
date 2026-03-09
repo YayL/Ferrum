@@ -37,7 +37,7 @@ ID _parser_parse_numeric_type(struct Parser * parser) {
 ID parser_parse_type(struct Parser * parser) {
     switch (parser->lexer.tok.type) {
         case TOKEN_ID: {
-            if (id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_BOOL))) {
+            if (ID_IS_EQUAL(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_BOOL))) {
                 parser_eat(parser, TOKEN_ID);
 
                 Numeric_T * numeric = type_allocate(ID_NUMERIC_TYPE);
@@ -45,12 +45,12 @@ ID parser_parse_type(struct Parser * parser) {
                 numeric->width = 1;
 
                 return numeric->info.type_id;
-            } else if (id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_VOID))) {
+            } else if (ID_IS_EQUAL(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_VOID))) {
                 parser_eat(parser, TOKEN_ID);
                 return VOID_TYPE;
-            } else if (id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_PLACE))
-                    || id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUTPLACE))) {
-                char is_mut = id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUTPLACE));
+            } else if (ID_IS_EQUAL(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_PLACE))
+                    || ID_IS_EQUAL(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUTPLACE))) {
+                char is_mut = ID_IS_EQUAL(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUTPLACE));
                 parser_eat(parser, TOKEN_ID);
 
                 Place_T * place = type_allocate(ID_PLACE_TYPE);
@@ -96,7 +96,7 @@ ID parser_parse_type(struct Parser * parser) {
                 ref->depth += 1;
             }
 
-            if (parser->lexer.tok.type == TOKEN_ID && id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUT))) {
+            if (parser->lexer.tok.type == TOKEN_ID && ID_IS_EQUAL(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUT))) {
                 parser_eat(parser, TOKEN_ID);
                 ref->is_mut = 1;
             }
@@ -458,7 +458,7 @@ char type_check_equal(ID type_id1, ID type_id2) {
             ASSERT1(!ID_IS_INVALID(symbol1->node_id));
             ASSERT1(!ID_IS_INVALID(symbol2->node_id));
 
-			return id_is_equal(symbol1->node_id, symbol2->node_id);
+			return ID_IS_EQUAL(symbol1->node_id, symbol2->node_id);
 		}
         case ID_NUMERIC_TYPE: {
             Numeric_T num1 = LOOKUP(type_id1, Numeric_T), num2 = LOOKUP(type_id2, Numeric_T);
@@ -469,7 +469,7 @@ char type_check_equal(ID type_id1, ID type_id2) {
             return type_check_equal(fn1.ret_type, fn2.ret_type) && type_check_equal(fn1.arg_type, fn2.arg_type);
         }
         case ID_TC_DIMENSION:
-        case ID_TC_VARIABLE: return id_is_equal(type_id1, type_id2);
+        case ID_TC_VARIABLE: return ID_IS_EQUAL(type_id1, type_id2);
         case ID_VOID_TYPE: return 1;
 		default:
 			FATAL("Unimplemented id {s}", id_type_to_string(type_id1.type));
@@ -505,7 +505,7 @@ char type_check_deep_equal(ID type_id1, ID type_id2) {
             ASSERT1(!ID_IS_INVALID(symbol1->node_id));
             ASSERT1(!ID_IS_INVALID(symbol2->node_id));
 
-            if (!id_is_equal(symbol1->node_id, symbol2->node_id)) {
+            if (!ID_IS_EQUAL(symbol1->node_id, symbol2->node_id)) {
                 return 0;
             }
 
@@ -526,7 +526,7 @@ char type_check_deep_equal(ID type_id1, ID type_id2) {
             return type_check_deep_equal(fn1.ret_type, fn2.ret_type) && type_check_deep_equal(fn1.arg_type, fn2.arg_type);
         }
         case ID_TUPLE_TYPE: {
-            if (id_is_equal(type_id1, type_id2)) {
+            if (ID_IS_EQUAL(type_id1, type_id2)) {
                 return 1;
             }
 
@@ -545,7 +545,7 @@ char type_check_deep_equal(ID type_id1, ID type_id2) {
         }
         case ID_TC_SHAPE:
         case ID_TC_DIMENSION:
-        case ID_TC_VARIABLE: return id_is_equal(type_id1, type_id2);
+        case ID_TC_VARIABLE: return ID_IS_EQUAL(type_id1, type_id2);
         case ID_VOID_TYPE: return 1;
 		default:
 			FATAL("Unimplemented id {s}", id_type_to_string(type_id1.type));

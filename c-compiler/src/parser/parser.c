@@ -48,7 +48,7 @@ void parser_eat(struct Parser * parser, enum token_t type) {
 void parser_eat_keyword(struct Parser * parser, enum Keywords keyword) {
     ID keyword_id = keyword_get_intern_id(keyword);
 
-    if (parser->lexer.tok.type == TOKEN_ID && !id_is_equal(parser->lexer.tok.interner_id, keyword_id)){
+    if (parser->lexer.tok.type == TOKEN_ID && !ID_IS_EQUAL(parser->lexer.tok.interner_id, keyword_id)){
         ERROR("{2i::} Expected keyword type '{s}' got token '{s}'", 
                 parser->lexer.tok.line, parser->lexer.tok.pos, 
                 interner_lookup_str(keyword_id)._ptr, 
@@ -267,11 +267,11 @@ ID parser_parse_if(struct Parser * parser) {
                 if_statement->body_id = parser_parse_scope(parser);
         }
 
-        if (!id_is_equal(parser->lexer.tok.interner_id, keyword_else_id)) {
+        if (!ID_IS_EQUAL(parser->lexer.tok.interner_id, keyword_else_id)) {
             if_type = _NONE;
         } else {
             parser_eat_keyword(parser, KEYWORD_ELSE);
-            if (id_is_equal(parser->lexer.tok.interner_id, keyword_if_id)) {
+            if (ID_IS_EQUAL(parser->lexer.tok.interner_id, keyword_if_id)) {
                 if_type = _ELSE_IF;
                 parser_eat_keyword(parser, KEYWORD_IF);
             } else {
@@ -561,7 +561,7 @@ ID parser_parse_declaration(struct Parser * parser) {
     parser_eat_keyword(parser, KEYWORD_LET);
     declaration->is_mut = 0;
 
-    if (id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUT))) {
+    if (ID_IS_EQUAL(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUT))) {
         parser_eat_keyword(parser, KEYWORD_MUT);
         declaration->is_mut = 1;
     }
@@ -714,7 +714,7 @@ ID parser_parse_function(struct Parser * parser) {
 
     parser_eat_keyword(parser, KEYWORD_FN); // fn
 
-    if (id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_STATIC))) {
+    if (ID_IS_EQUAL(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_STATIC))) {
         function->is_static = 1;
         parser_eat_keyword(parser, KEYWORD_STATIC);
     }
@@ -722,7 +722,7 @@ ID parser_parse_function(struct Parser * parser) {
     ID name_id = parser->lexer.tok.interner_id;
     parser_eat(parser, TOKEN_ID); // [name] or inline
 
-    if (id_is_equal(name_id, keyword_get_intern_id(KEYWORD_INLINE))) {
+    if (ID_IS_EQUAL(name_id, keyword_get_intern_id(KEYWORD_INLINE))) {
         function->is_inline = 1;
         name_id = parser->lexer.tok.interner_id;
         parser_eat(parser, TOKEN_ID); // [name]
@@ -740,7 +740,7 @@ ID parser_parse_function(struct Parser * parser) {
     if (parser->lexer.tok.type != TOKEN_RPAREN) {
         do {
             mut = 0;
-            if (parser->lexer.tok.type == TOKEN_ID && id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUT))) {
+            if (parser->lexer.tok.type == TOKEN_ID && ID_IS_EQUAL(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUT))) {
                 parser_eat(parser, TOKEN_ID);
                 mut = 1;
             }
@@ -780,8 +780,6 @@ ID parser_parse_function(struct Parser * parser) {
 
         for (size_t i = 0; i < function->where.size; ++i) {
             ID clause = ARENA_GET(function->where, i, ID);
-            
-            println("{u}) {s}", i + 1, type_to_str(clause));
         }
 
     }
@@ -826,7 +824,7 @@ ID parser_parse_import(struct Parser * parser) {
 
     a_module * this_module = get_scope(ID_AST_MODULE, parser->current_scope_id);
     ASSERT(this_module != NULL, "Unable to find current module");
-    ASSERT1(id_is_equal(this_module->info.node_id, parser->current_scope_id));
+    ASSERT1(ID_IS_EQUAL(this_module->info.node_id, parser->current_scope_id));
 
     ID imported_module_id = add_module(parser, abs_path);
     ASSERT1(!ID_IS_INVALID(imported_module_id));
@@ -883,7 +881,7 @@ void parser_parse_module(struct Parser * parser, a_module * module) {
 
         ID module_member_id = parser_parse_identifier(parser);
         ASSERT1(!ID_IS_INVALID(module_member_id));
-        ASSERT1(id_is_equal(parser->current_scope_id, module->info.node_id));
+        ASSERT1(ID_IS_EQUAL(parser->current_scope_id, module->info.node_id));
 
         ARENA_APPEND(&module->members, module_member_id);
         symbol_table_insert(&module->sym_table, module_member_id);

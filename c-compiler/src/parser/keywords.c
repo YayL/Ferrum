@@ -35,7 +35,7 @@ char keyword_interner_id_is_inbounds(ID id) {
 
 struct Keyword keyword_get_by_intern_id(ID id) {
     struct Keyword keyword = keyword_get(id.id - keyword_get(KEYWORD_NOT_FOUND + 1).intern_id.id + 1);
-    ASSERT1(keyword.key == KEYWORD_NOT_FOUND || id_is_equal(keyword.intern_id, id));
+    ASSERT1(keyword.key == KEYWORD_NOT_FOUND || ID_IS_EQUAL(keyword.intern_id, id));
     return keyword;
 }
 

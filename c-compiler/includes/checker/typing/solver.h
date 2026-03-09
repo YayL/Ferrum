@@ -1,35 +1,51 @@
 #pragma once
 
-#include "common/data/deque.h"
-#include "parser/types.h"
-
-IMPLEMENT_DEQUE(ID);
-
-#define TYPE_IDS_TO_CONSTRAINT_PAIR(FROM, TO) ((struct constraint_type_id_pair) {.from = (FROM), .to = (TO)})
-
-struct constraint_type_id_pair {
-	ID from, to;
-};
-
-static inline char constraint_type_id_pair_eq(struct constraint_type_id_pair pair1, struct constraint_type_id_pair pair2) {
-	return type_check_deep_equal(pair1.from, pair2.from) && type_check_deep_equal(pair1.to, pair2.to);
-}
-
-static inline uint64_t constraint_type_id_hash(struct constraint_type_id_pair pair) {
-	return type_id_to_hash(pair.from) | type_id_to_hash(pair.to);
-}
-
-KHASH_INIT(map_type_id_pair_to_constraint, struct constraint_type_id_pair, ID, 1, constraint_type_id_hash, constraint_type_id_pair_eq);
-
 #include "checker/typing/dimensions.h"
-struct solver {
-	DEQUE_T(ID) worklist;
-	khash_t(map_type_id_pair_to_constraint) constraints;
-	Arena err_constraints;
+
+typedef struct solver {
+	// Arena err_constraints;
 	Dim_Resolver resolver;
-};
+} Solver;
 
-void solver_initialize(struct solver * ctx);
-void solver_process_worklist(struct solver * ctx);
 
-void solver_add_new_flow(struct solver * ctx, ID from, ID to, DdNode * from_choice, DdNode * to_choice);
+void solver_initialize(Solver * ctx);
+
+char solver_decompose(Solver * ctx, ID id1, ID id2, DdNode * world);
+void solver_unify(Solver * solver, ID id1, ID id2, DdNode * world);
+void solver_add_variable_group_requirement(Solver * ctx, ID id1, ID id2, DdNode * world);
+
+void generate_template_constraints(Solver * solver, ID node_id, Arena * templates, DdNode * parent_choice);
+
+static inline DdNode * cudd_both(struct solver * solver, DdNode * node1, DdNode * node2) {
+	if (node1 == NULL) {
+		return node2;
+	} else if (node2 == NULL) {
+		return node1;
+	}
+	
+	DdNode * new_node = Cudd_bddAnd(solver->resolver.manager, node1, node2);
+	Cudd_Ref(new_node);
+
+	return new_node;
+}
+
+static inline DdNode * cudd_either(struct solver * solver, DdNode * node1, DdNode * node2) {
+	if (node1 == NULL) {
+		return node2;
+	} else if (node2 == NULL) {
+		return node1;
+	}
+	
+	DdNode * new_node = Cudd_bddOr(solver->resolver.manager, node1, node2);
+	Cudd_Ref(new_node);
+
+	return new_node;
+}
+
+static inline void solver_add_invalid_world(Solver * solver, DdNode * world) {
+	DdNode * new_state = cudd_both(solver, Cudd_Not(world), solver->resolver.state);
+	Cudd_RecursiveDeref(solver->resolver.manager, solver->resolver.state);
+	ASSERT1(new_state != NULL);
+
+	solver->resolver.state = new_state;
+}

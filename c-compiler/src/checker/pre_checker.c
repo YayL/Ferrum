@@ -26,7 +26,7 @@ void resolve_impl(a_implementation * impl) {
 		a_symbol impl_symbol = LOOKUP(ARENA_GET(impl->templates, i, ID), a_symbol);
 		a_symbol trait_symbol = LOOKUP(ARENA_GET(trait->templates, i, ID), a_symbol);
 
-		if (!id_is_equal(impl_symbol.name_id, trait_symbol.name_id)) {
+		if (!ID_IS_EQUAL(impl_symbol.name_id, trait_symbol.name_id)) {
 			ERROR("Implementation does not match trait template type order");
 			print_trace();
 			exit(1);
@@ -53,7 +53,7 @@ void resolve_impls() {
 ID find_implicit_cast_trait() {
 	ID implicit_cast_trait = interner_intern(SOURCE_SPAN_INIT("#ImplicitCast"));
 	LOOP_OVER_REGISTRY(a_trait, item, {
-		if (id_is_equal(item->name_id, implicit_cast_trait)) {
+		if (ID_IS_EQUAL(item->name_id, implicit_cast_trait)) {
 			return item->info.node_id;
 		}
 	});
