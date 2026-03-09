@@ -1,3 +1,5 @@
+import "groups/numeric" as numeric
+
 import "ops/op" as op
 import "semantics/implicit_cast" as implicit_cast
 

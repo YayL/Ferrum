@@ -82,12 +82,12 @@ ID checker_check_symbol(ID node_id, const Arena templates) {
     switch (symbol->node_id.type) {
         case ID_AST_FUNCTION: {
             Arena temp_templates = {0};
-            generate_template_constraints(symbol->node_id, &temp_templates);
+            generate_template_constraints(symbol->node_id, &temp_templates, NULL, NULL);
             return replace_templates_in_type_with_template_variables(ast_get_type_of(symbol->node_id), temp_templates, 0);
         } break;
         case ID_AST_VARIABLE: {
             Arena temp_templates = {0};
-            generate_template_constraints(symbol->node_id, &temp_templates);
+            generate_template_constraints(symbol->node_id, &temp_templates, NULL, NULL);
             ID type_id = replace_templates_in_type_with_template_variables(ast_get_type_of(symbol->node_id), temp_templates, 0);
             return type_id;
         }
@@ -192,7 +192,6 @@ ID checker_check_op(ID node_id, const Arena templates) {
         default: break;
     }
 
-    Variable_TC * result_var = tc_allocate(ID_TC_VARIABLE);
 
     Fn_T * req_sig = type_allocate(ID_FN_TYPE);
     Tuple_T * fn_args = type_allocate(ID_TUPLE_TYPE);
@@ -205,11 +204,16 @@ ID checker_check_op(ID node_id, const Arena templates) {
         ASSERT1(op->op.mode == UNARY_PRE || op->op.mode == UNARY_POST);
     }
 
-
     ARENA_APPEND(&fn_args->types, checker_check_expr_node(op->right_id, templates));
 
     req_sig->arg_type = fn_args->info.type_id;
-    req_sig->ret_type = result_var->variable_id;
+
+    if (ID_IS_INVALID(op->type_id)) {
+        Variable_TC * result_var = tc_allocate(ID_TC_VARIABLE);
+        req_sig->ret_type = result_var->variable_id;
+    } else {
+        req_sig->ret_type = op->type_id;
+    }
 
     ID name_id = operator_get_intern_id(op->op.key);
     Arena candidates = member_function_index_lookup(name_id);
@@ -219,19 +223,19 @@ ID checker_check_op(ID node_id, const Arena templates) {
     ID call_site_type_id = replace_templates_in_type_with_template_variables(req_sig->info.type_id, templates, 1);
     checker_generate_member_function_call_dimension(op, name_id, call_site_type_id);
 
-    return op->type_id = result_var->variable_id;
+    return op->type_id = req_sig->ret_type;
 }
 
 ID checker_check_expression(ID node_id, const Arena templates) {
     a_expression * expr = lookup(node_id);
     if (expr->children.size == 0) {
-        return VOID_TYPE;
+        return expr->type_id = VOID_TYPE;
     }
 
     if (expr->children.size == 1) {
         ID child_node_id = ARENA_GET(expr->children, 0, ID);
         ASSERT1(!ID_IS_INVALID(child_node_id));
-        return checker_check_expr_node(child_node_id, templates);
+        return expr->type_id = checker_check_expr_node(child_node_id, templates);
     }
 
     Tuple_T * tuple_type = type_allocate(ID_TUPLE_TYPE);
@@ -242,7 +246,7 @@ ID checker_check_expression(ID node_id, const Arena templates) {
         ARENA_APPEND(&tuple_type->types, checker_check_expr_node(child_node_id, templates));
     }
 
-    return tuple_type->info.type_id;
+    return expr->type_id = tuple_type->info.type_id;
 }
 
 ID checker_check_variable(ID node_id, const Arena templates) {
@@ -312,7 +316,7 @@ void checker_check_struct(ID node_id) {
     context_add_declaration_list(_struct.members);
 
     Arena templates = {.arena = NULL};
-    generate_template_constraints(node_id, &templates);
+    generate_template_constraints(node_id, &templates, NULL, NULL);
 
     for (size_t i = 0; i < _struct.declarations.size; ++i) {
         ID child_node_id = ARENA_GET(_struct.declarations, i, ID);
@@ -459,7 +463,7 @@ void checker_check_function(ID node_id, Arena * templates_ref) {
         templates = *templates_ref;
     }
 
-    generate_template_constraints(node_id, &templates);
+    generate_template_constraints(node_id, &templates, NULL, NULL);
     context_add_declaration_list(function.arguments);
 
     for (int i = 0; i < function.arguments.size; ++i) {

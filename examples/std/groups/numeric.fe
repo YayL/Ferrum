@@ -3,12 +3,12 @@ group Unsigned as (u8, u16, u32, u64, u128)
 group Float as (f8, f16, f32, f64, f128)
 
 trait Integer<T> {}
-impl<T> Integer<T: T> where Signed<T> {}
-impl<T> Integer<T: T> where Unsigned<T> {}
+impl<U> Integer<T: U> where Signed<T> {}
+impl<U> Integer<T: U> where Unsigned<T> {}
 
 trait Numeric<T> {}
-impl<T> Numeric<T: T> where Integer<T> {}
-impl<T> Numeric<T: T> where Float<T> {}
+impl<U> Numeric<T: U> where Integer<T> {}
+impl<U> Numeric<T: U> where Float<T> {}
 
 import "../ops/cast/cast" as cast
 

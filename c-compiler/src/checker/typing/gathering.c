@@ -201,7 +201,7 @@ ID replace_templates_in_type_with_template_variables(ID type_id, const Arena tem
 	return _replace_templates_in_type_with_template_variables(type_id, templates, allow_cast);
 }
 
-void populate_template_list(Arena arena, Arena * templates) {
+void populate_template_list_from_arena(Arena arena, Arena * templates) {
 	for (size_t i = 0; i < arena.size; ++i) {
 		ID template_id = ARENA_GET(arena, i, ID);
 		ASSERT1(ID_IS(template_id, ID_AST_SYMBOL));
@@ -225,22 +225,41 @@ void populate_template_list(Arena arena, Arena * templates) {
 	}
 }
 
-void generate_trait_implementation_usage_constraints(ID trait_id, Arena passed_template_types, Arena templates) {
+void generate_trait_implementation_usage_constraints(ID trait_id, Arena passed_template_types, Arena templates, struct solver * ctx, DdNode * parent_choice) {
 	ASSERT1(ID_IS(trait_id, ID_AST_TRAIT));
+	ASSERT1(passed_template_types.size > 0);
 	a_trait * trait = lookup(trait_id);
 	ASSERT1(trait->templates.size == passed_template_types.size); // should've been checked in pre-checker
 
-	Variable_TC * variable = tc_allocate(ID_TC_VARIABLE);
+	Tuple_T * tuple = type_allocate(ID_TUPLE_TYPE);
+	arena_grow(&tuple->types, passed_template_types.size);
+
+	for (size_t i = 0; i < passed_template_types.size; ++i) {
+		ID template = ARENA_GET(passed_template_types, i, ID);
+		ASSERT1(ID_IS(template, ID_SYMBOL_TYPE));
+		Symbol_T symbol_type = LOOKUP(template, Symbol_T);
+		ASSERT1(symbol_type.templates.size == 0);
+
+		ID template_type = find_template(templates, ast_get_interner_id(symbol_type.symbol_id));
+		ARENA_APPEND(&tuple->types, template_type);
+	}
 
 	Dimension_TC * dimension = tc_allocate(ID_TC_DIMENSION);
 	dimension->candidates = trait->implementations;
 
-	Constraint_TC * constraint = tc_allocate(ID_TC_CONSTRAINT);
-	constraint->from = variable->variable_id;
-	constraint->to = dimension->dimension_id;
+	println("D{u}: {s}", dimension->dimension_id.id, interner_lookup_str(trait->name_id)._ptr);
+
+	if (ctx == NULL) {
+		Constraint_TC * constraint = tc_allocate(ID_TC_CONSTRAINT);
+		constraint->from = tuple->info.type_id;
+		constraint->to = dimension->dimension_id;
+	} else {
+		dimension_init_choices(&ctx->resolver, dimension, parent_choice);
+		solver_add_new_flow(ctx, tuple->info.type_id, dimension->dimension_id, NULL, NULL);
+	}
 }
 
-void generate_where_constraints(Arena arena, Arena templates) {
+void generate_where_constraints(Arena arena, Arena templates, struct solver * ctx, DdNode * parent_choice) {
 	for (size_t i = 0; i < arena.size; ++i) {
 		ID constraint = ARENA_GET(arena, i, ID);
 		ASSERT1(ID_IS(constraint, ID_SYMBOL_TYPE));
@@ -255,11 +274,11 @@ void generate_where_constraints(Arena arena, Arena templates) {
 		}
 
 		ASSERT1(ID_IS(symbol->node_id, ID_AST_TRAIT));
-		generate_trait_implementation_usage_constraints(symbol->node_id, symbol_type->templates, templates);
+		generate_trait_implementation_usage_constraints(symbol->node_id, symbol_type->templates, templates, ctx, parent_choice);
 	}
 }
 
-void generate_template_constraints(ID node_id, Arena * templates) {
+void generate_template_constraints(ID node_id, Arena * templates, struct solver * ctx, DdNode * parent_choice) {
 	if (templates->arena == NULL) {
 		*templates = arena_init(sizeof(struct template_variable));
 	}
@@ -268,32 +287,33 @@ void generate_template_constraints(ID node_id, Arena * templates) {
 		case ID_AST_VARIABLE: {
 			a_variable * variable = lookup(node_id);
 			if  (!ID_IS(variable->info.scope_id, ID_AST_MODULE)) {
-				generate_template_constraints(variable->info.scope_id, templates);
+				generate_template_constraints(variable->info.scope_id, templates, ctx, parent_choice);
 			}
 		} break;
         case ID_AST_FUNCTION: {
             a_function function = LOOKUP(node_id, a_function);
 			if (!ID_IS(function.info.scope_id, ID_AST_MODULE)) {
-				generate_template_constraints(function.info.scope_id, templates);
+				generate_template_constraints(function.info.scope_id, templates, ctx, parent_choice);
 			}
 
-			populate_template_list(function.templates, templates);
+			populate_template_list_from_arena(function.templates, templates);
+			generate_where_constraints(function.where, *templates, ctx, parent_choice);
         } break;
         case ID_AST_STRUCT: {
             a_structure _struct = LOOKUP(node_id, a_structure);
 
-			populate_template_list(_struct.templates, templates);
+			populate_template_list_from_arena(_struct.templates, templates);
         } break;
         case ID_AST_IMPL: {
             a_implementation impl = LOOKUP(node_id, a_implementation);
 
-			populate_template_list(impl.generics, templates);
-			populate_template_list(impl.templates, templates);
-			generate_where_constraints(impl.where, *templates);
+			populate_template_list_from_arena(impl.generics, templates);
+			populate_template_list_from_arena(impl.templates, templates);
+			generate_where_constraints(impl.where, *templates, ctx, parent_choice);
         } break;
 		case ID_AST_SCOPE: {
 			a_scope * scope = lookup(node_id);
-			generate_template_constraints(scope->info.scope_id, templates);
+			generate_template_constraints(scope->info.scope_id, templates, ctx, parent_choice);
 		} break;
         default:
             FATAL("Invalid id type: {s}", id_type_to_string(node_id.type));

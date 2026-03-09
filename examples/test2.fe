@@ -1,0 +1,5 @@
+import "std/lib" as std
+
+fn foo<T>(a: T) -> T where std::numeric::Unsigned<T> {
+    return a
+}

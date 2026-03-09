@@ -1,6 +1,5 @@
 #pragma once
 
-#include "checker/typing/dimensions.h"
 #include "common/data/deque.h"
 #include "parser/types.h"
 
@@ -22,6 +21,7 @@ static inline uint64_t constraint_type_id_hash(struct constraint_type_id_pair pa
 
 KHASH_INIT(map_type_id_pair_to_constraint, struct constraint_type_id_pair, ID, 1, constraint_type_id_hash, constraint_type_id_pair_eq);
 
+#include "checker/typing/dimensions.h"
 struct solver {
 	DEQUE_T(ID) worklist;
 	khash_t(map_type_id_pair_to_constraint) constraints;
@@ -31,3 +31,5 @@ struct solver {
 
 void solver_initialize(struct solver * ctx);
 void solver_process_worklist(struct solver * ctx);
+
+void solver_add_new_flow(struct solver * ctx, ID from, ID to, DdNode * from_choice, DdNode * to_choice);

@@ -713,7 +713,7 @@ ID parser_parse_function(struct Parser * parser) {
     parser->current_scope_id = function->info.node_id;
 
     parser_eat_keyword(parser, KEYWORD_FN); // fn
-    
+
     if (id_is_equal(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_STATIC))) {
         function->is_static = 1;
         parser_eat_keyword(parser, KEYWORD_STATIC);
@@ -777,6 +777,13 @@ ID parser_parse_function(struct Parser * parser) {
     if (parser->lexer.tok.type == TOKEN_ID) {
         function->where = arena_init(sizeof(ID));
         parser_parse_where(parser, &function->where);
+
+        for (size_t i = 0; i < function->where.size; ++i) {
+            ID clause = ARENA_GET(function->where, i, ID);
+            
+            println("{u}) {s}", i + 1, type_to_str(clause));
+        }
+
     }
 
     if (parser->lexer.tok.type == TOKEN_LBRACE) {

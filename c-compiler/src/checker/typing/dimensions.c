@@ -2,9 +2,36 @@
 
 #include "tables/registry_manager.h"
 
+Dim_Resolver dimension_resolver_init() {
+	DdManager * manager = Cudd_Init(0, 0, CUDD_UNIQUE_SLOTS, CUDD_CACHE_SLOTS, 0);
+	Dim_Resolver resolver = { .manager = manager, .bit_variable_count = 0, .state = NULL };
+
+	Dimension_TC * dimension;
+
+	LOOP_OVER_REGISTRY(Dimension_TC, dimension, {
+			dimension_init_choices(&resolver, dimension, NULL);
+	});
+
+	// resolver.state = state;
+	// resolver_print_possibilities(resolver);
+	//
+	// DdNode * choice_1 = dimension_get_choice(resolver, (ID) {.id = 3, .type = ID_TC_DIMENSION}, 0);
+	// DdNode * choice_2 = dimension_get_choice(resolver, (ID) {.id = 3, .type = ID_TC_DIMENSION}, 2);
+	// DdNode * choice_3 = dimension_get_choice(resolver, (ID) {.id = 1, .type = ID_TC_DIMENSION}, 2);
+	//
+	// state = Cudd_bddAnd(resolver.manager, Cudd_Not(choice_1), state);
+	// state = Cudd_bddAnd(resolver.manager, Cudd_Not(choice_2), state);
+	// state = Cudd_bddAnd(resolver.manager, Cudd_Not(choice_3), state);
+	//
+	// resolver.state = state;
+	// resolver_print_possibilities(resolver);
+
+	return resolver;
+}
+
 DdNode * dimension_get_choice(Dim_Resolver resolver, ID dimension_id, size_t choice) {
 	Dimension_TC * dimension = lookup(dimension_id);
-	ASSERT1(choice < dimension->candidates.size);
+	ASSERT1(choice < (1 << dimension->bit_count));
 
 	DdNode * result = Cudd_ReadOne(resolver.manager);
 	ASSERT1(result != NULL);
@@ -32,24 +59,41 @@ void resolver_add_invalid_choice(Dim_Resolver * resolver, DdNode * choice) {
 		return;
 	}
 
+	ASSERT1(resolver->state != NULL);
 	DdNode * new_state = Cudd_bddAnd(resolver->manager, resolver->state, Cudd_Not(choice));
+	ASSERT1(new_state != NULL);
 	Cudd_Ref(new_state);
 	Cudd_RecursiveDeref(resolver->manager, resolver->state);
 	resolver->state = new_state;
 }
 
-void resolver_print_possibilities(Dim_Resolver resolver) {
-	DdGen *gen;
-	int *cube;
-	CUDD_VALUE_TYPE value;
+void print_possibilities(Dim_Resolver resolver, DdNode * state) {
+	DdGen * gen = NULL;
+	int * cube = NULL;
+
+	// We search for primes that cover the 'state' (from state to state)
+	gen = Cudd_FirstPrime(resolver.manager, state, state, &cube);
+    if (!gen) return;
 
 	// Iterate over every path that leads to the 'One' terminal
-	Cudd_ForeachCube(resolver.manager, resolver.state, gen, cube, value) {
+	do {
 		print("(");
 		char first_dim = 1;
 
-		Dimension_TC *dim;
+		Dimension_TC * dim;
 		LOOP_OVER_REGISTRY(Dimension_TC, dim, {
+			char is_relevant = 0;
+			for (int b = 0; b < dim->bit_count; ++b) {
+				if (cube[dim->first_bit_index + b] != 2) {
+					is_relevant = 1;
+					break;
+				}
+			}
+
+			if (!is_relevant) {
+				continue;
+			}
+
 			if (!first_dim) print("], ");
 			first_dim = 0;
 
@@ -68,13 +112,19 @@ void resolver_print_possibilities(Dim_Resolver resolver) {
 					}
 				}
 
-				if (match) {
-					if (!first_cand) print("|");
-					print("{u}", c);
-					first_cand = 0;
+				if (!match) {
+					continue;
 				}
+
+				if (!first_cand) {
+					print("|");
+				}
+
+				print("{u}", c);
+				first_cand = 0;
 			}
 		});
 
 		println("])");
-	}}
+	} while (Cudd_NextPrime(gen, &cube));
+}

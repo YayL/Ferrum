@@ -100,5 +100,9 @@ struct template_variable {
 	ID variable_id;
 };
 
-void generate_template_constraints(ID node_id, Arena * templates);
+#include "checker/typing/solver.h"
+typedef struct solver solver;
+
+void populate_template_list_from_arena(Arena arena, Arena * templates);
+void generate_template_constraints(ID node_id, Arena * templates, solver * ctx, DdNode * choice);
 ID replace_templates_in_type_with_template_variables(ID type_id, const Arena templates, char allow_cast);
