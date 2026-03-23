@@ -42,15 +42,18 @@ char solver_decompose_same(Solver * solver, ID id1, ID id2, DdNode * world) {
 				return 0;
 			}
 			
+			char one_is_not_equal = 0;
 			for (size_t i = 0; i < tuple1.types.size; ++i) {
-				solver_unify(solver, ARENA_GET(tuple1.types, i, ID), ARENA_GET(tuple2.types, i, ID), world);
+				one_is_not_equal |= !solver_unify(solver, ARENA_GET(tuple1.types, i, ID), ARENA_GET(tuple2.types, i, ID), world);
 			}
+
+			return !one_is_not_equal;
 		} break;
 		case ID_FN_TYPE: {
 			Fn_T fn1 = LOOKUP(id1, Fn_T), fn2 = LOOKUP(id2, Fn_T);
 			
-			solver_decompose_same(solver, fn1.arg_type, fn2.arg_type, world);
-			solver_unify(solver, fn1.ret_type, fn2.ret_type, world);
+			return solver_decompose_same(solver, fn1.arg_type, fn2.arg_type, world) 
+					& solver_unify(solver, fn1.ret_type, fn2.ret_type, world);
 		} break;
 		case ID_PLACE_TYPE: {
 			Place_T place1 = LOOKUP(id1, Place_T), place2 = LOOKUP(id2, Place_T);
@@ -60,7 +63,13 @@ char solver_decompose_same(Solver * solver, ID id1, ID id2, DdNode * world) {
 				return 0;
 			}
 
-			solver_unify(solver, place1.basetype_id, place2.basetype_id, world);
+			// if (ID_IS(place1.basetype_id, ID_TC_VARIABLE)) {
+			// 	group_find_root_group(lookup(place1.basetype_id))->allows_place_flag = 0;
+			// } else if (ID_IS(place2.basetype_id, ID_TC_VARIABLE)) {
+			// 	group_find_root_group(lookup(place2.basetype_id))->allows_place_flag = 0;
+			// }
+
+			return solver_unify(solver, place1.basetype_id, place2.basetype_id, world);
 		} break;
 		case ID_NUMERIC_TYPE: {
 			Numeric_T num1 = LOOKUP(id1, Numeric_T), num2 = LOOKUP(id2, Numeric_T);
@@ -74,73 +83,7 @@ char solver_decompose_same(Solver * solver, ID id1, ID id2, DdNode * world) {
 		default: FATAL("Unimplemented type: {s}", id_type_to_string(id1.type));
 	}
 
-	return 1;
-}
-
-static inline char solver_decompose_dimension(Solver * solver, ID dimension_id, ID other_id, DdNode * world) {
-	Dimension_TC dimension = LOOKUP(dimension_id, Dimension_TC);
-	
-	Arena candidates = dimension.candidates;
-	for (size_t i = 0; i < candidates.size; ++i) {
-		ID candidate_id = ARENA_GET(candidates, i, ID);
-		DdNode * choice = dimension_get_choice(solver, dimension_id, i, world);
-
-		Arena temp_templates = {0};
-		solver_generate_template_constraints(solver, candidate_id, &temp_templates, choice);
-
-		switch (candidate_id.type) {
-			case ID_AST_FUNCTION: {
-				a_function function = LOOKUP(candidate_id, a_function);
-				ID to_type = replace_templates_in_type_with_template_variables(solver, function.type, temp_templates);
-				// println("func: {s} == {s}", type_to_str(other_id), type_to_str(to_type));
-				solver_decompose_same(solver, other_id, to_type, choice);
-			} break;
-			case ID_AST_IMPL: {
-				a_implementation impl = LOOKUP(candidate_id, a_implementation);
-				const Tuple_T tuple_type = LOOKUP(other_id, Tuple_T);
-				ASSERT1(tuple_type.types.size == impl.templates.size);
-
-				for (size_t i = 0; i < impl.templates.size; ++i) {
-					ID impl_replaced_type = replace_templates_in_type_with_template_variables(solver, ast_get_type_of(ARENA_GET(impl.templates, i, ID)), temp_templates);
-					solver_unify(solver, ARENA_GET(tuple_type.types, i, ID), impl_replaced_type, choice);
-				}
-			} break;
-			default: FATAL("Unhandled candidate type: {s}", id_type_to_string(candidate_id.type));
-		}
-
-		arena_free(temp_templates);
-	}
-
-	return 1;
-}
-
-static inline char solver_decompose_cast(Solver * solver, ID cast_id, ID other_id, DdNode * world) {
-	Cast_TC * cast = lookup(cast_id);
-	Dimension_TC * dimension = lookup(cast->dimension_id);
-
-	const ID dimension_id = cast->dimension_id, cast_variable_id = cast->variable_id;
-	Arena candidates = dimension->candidates;
-	for (size_t i = 0; i < candidates.size; ++i) {
-		ID candidate_id = ARENA_GET(candidates, i, ID);
-		DdNode * choice = dimension_get_choice(solver, dimension_id, i, world);
-
-		Arena temp_templates = {0};
-		solver_generate_template_constraints(solver, candidate_id, &temp_templates, choice);
-
-		ASSERT1(ID_IS(candidate_id, ID_AST_IMPL));
-		a_implementation impl = LOOKUP(candidate_id, a_implementation);
-		ID impl_from_type_id = replace_templates_in_type_with_template_variables(solver, ast_get_type_of(ARENA_GET(impl.templates, 0, ID)), temp_templates);
-		ID impl_to_type_id = replace_templates_in_type_with_template_variables(solver, ast_get_type_of(ARENA_GET(impl.templates, 1, ID)), temp_templates);
-		// println("{s} -> {s} | {s}", type_to_str(impl_from_type_id), type_to_str(impl_to_type_id), type_to_str(ast_get_type_of(ARENA_GET(impl.templates, 1, ID))));
-
-		// This order creates fewer groups because they can directly go into another group
-		solver_unify(solver, impl_to_type_id, cast_variable_id, choice);
-		solver_unify(solver, other_id, impl_from_type_id, choice);
-
-		arena_free(temp_templates);
-	}
-
-	return 1;
+	return 0;
 }
 
 char solver_decompose(Solver * solver, ID id1, ID id2, DdNode * world) {
@@ -151,15 +94,77 @@ char solver_decompose(Solver * solver, ID id1, ID id2, DdNode * world) {
 		return solver_decompose_same(solver, id1, id2, world);
 	}
 
-	switch (id1.type) {
-		case ID_TC_DIMENSION: return solver_decompose_dimension(solver, id1, id2, world);
-		case ID_TC_CAST: return solver_decompose_cast(solver, id1, id2, world);
-		default: break;
-	}
+	ASSERT1(id1.type != ID_TC_DIMENSION);
+	ASSERT1(id1.type != ID_TC_CAST);
 
 	switch (id2.type) {
-		case ID_TC_DIMENSION: return solver_decompose_dimension(solver, id2, id1, world);
-		case ID_TC_CAST: return solver_decompose_cast(solver, id2, id1, world);
+		case ID_TC_DIMENSION: {
+			const ID other_id = id1, dimension_id = id2;
+			Dimension_TC dimension = LOOKUP(dimension_id, Dimension_TC);
+
+			Arena candidates = dimension.candidates;
+			for (size_t i = 0; i < candidates.size; ++i) {
+				ID candidate_id = ARENA_GET(candidates, i, ID);
+				DdNode * choice = dimension_get_choice(solver, dimension_id, i, world);
+				// print_possibilities(solver, choice);
+
+				Arena temp_templates = {0};
+				solver_generate_template_constraints(solver, candidate_id, &temp_templates, choice);
+
+				switch (candidate_id.type) {
+					case ID_AST_FUNCTION: {
+						a_function function = LOOKUP(candidate_id, a_function);
+						ID to_type = replace_templates_in_type_with_template_variables(solver, function.type, temp_templates);
+						// println("func: {s} == {s}", type_to_str(other_id), type_to_str(to_type));
+						solver_decompose_same(solver, other_id, to_type, choice);
+					} break;
+					case ID_AST_IMPL: {
+						a_implementation impl = LOOKUP(candidate_id, a_implementation);
+						const Tuple_T tuple_type = LOOKUP(other_id, Tuple_T);
+						ASSERT1(tuple_type.types.size == impl.templates.size);
+
+						for (size_t i = 0; i < impl.templates.size; ++i) {
+							ID impl_replaced_type = replace_templates_in_type_with_template_variables(solver, ast_get_type_of(ARENA_GET(impl.templates, i, ID)), temp_templates);
+							solver_unify(solver, ARENA_GET(tuple_type.types, i, ID), impl_replaced_type, choice);
+						}
+					} break;
+					default: FATAL("Unhandled candidate type: {s}", id_type_to_string(candidate_id.type));
+				}
+
+				arena_free(temp_templates);
+			}
+
+			return 1;
+		} break;
+		case ID_TC_CAST: {
+			const ID other_id = id1, cast_id = id2;
+			Cast_TC * cast = lookup(cast_id);
+			Dimension_TC * dimension = lookup(cast->dimension_id);
+
+			const ID dimension_id = cast->dimension_id, cast_variable_id = cast->variable_id;
+			Arena candidates = dimension->candidates;
+			for (size_t i = 0; i < candidates.size; ++i) {
+				ID candidate_id = ARENA_GET(candidates, i, ID);
+				DdNode * choice = dimension_get_choice(solver, dimension_id, i, world);
+
+				Arena temp_templates = {0};
+				solver_generate_template_constraints(solver, candidate_id, &temp_templates, choice);
+
+				ASSERT1(ID_IS(candidate_id, ID_AST_IMPL));
+				a_implementation impl = LOOKUP(candidate_id, a_implementation);
+				ID impl_from_type_id = replace_templates_in_type_with_template_variables(solver, ast_get_type_of(ARENA_GET(impl.templates, 0, ID)), temp_templates);
+				ID impl_to_type_id = replace_templates_in_type_with_template_variables(solver, ast_get_type_of(ARENA_GET(impl.templates, 1, ID)), temp_templates);
+				println("{s} -> {s} | {s}", type_to_str(impl_from_type_id), type_to_str(impl_to_type_id), type_to_str(ast_get_type_of(ARENA_GET(impl.templates, 1, ID))));
+
+				// This order creates fewer groups because they can directly go into another group
+				solver_unify(solver, impl_to_type_id, cast_variable_id, choice);
+				solver_unify(solver, other_id, impl_from_type_id, choice);
+
+				arena_free(temp_templates);
+			}
+
+			return 1;
+		} break;
 		default: break;
 	}
 	
@@ -175,134 +180,35 @@ char solver_decompose(Solver * solver, ID id1, ID id2, DdNode * world) {
 	return 1;
 }
 
-void solver_unify(struct solver * solver, ID id1, ID id2, DdNode * world) {
+char solver_unify(struct solver * solver, ID id1, ID id2, DdNode * world) {
 	ASSERT1(!ID_IS_INVALID(id1));
 	ASSERT1(!ID_IS_INVALID(id2));
 
-	println("unify({s}, {s})", type_to_str(id1), type_to_str(id2));
+	print("unify({s}, {s}) | ", type_to_str(id1), type_to_str(id2));
+	print_possibilities(solver, world);
 
 	if (!ID_IS(id1, ID_TC_VARIABLE) && !ID_IS(id2, ID_TC_VARIABLE)) {
 		// Both are requirements so decompose into less complex types
 
-		if (!solver_decompose(solver, id1, id2, world)) {
-			solver_add_invalid_world(solver, world);
+		char is_equal = solver_decompose(solver, id1, id2, world);
+		if (!is_equal) {
+			println("{s} != {s}", type_to_str(id1), type_to_str(id2));
+			ASSERT1(world != NULL);
+			SOLVER_ADD_INVALID(solver, world);
 		}
 
-		return;
+		return is_equal;
 	} else if (!ID_IS(id2, ID_TC_VARIABLE)) {
 		// ID1 is a variable ID2 is a requirement
-		return solver_add_variable_group_requirement(solver, id1, id2, world);
+		solver_add_variable_group_requirement(solver, id1, id2, world);
+		return 1;
 	} else if (!ID_IS(id1, ID_TC_VARIABLE)) {
 		// ID2 is a variable ID1 is a requirement
-		return solver_add_variable_group_requirement(solver, id2, id1, world);
+		solver_add_variable_group_requirement(solver, id2, id1, world);
+		return 1;
 	}
 
-	// Two variables
-	ASSERT1(ID_IS(id1, ID_TC_VARIABLE));
-	ASSERT1(ID_IS(id2, ID_TC_VARIABLE));
-	Variable_TC * const var1 = lookup(id1);
-	Variable_TC * const var2 = lookup(id2);
-	
-	Group_TC * group1;
-	Group_TC * group2;
-	
-	if (ID_IS_INVALID(var1->group_id) && ID_IS_INVALID(var2->group_id)) {
-		group1 = group2 = tc_allocate(ID_TC_GROUP);
-		var1->group_id = var2->group_id = group1->group_id;
-	} else if (ID_IS_INVALID(var1->group_id)) {
-		group1 = group2 = group_find_root_group(var2);
-		var1->group_id = group1->group_id;
-	} else if (ID_IS_INVALID(var2->group_id)) {
-		group1 = group2 = group_find_root_group(var1);
-		var2->group_id = group2->group_id;
-	} else {
-		group1 = group_find_root_group(var1);
-		group2 = group_find_root_group(var2);
-	}
-
-	if (ID_IS_EQUAL(group1->group_id, group2->group_id)) {
-		return;
-	}
-
-	ASSERT1(ID_IS_INVALID(group1->parent_group_id));
-	ASSERT1(ID_IS_INVALID(group2->parent_group_id));
-
-	Group_TC * parent, * child;
-	if (group1->rank < group2->rank) {
-		parent = group2, child = group1;
-	} else {
-		parent = group1, child= group2;
-	}
-
-	child->parent_group_id = parent->group_id;
-	child->rank = parent->rank + 1; // this shouldn't ever have to be used but good to add anyway
-
-	if (ID_IS_INVALID(child->requirement)) {
-		return;
-	}
-
-	if (ID_IS_INVALID(parent->requirement)) {
-		parent->requirement = child->requirement;
-		return;
-	}
-
-/*
-*	parent: A -> B
-*	extracted: NULL
-*	child:	C -> D -> E
-*
-*	parent: C -> A -> B
-*	extracted: C | A -> B
-*	child: D -> E
-*
-*	parent: (A & D) -> B
-*	extracted: C | (A & D) -> B
-*	child: E
-*	
-*	parent: E -> (A & D) -> B
-*	extracted: C -> E | (A & D) -> B
-*
-*	parent: C -> E -> (A & D) -> B
-*/
-
-	ID parent_start_requirment_id = parent->requirement;
-	ID next_child_requirement_id = child->requirement;
-
-	Requirement_TC * extracted = NULL;
-	ID first_extracted = INVALID_ID;
-	while (!ID_IS_INVALID(next_child_requirement_id)) {
-		Requirement_TC * child_requirement = lookup(next_child_requirement_id);
-
-		next_child_requirement_id = child_requirement->next_requirement;
-		child_requirement->next_requirement = INVALID_ID;
-
-		solver_add_group_requirement(solver, parent, child_requirement, world);
-		
-		// Didn't find a match and added child_requirement to front of parent's requirement list
-		if (ID_IS_EQUAL(parent->requirement, child_requirement->requirement_id)) {
-			// Move parent requirement back to before child was added
-			parent->requirement = child_requirement->next_requirement;
-
-			if (extracted == NULL) {
-				first_extracted = child_requirement->requirement_id;
-				extracted = child_requirement;
-			} else {
-				// Add child requirement as next in extracted
-				extracted->next_requirement = child_requirement->requirement_id;
-				extracted = child_requirement;
-			}
-
-			// Detach extracted from parent
-			extracted->next_requirement = INVALID_ID;
-		}
-	}
-
-	if (extracted != NULL) {
-		extracted->next_requirement = parent->requirement;
-		parent->requirement = first_extracted;
-	}
-
-	return;
+	return (solver_unify_vars_groups(solver, id1, id2, world), 1);
 }
 
 void generate_trait_implementation_usage_constraints(Solver * solver, ID trait_id, Arena passed_template_types, Arena templates, DdNode * parent_choice) {

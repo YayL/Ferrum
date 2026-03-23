@@ -17,3 +17,10 @@ impl<T, U> cast::#Castable<From: T, To: U> where Numeric<T>, Numeric<U> {
 		#llvm_cast(#llvm_load(value), To)
 	}
 }
+/*
+impl cast::#Castable<From: i32, To: u32> {
+	fn inline #OP_CAST(value: From) -> To {
+		#llvm_cast(#llvm_load(value), To)
+	}
+}
+*/

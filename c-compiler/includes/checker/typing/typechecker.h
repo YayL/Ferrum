@@ -5,11 +5,11 @@
 
 typedef struct group_tc {
 	ID group_id;
-
 	ID parent_group_id;
-	uint32_t rank;
+	DdNode * gate;
 
-	ID requirement;
+	uint32_t rank;
+	ID first_requirement;
 } Group_TC;
 
 typedef struct requirement_tc {
@@ -38,16 +38,17 @@ typedef struct cast_tc {
 	ID dimension_id;
 } Cast_TC;
 
-typedef struct shape_tc { // Denotes that there is a requirement of a specific named member
+typedef struct shape_tc {
 	ID shape_id;
 
-	ID member_id;		// InternerID of the member that is accessed
+	ID member_id;
 	ID requirement_id;
 } Shape_TC;
 
 typedef struct variable_tc {
 	ID variable_id;
 	ID group_id;
+	DdNode * gate;
 } Variable_TC;
 
 static inline void tc_node_init(ID id, void * node) {
@@ -56,6 +57,8 @@ static inline void tc_node_init(ID id, void * node) {
 			((Group_TC *) node)->group_id = id;
 			((Group_TC *) node)->parent_group_id = INVALID_ID;
 			((Group_TC *) node)->rank = 0;
+			((Group_TC *) node)->gate = NULL;
+			((Group_TC *) node)->first_requirement = INVALID_ID;
 		} break;
 		case ID_TC_REQUIREMENT: {
 			((Requirement_TC *) node)->requirement_id = id;

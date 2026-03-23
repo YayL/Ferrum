@@ -22,36 +22,22 @@ DdNode * dimension_get_choice(Solver * solver, ID dimension_id, size_t choice, D
 
 		// println((choice >> i) & 1 ? "\t{i}" : "\t!{i}", i);
 
-		DdNode * next_result = Cudd_bddAnd(manager, result, (choice >> i) & 1 ? var : Cudd_Not(var));
-		ASSERT1(next_result != NULL);
-		Cudd_Ref(next_result);
+		CUDD_AND(tmp, solver, result, (choice >> i) & 1 ? var : Cudd_Not(var));
 		Cudd_RecursiveDeref(manager, result);
-		result = next_result;
+		result = tmp;
 	}
 
-	DdNode * tmp = cudd_both(solver, result, world);
+	CUDD_AND(tmp, solver, result, world);
 	Cudd_RecursiveDeref(solver->manager, result);
 	result = tmp;
 
 	return result;
 }
 
-void resolver_add_invalid_choice(Solver * solver, DdNode * choice) {
-	if (choice == NULL) {
-		return;
-	}
-
-	ASSERT1(solver->state != NULL);
-	DdNode * new_state = Cudd_bddAnd(solver->manager, solver->state, Cudd_Not(choice));
-	ASSERT1(new_state != NULL);
-	Cudd_Ref(new_state);
-	Cudd_RecursiveDeref(solver->manager, solver->state);
-	solver->state = new_state;
-}
-
 void print_possibilities(Solver * solver, DdNode * state) {
 	DdGen * gen = NULL;
 	int * cube = NULL;
+    char first = 1;
 
 	if (state == Cudd_ReadLogicZero(solver->manager)) {
 		println("No possibilities");
@@ -60,9 +46,15 @@ void print_possibilities(Solver * solver, DdNode * state) {
 
 	// We search for primes that cover the 'state' (from state to state)
 	gen = Cudd_FirstPrime(solver->manager, state, state, &cube);
-    if (!gen) return;
+    if (!gen) {
+        println("(N/A)");
+        return;
+    }
 
     do {
+        if (!first) {
+            print(" OR ");
+        }
         print("(");
         char first_dim = 1;
 
@@ -76,8 +68,9 @@ void print_possibilities(Solver * solver, DdNode * state) {
                     break;
                 }
             }
-
+            
             if (!is_relevant) continue;
+            first = 0;
 
             if (!first_dim) print(", ");
             print("D{u}[", dim->dimension_id.id);
@@ -104,6 +97,7 @@ void print_possibilities(Solver * solver, DdNode * state) {
             print("]");
         });
 
-        println(")");
+        print(")");
     } while (Cudd_NextPrime(gen, &cube));
+    println("");
 }

@@ -360,7 +360,7 @@ const char * type_to_str(ID type_id) {
         }
         case ID_TC_DIMENSION: {
             Dimension_TC dimension = LOOKUP(type_id, Dimension_TC);
-            return format("Dimension(Candidates: {i}, Bits: {i})", dimension.candidates.size, dimension.bit_count);
+            return format("Dimension(D{u}, Candidates: {i}, Bits: {i})", dimension.dimension_id.id, dimension.candidates.size, dimension.bit_count);
         }
         case ID_TC_CAST: {
             Cast_TC cast = LOOKUP(type_id, Cast_TC);

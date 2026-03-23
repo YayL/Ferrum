@@ -8,6 +8,7 @@
 #include "checker/typing/gathering.h"
 #include "checker/typing/solver.h"
 #include "checker/typing/dimensions.h"
+#include "checker/typing/groups.h"
 
 char check_has_member(ID node_id, ID member_name_id) {
     ASSERT1(ID_IS(node_id, ID_AST_SYMBOL));
@@ -104,6 +105,11 @@ ID checker_check_symbol(Solver * solver, ID node_id, const Arena templates) {
         symbol->node_id = context_lookup_declaration(symbol->name_id);
     }
 
+    if (ID_IS_INVALID(symbol->node_id)) {
+        ERROR("Unable to find symbol: {s}", interner_lookup_str(symbol->name_id)._ptr);
+        exit(1);
+    }
+
     if (ID_IS_EQUAL(symbol->info.scope_id, ast_get_scope_id(symbol->node_id))) {
         return replace_templates_in_type_with_template_variables(solver, ast_get_type_of(symbol->node_id), templates);
     }
@@ -120,7 +126,6 @@ ID checker_check_symbol(Solver * solver, ID node_id, const Arena templates) {
             ID type_id = replace_templates_in_type_with_template_variables(solver, ast_get_type_of(symbol->node_id), temp_templates);
             return type_id;
         }
-        case ID_INVALID_TYPE: FATAL("Unable to find symbol: {s}", interner_lookup_str(symbol->name_id)._ptr);
         default: break;
     }
 
@@ -300,6 +305,8 @@ ID checker_check_variable(Solver * solver, ID node_id, const Arena templates) {
         Variable_TC * variable_tc = tc_allocate(ID_TC_VARIABLE);
         place_type->basetype_id = variable_tc->variable_id;
     }
+
+    println("Variable: {s}", ast_to_string(node_id));
 
     return replace_templates_in_type_with_template_variables(solver, variable->type_id, templates);
 }
@@ -516,25 +523,37 @@ void checker_check_function(Solver * solver, ID node_id, Arena * templates_ref) 
 
     print_possibilities(solver, solver->state);
 
-    // LOOP_OVER_REGISTRY(Group_TC, group, {
-    //     if (!ID_IS_INVALID(group->parent_group_id)) {
-    //         continue;
-    //     }
-    //
-    //     println("\nGroup {u}:", group->group_id.id);
-    //
-    //     ID requirement_id = group->requirement;
-    //     while (!ID_IS_INVALID(requirement_id)) {
-    //         Requirement_TC requirement = LOOKUP(requirement_id, Requirement_TC);
-    //         println("{s}", type_to_str(requirement.type_id));
-    //         requirement_id = requirement.next_requirement;
-    //     }
-    // });
+    LOOP_OVER_REGISTRY(Group_TC, group, {
+        println("\nGroup {u}({b}):", group->group_id.id, ID_IS_INVALID(group->parent_group_id));
+        group_print_requirements(solver, group->group_id);
+    });
 
-    // LOOP_OVER_REGISTRY(Variable_TC, variable, {
-    //     if (ID_IS_INVALID(variable->group_id)) { continue; }
-    //     println("{s} - Group {u}", type_to_str(variable->variable_id), group_find_root_group(LOOKUP(variable->group_id, Group_TC).group_id)->group_id.id);
-    // });
+    println("\n");
+
+    a_scope scope = LOOKUP(function.body_id, a_scope);
+    for (size_t i = 0; i < scope.declarations.size; ++i) {
+        a_symbol var_symbol = LOOKUP(ARENA_GET(scope.declarations, i, ID), a_symbol);
+        ASSERT1(!ID_IS_INVALID(var_symbol.node_id));
+        a_variable var_ast = LOOKUP(var_symbol.node_id, a_variable);
+    
+        print("{i}): {s} | Gate: ", i + 1, type_to_str(var_ast.type_id));
+        ASSERT1(ID_IS(var_ast.type_id, ID_PLACE_TYPE));
+    
+        Place_T place_type = LOOKUP(var_ast.type_id, Place_T);
+        if (!ID_IS(place_type.basetype_id, ID_TC_VARIABLE)) {
+            continue;
+        }
+        ASSERT1(ID_IS(place_type.basetype_id, ID_TC_VARIABLE));
+        Variable_TC var = LOOKUP(place_type.basetype_id, Variable_TC);
+        print_possibilities(solver, var.gate);
+    
+        ASSERT1(ID_IS(var.group_id, ID_TC_GROUP));
+        Group_TC group = LOOKUP(var.group_id, Group_TC);
+        println("group: {u}", group.group_id.id);
+    
+        ASSERT1(ID_IS_INVALID(group.parent_group_id));
+        group_print_requirements(solver, var.group_id);
+    }
 
     context_remove_declaration_list(function.arguments);
 }

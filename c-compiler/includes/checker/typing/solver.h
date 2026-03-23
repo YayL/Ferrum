@@ -13,48 +13,41 @@ typedef struct solver {
 void solver_initialize(Solver * ctx);
 
 char solver_decompose(Solver * ctx, ID id1, ID id2, DdNode * world);
-void solver_unify(Solver * solver, ID id1, ID id2, DdNode * world);
+char solver_unify(Solver * solver, ID id1, ID id2, DdNode * world);
 void solver_add_variable_group_requirement(Solver * ctx, ID id1, ID id2, DdNode * world);
 
 void solver_generate_where_constraints(Solver * solver, Arena where_arena, Arena templates, DdNode * parent_choice);
 void solver_generate_template_constraints(Solver * solver, ID node_id, Arena * templates, DdNode * parent_choice);
 
-static inline DdNode * cudd_both(Solver * solver, DdNode * node1, DdNode * node2) {
-	if (node1 == NULL) {
-		Cudd_Ref(node2);
-		return node2;
-	} else if (node2 == NULL) {
-		Cudd_Ref(node1);
-		return node1;
-	}
-	
-	DdNode * new_node = Cudd_bddAnd(solver->manager, node1, node2);
-	Cudd_Ref(new_node);
+#define CUDD_DEREF(SOLVER, NODE) if ((NODE) != NULL) { Cudd_RecursiveDeref((SOLVER)->manager, NODE); }
+#define CUDD_FUNC(FUNC, VAR, SOLVER, NODE1, NODE2) \
+	DdNode * VAR; \
+	if ((NODE1) == NULL) { \
+		(VAR) = (NODE2); \
+	} else if ((NODE2) == NULL) { \
+		(VAR) = (NODE1); \
+	} else { \
+		VAR = Cudd_bdd##FUNC((SOLVER)->manager, (NODE1), (NODE2)); \
+	} \
+	ASSERT1((VAR) != NULL); \
+	Cudd_Ref(VAR);
 
-	return new_node;
+#define CUDD_AND(VAR, SOLVER, NODE1, NODE2) CUDD_FUNC(And, VAR, SOLVER, NODE1, NODE2)
+#define CUDD_OR(VAR, SOLVER, NODE1, NODE2) CUDD_FUNC(Or, VAR, SOLVER, NODE1, NODE2)
+
+#define SOLVER_AND(SOLVER, NODE) { \
+	CUDD_AND(tmp, SOLVER, NODE, (SOLVER)->state); \
+	Cudd_RecursiveDeref((SOLVER)->manager, (SOLVER)->state); \
+	(SOLVER)->state = tmp; \
 }
+// if (tmp == Cudd_ReadLogicZero((SOLVER)->manager)) { print_possibilities(SOLVER, (SOLVER)->state); println("AND"); print_possibilities(SOLVER, NODE); }
 
-static inline DdNode * cudd_either(Solver * solver, DdNode * node1, DdNode * node2) {
-	if (node1 == NULL) {
-		return node2;
-	} else if (node2 == NULL) {
-		return node1;
-	}
-	
-	DdNode * new_node = Cudd_bddOr(solver->manager, node1, node2);
-	Cudd_Ref(new_node);
-
-	return new_node;
+#define SOLVER_OR(SOLVER, NODE) { \
+	CUDD_OR(tmp, SOLVER, NODE, (SOLVER)->state); \
+	Cudd_RecursiveDeref((SOLVER)->manager, (SOLVER)->state); \
+	(SOLVER)->state = tmp; \
 }
+// if (tmp == Cudd_ReadLogicZero((SOLVER)->manager)) { print_possibilities(SOLVER, (SOLVER)->state); println("OR"); print_possibilities(SOLVER, NODE); }
 
-static inline DdNode * solver_both_and_global(Solver * solver, DdNode * node1, DdNode * node2) {
-	return cudd_both(solver, cudd_both(solver, node1, node2), solver->state);
-}
+#define SOLVER_ADD_INVALID(SOLVER, INVALIDATE) SOLVER_AND(SOLVER, Cudd_Not(INVALIDATE))
 
-static inline void solver_add_invalid_world(Solver * solver, DdNode * world) {
-	DdNode * new_state = cudd_both(solver, Cudd_Not(world), solver->state);
-	Cudd_RecursiveDeref(solver->manager, solver->state);
-	ASSERT1(new_state != NULL);
-
-	solver->state = new_state;
-}

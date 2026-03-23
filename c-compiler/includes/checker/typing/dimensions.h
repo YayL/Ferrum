@@ -25,8 +25,7 @@ static void dimension_init_choices(Solver * solver, Dimension_TC * dimension, Dd
 	// start at 1, since we already retrieved 0th
 	for (size_t i = 1; i < dimension->candidates.size; ++i) {
 		DdNode * encoded_choice = dimension_get_choice(solver, dimension->dimension_id, i, NULL);
-		DdNode * tmp = Cudd_bddOr(solver->manager, encoded_choice, dim_group);
-		Cudd_Ref(tmp);
+		CUDD_OR(tmp, solver, encoded_choice, dim_group);
 		Cudd_RecursiveDeref(solver->manager, encoded_choice);
 		Cudd_RecursiveDeref(solver->manager, dim_group);
 		dim_group = tmp;
@@ -34,18 +33,14 @@ static void dimension_init_choices(Solver * solver, Dimension_TC * dimension, Dd
 
 	if (parent_choice != NULL) {
 		// parent_choice -> dim_group (parent implies dim_group)
-		DdNode * tmp = Cudd_bddOr(solver->manager, Cudd_Not(parent_choice), dim_group);
-		Cudd_Ref(tmp);
+		CUDD_OR(tmp, solver, Cudd_Not(parent_choice), dim_group);
 		Cudd_RecursiveDeref(solver->manager, dim_group);
 		dim_group = tmp;
 	} // else since parent_choice == NULL, that is equivalent to: 0 OR dim_group -> dim_group (i.e we don't need to change anything)
 
 	if (solver->state != NULL) {
-		DdNode * tmp = Cudd_bddAnd(solver->manager, dim_group, solver->state);
-		Cudd_Ref(tmp);
+		SOLVER_AND(solver, dim_group);
 		Cudd_RecursiveDeref(solver->manager, dim_group);
-		Cudd_RecursiveDeref(solver->manager, solver->state);
-		solver->state = tmp;
 	} else {
 		solver->state = dim_group;
 	}

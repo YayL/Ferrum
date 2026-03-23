@@ -9,15 +9,15 @@ set(CMAKE_C_FLAGS_RELEASE "-lm -Ofast")
 
 # set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
 
-# execute_process(
-#     COMMAND ping www.google.com -n 2 -w 1
-#     RESULT_VARIABLE NO_CONNECTION
-# )
-# if(NO_CONNECTION GREATER 0)
-#     set(FETCHCONTENT_FULLY_DISCONNECTED ON)
-# else()
-#     set(FETCHCONTENT_FULLY_DISCONNECTED OFF)
-# endif()
+execute_process(
+    COMMAND ping www.google.com -n 2 -w 1
+    RESULT_VARIABLE NO_CONNECTION
+)
+if(NO_CONNECTION GREATER 0)
+    set(FETCHCONTENT_FULLY_DISCONNECTED ON)
+else()
+    set(FETCHCONTENT_FULLY_DISCONNECTED OFF)
+endif()
 
 find_library(LIBBT NAMES libbacktrace)
 
