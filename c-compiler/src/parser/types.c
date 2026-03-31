@@ -4,10 +4,21 @@
 #include "parser/keywords.h"
 #include "parser/parser.h"
 #include "tables/registry_manager.h"
-#include "checker/symbol.h"
 #include "common/math.h"
 
-struct registry_manager types_manager;
+ID bool_type_id = INVALID_ID;
+
+void types_init() {
+    Numeric_T * bool_type = tc_allocate(ID_NUMERIC_TYPE);
+    bool_type->type = NUMERIC_UNSIGNED;
+    bool_type->width = 1;
+
+    bool_type_id = bool_type->info.type_id;
+}
+
+ID get_bool_type() {
+    return bool_type_id;
+}
 
 ID _parser_parse_numeric_type(struct Parser * parser) {
     enum Numeric_T_TYPE numeric_type;
@@ -39,12 +50,7 @@ ID parser_parse_type(struct Parser * parser) {
         case TOKEN_ID: {
             if (ID_IS_EQUAL(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_BOOL))) {
                 parser_eat(parser, TOKEN_ID);
-
-                Numeric_T * numeric = type_allocate(ID_NUMERIC_TYPE);
-                numeric->type = NUMERIC_UNSIGNED;
-                numeric->width = 1;
-
-                return numeric->info.type_id;
+                return bool_type_id;
             } else if (ID_IS_EQUAL(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_VOID))) {
                 parser_eat(parser, TOKEN_ID);
                 return VOID_TYPE;
@@ -157,9 +163,8 @@ ID ast_get_type_of(ID node_id) {
             return literal.type_id;
         }
         case ID_AST_VARIABLE: {
-            a_variable variable = LOOKUP(node_id, a_variable);
-            ASSERT1(!ID_IS_INVALID(variable.type_id));
-            return variable.type_id;
+            a_variable * variable = lookup(node_id);
+            return variable->type_id;
         }
         case ID_AST_SYMBOL: {
             a_symbol symbol = LOOKUP(node_id, a_symbol);
@@ -348,23 +353,18 @@ const char * type_to_str(ID type_id) {
             Fn_T fn = LOOKUP(type_id, Fn_T);
             return format("{s} -> {s}", type_to_str(fn.arg_type), type_to_str(fn.ret_type));
         }
-        case ID_TC_VARIABLE: {
-            return format("{i}?", type_id.id);
+        case ID_TERM_VAR: {
+            TermVar term_var = LOOKUP(type_id, TermVar);
+            a_symbol symbol = LOOKUP(term_var.symbol_id, a_symbol);
+            return format("({s}: {s})", interner_lookup_str(symbol.name_id)._ptr, type_to_str(term_var.type));
         }
-        case ID_TC_SHAPE: {
-            Shape_TC shape = LOOKUP(type_id, Shape_TC);
-            ASSERT1(ID_IS(shape.member_id, ID_AST_SYMBOL));
-            a_symbol symbol = LOOKUP(shape.member_id, a_symbol);
-            ASSERT1(symbol.name_ids.size == 1);
-            return format("Shape(\"{s}\", Req: {s})", interner_lookup_str(symbol.name_id)._ptr, type_to_str(shape.requirement_id));
-        }
-        case ID_TC_DIMENSION: {
-            Dimension_TC dimension = LOOKUP(type_id, Dimension_TC);
-            return format("Dimension(D{u}, Candidates: {i}, Bits: {i})", dimension.dimension_id.id, dimension.candidates.size, dimension.bit_count);
-        }
-        case ID_TC_CAST: {
-            Cast_TC cast = LOOKUP(type_id, Cast_TC);
-            return format("Cast(Var: {s}, {s})", type_to_str(cast.variable_id), type_to_str(cast.dimension_id));
+        case ID_EXISTENIAL: {
+            Existential existential = LOOKUP(type_id, Existential);
+            if (ID_IS_INVALID(existential.solved_type)) {
+                return format("{u}?", existential.info.id.id);
+            }
+
+            return format("{u}?({s})", existential.info.id.id, type_to_str(existential.solved_type));
         }
         default: 
             FATAL("Unimplemented type_to_str type: {s}", id_type_to_string(type_id.type));
@@ -420,18 +420,6 @@ uint64_t type_id_to_hash(ID type) {
             Fn_T fn = LOOKUP(type, Fn_T);
             return hash_combine(type.type, hash_combine(type_id_to_hash(fn.arg_type), type_id_to_hash(fn.ret_type)));
         }
-        case ID_TC_SHAPE:
-        case ID_TC_DIMENSION:
-        case ID_TC_VARIABLE: {
-            union sym_temp {
-                ID id;
-                uint64_t value;
-            } temp = {0};
-
-            temp.id = type;
-
-            return temp.value;
-        }
         case ID_VOID_TYPE: return VOID_TYPE.id;
         default:
             FATAL("Not implemented type_id({s}) hash", id_type_to_string(type.type));
@@ -468,8 +456,6 @@ char type_check_equal(ID type_id1, ID type_id2) {
             Fn_T fn1 = LOOKUP(type_id1, Fn_T), fn2 = LOOKUP(type_id2, Fn_T);
             return type_check_equal(fn1.ret_type, fn2.ret_type) && type_check_equal(fn1.arg_type, fn2.arg_type);
         }
-        case ID_TC_DIMENSION:
-        case ID_TC_VARIABLE: return ID_IS_EQUAL(type_id1, type_id2);
         case ID_VOID_TYPE: return 1;
 		default:
 			FATAL("Unimplemented id {s}", id_type_to_string(type_id1.type));
@@ -543,9 +529,6 @@ char type_check_deep_equal(ID type_id1, ID type_id2) {
 
             return 1;
         }
-        case ID_TC_SHAPE:
-        case ID_TC_DIMENSION:
-        case ID_TC_VARIABLE: return ID_IS_EQUAL(type_id1, type_id2);
         case ID_VOID_TYPE: return 1;
 		default:
 			FATAL("Unimplemented id {s}", id_type_to_string(type_id1.type));

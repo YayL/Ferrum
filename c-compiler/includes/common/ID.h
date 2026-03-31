@@ -7,13 +7,12 @@
 	f(ID_INTERNER,			"InternerID",		interner_entry,			INTERNER) \
 	f(ID_SYMBOL,			"SymbolID",			symbol_map_entry,		SYMBOL)
 
-#define TYPE_CHECKING_REGISTRY_KINDS(f) \
-	f(ID_TC_GROUP,			"GroupID",			Group_TC,			TC) \
-	f(ID_TC_REQUIREMENT,	"RequirementID",	Requirement_TC,		TC) \
-	f(ID_TC_DIMENSION,		"DimensionID",		Dimension_TC,		TC)	\
-	f(ID_TC_SHAPE,			"ShapeId",			Shape_TC,			TC)	\
-	f(ID_TC_VARIABLE,		"VariableID",		Variable_TC,		TC) \
-	f(ID_TC_CAST,			"CastID",			Cast_TC,			TC)
+#define TYPE_CHECKING_CONTEXT_KINDS(f) \
+	f(ID_TERM_VAR,		"TermVar",		TermVar,		TC) \
+	f(ID_TYPE_VAR,		"TypeVar",		TypeVar,		TC) \
+	f(ID_EXISTENIAL,	"Existential",	Existential,	TC) \
+	f(ID_MARKER,		"Marker",		Marker,			TC) \
+	f(ID_TEMPLATE,		"Template",		Template,		TC)
 
 #define TYPE_REGISTRY_KINDS(f) \
 	f(ID_NUMERIC_TYPE,	"NumericT",		Numeric_T,	TYPE) \
@@ -22,7 +21,7 @@
 	f(ID_ARRAY_TYPE,	"ArrayT",		Array_T,	TYPE) \
 	f(ID_TUPLE_TYPE,	"TupleT",		Tuple_T,	TYPE) \
 	f(ID_PLACE_TYPE,	"PlaceT",		Place_T,	TYPE) \
-	f(ID_FN_TYPE,		"FnT",			Fn_T,		TYPE)
+	f(ID_FN_TYPE,		"FnT",			Fn_T,		TYPE) \
 
 #define AST_REGISTRY_KINDS(f) \
     f(ID_AST_MODULE,		"Module",			a_module,				AST) \
@@ -52,7 +51,7 @@
 
 #define REGISTRY_KINDS(f) \
 	OTHER_REGISTRY_KINDS(f) \
-	TYPE_CHECKING_REGISTRY_KINDS(f) \
+	TYPE_CHECKING_CONTEXT_KINDS(f) \
 	TYPE_REGISTRY_KINDS(f) \
 	AST_REGISTRY_KINDS(f)
 
@@ -83,6 +82,7 @@ static inline ID id_init(COMPILER_ID_TYPE id, enum id_type type) {
 #define _ID_GEN_ID_TO_TYPE_STRING_CASE(ENUM, STR, ...) case ENUM: return STR;
 static const char * id_type_to_string(enum id_type type) {
 	switch (type) {
+		case ID_LARGEST: FATAL("Should not happen?");
 		case ID_INVALID_TYPE: return "INVALID";
 		case ID_VOID_TYPE: return "VoidT";
 		case ID_AST_ROOT: return "ROOT";

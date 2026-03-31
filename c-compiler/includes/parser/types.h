@@ -4,6 +4,7 @@
 #include "common/ID.h"
 
 #define VOID_TYPE ((ID) { .type = ID_VOID_TYPE, .id = 0 })
+#define BOOL_TYPE ((ID) { .type = ID_NUMERIC_TYPE, .id = 0 })
 
 struct type_info {
     ID type_id;
@@ -60,6 +61,9 @@ typedef struct Variable_T {
     ID lower_bound;
     ID upper_bound;
 } Variable_T;
+
+void types_init();
+ID get_bool_type();
 
 const char * get_base_type_str(ID type);
 ID get_base_type(ID type_id);

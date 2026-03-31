@@ -29,14 +29,7 @@ FetchContent_Declare(
     GIT_TAG main
 )
 
-set(CUDD_INSTALL OFF CACHE BOOL "" FORCE)
-FetchContent_Declare(
-    cudd
-    GIT_REPOSITORY https://github.com/cuddorg/cudd
-    GIT_TAG 4.0.0
-)
-
-FetchContent_MakeAvailable(fmt cudd)
+FetchContent_MakeAvailable(fmt)
 
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.c)
 add_executable(compiler ${SOURCES})
@@ -44,7 +37,6 @@ add_executable(compiler ${SOURCES})
 target_include_directories(compiler PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}/includes
     ${fmt_SOURCE_DIR}/include
-    ${cudd_SOURCE_DIR}/include/cudd
 )
 
-target_link_libraries(compiler PRIVATE fmt backtrace cudd)
+target_link_libraries(compiler PRIVATE fmt backtrace)

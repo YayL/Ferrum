@@ -6,7 +6,7 @@
 #include "tables/interner.h"
 #include "parser/types.h"
 #include "parser/AST.h"
-#include "checker/typing/typechecker.h"
+#include "checker/typing/solver.h"
 
 #define AST_REGISTRY_MANAGER_DECL_EL(ENUM, STR, NAME, ...) Registry NAME;
 struct registry_manager {
@@ -40,15 +40,15 @@ static inline void type_init_intrinsic_type(enum id_type type, void * type_ref) 
     }
 }
 
-#define FILL_INTERNER_ID(REF, INTERNER_ID, ...) (((struct interner_entry *) REF)->id = INTERNER_ID);
-#define FILL_SYMBOL_ID(REF, SYMBOL_ID, ...) (((struct symbol_map_entry *) REF)->symbol_id = SYMBOL_ID);
-#define FILL_TC_ID(REF, TC_ID, ...) tc_node_init(TC_ID, REF);
-#define FILL_TYPE_ID(REF, TYPE_ID, ...) (((struct type_info *) REF)->type_id = TYPE_ID); type_init_intrinsic_type(TYPE_ID.type, REF);
-#define FILL_AST_ID(REF, NODE_ID, SCOPE_ID) (((struct AST_info *) REF)->node_id = NODE_ID, ((struct AST_info *) REF)->scope_id = SCOPE_ID); ast_init_node(NODE_ID.type, REF);
+#define FILL_INTERNER_ID(REF, INTERNER_ID) (((struct interner_entry *) REF)->id = INTERNER_ID);
+#define FILL_SYMBOL_ID(REF, SYMBOL_ID) (((struct symbol_map_entry *) REF)->symbol_id = SYMBOL_ID);
+#define FILL_TC_ID(REF, TC_ID) (((struct tc_context_info *) REF)->id = TC_ID);
+#define FILL_TYPE_ID(REF, TYPE_ID) (((struct type_info *) REF)->type_id = TYPE_ID); type_init_intrinsic_type(TYPE_ID.type, REF);
+#define FILL_AST_ID(REF, NODE_ID) (((struct AST_info *) REF)->node_id = NODE_ID); ast_init_node(NODE_ID.type, REF);
 
 #define AST_REGISTRY_MANAGER_REGISTRY_ALLOCATE(ENUM, STR, TYPE, KIND) \
-    case ENUM: ptr = registry_allocate(&manager->TYPE, &node_id); FILL_##KIND##_ID(ptr, node_id, scope_id); break;
-static inline void * registry_manager_allocate(struct registry_manager * manager, enum id_type type, ID scope_id) {
+    case ENUM: ptr = registry_allocate(&manager->TYPE, &node_id); FILL_##KIND##_ID(ptr, node_id); break;
+static inline void * registry_manager_allocate(struct registry_manager * manager, enum id_type type) {
     ID node_id;
     void * ptr;
 
@@ -95,12 +95,21 @@ static inline void registry_manager_free(struct registry_manager * manager) {
 	} \
 }
 
+#define LOOP_OVER_REGISTRY_REV(TYPE, VAR, CODE) { \
+	Registry _REGISTRY = registry_manager_get().TYPE; \
+	for (size_t _I = _REGISTRY.entries.item_count - 1, _BLOCK = _REGISTRY.entries.block_count - 1; _BLOCK < _REGISTRY.entries.block_count; --_BLOCK) { \
+		for (size_t _BI = _REGISTRY.entries.block_max_item_count - 1; _BI < _REGISTRY.entries.block_max_item_count && _I < _REGISTRY.entries.item_count; --_BI, --_I) { \
+			TYPE * VAR = block_arena_get_ref(_REGISTRY.entries, _I); \
+			CODE \
+		} \
+	} \
+}
+
 void registry_manager_setup_instance();
 const struct registry_manager registry_manager_get();
 
 struct symbol_map_entry * symbol_allocate();
 struct interner_entry * interner_allocate();
-void * tc_allocate(enum id_type type);
 void * ast_allocate(enum id_type type, ID scope_id);
 void * type_allocate(enum id_type type);
 

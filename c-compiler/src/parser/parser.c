@@ -598,10 +598,7 @@ ID parser_parse_declaration(struct Parser * parser) {
         variable->name_id = symbol->name_id;
         symbol->node_id = variable->info.node_id;
 
-        if (ID_IS_INVALID(variable->type_id)) {
-            Variable_TC * variable_tc = tc_allocate(ID_TC_VARIABLE);
-            variable->type_id = variable_tc->variable_id;
-        }
+        // ASSERT1(!ID_IS_INVALID(variable->type_id));
     }
 
     ASSERT1(ID_IS(symbol->node_id, ID_AST_VARIABLE));

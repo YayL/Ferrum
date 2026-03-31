@@ -29,6 +29,7 @@ void ferrum_compile(char * file_path) {
 
     registry_manager_setup_instance();
     interner_init();
+    types_init();
     a_root root = { .modules = kh_init(map_string_to_id), .info = { .node_id = { .id = 0, .type = ID_AST_ROOT }, .scope_id = INVALID_ID }};
     
     char * abs_path = get_abs_path(file_path),
@@ -59,15 +60,6 @@ void ferrum_compile(char * file_path) {
     total += time;
     asprintf(&checker_time, "Time for checker:\t%.3fms", (double)time / 1000);
     puts("checker done");
-
-    puts("\n" LINE_BREAKER);
-    struct registry_manager manager = registry_manager_get();
-    println("Groups: {i}", manager.Group_TC.entries.item_count);
-    println("Requirements: {i}", manager.Requirement_TC.entries.item_count);
-    println("Vars: {i}", manager.Variable_TC.entries.item_count);
-    println("Shapes: {i}", manager.Shape_TC.entries.item_count);
-    println("Dimensions: {i}", manager.Dimension_TC.entries.item_count);
-    puts(LINE_BREAKER);
 
     // print_ast_tree_from_root(root);
 
@@ -101,6 +93,4 @@ void ferrum_compile(char * file_path) {
     // puts(optimization_time);
     puts(LINE_BREAKER);
     printf("Total: %.3fms\n", (double)total / 1000);
-
-    registry_manager_free(&manager);
 }

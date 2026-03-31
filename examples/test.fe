@@ -2,4 +2,5 @@ import "std/lib" as std
 
 fn main(argc: i32) -> i32 {
     let x = 0
+    x
 }

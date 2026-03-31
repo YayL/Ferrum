@@ -11,24 +11,25 @@ const struct registry_manager registry_manager_get() {
 }
 
 struct symbol_map_entry * symbol_allocate() {
-	return registry_manager_allocate(&manager, ID_SYMBOL, INVALID_ID);
+	return registry_manager_allocate(&manager, ID_SYMBOL);
 }
 
 struct interner_entry * interner_allocate() {
-	return registry_manager_allocate(&manager, ID_INTERNER, INVALID_ID);
+	return registry_manager_allocate(&manager, ID_INTERNER);
 }
 
 void * tc_allocate(enum id_type type) {
-	return registry_manager_allocate(&manager, type, INVALID_ID);
+	return registry_manager_allocate(&manager, type);
 }
 
 void * ast_allocate(enum id_type type, ID scope_id) {
-	return registry_manager_allocate(&manager, type, scope_id);
+	void * ref = registry_manager_allocate(&manager, type);
+	((struct AST_info *) ref)->scope_id = scope_id;
+	return ref;
 }
 
 void * type_allocate(enum id_type type) {
-	struct type_info * type_info = registry_manager_allocate(&manager, type, INVALID_ID);
-	return (void *) type_info;
+	return registry_manager_allocate(&manager, type);
 }
 
 struct symbol_table_entry * symbol_lookup(ID symbol_id) {

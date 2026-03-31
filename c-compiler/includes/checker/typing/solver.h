@@ -1,53 +1,55 @@
 #pragma once
 
-#include <cudd.h>
 #include "common/ID.h"
-#include "common/memory/arena.h"
+
+struct tc_context_info {
+	ID id;
+	uint32_t context_order_id;
+};
+
+// Variable with known type
+typedef struct termvar {
+	struct tc_context_info info;
+	ID symbol_id;
+	ID type;
+} TermVar;
+
+typedef struct template {
+	struct tc_context_info info;
+	ID name_id;
+	ID type_id;
+} Template;
+
+// Generic type
+typedef struct typevar {
+	struct tc_context_info info;
+} TypeVar;
+
+// Type to solve (not known at first)
+typedef struct existenial {
+	struct tc_context_info info;
+	ID solved_type;
+} Existential;
+
+typedef struct marker {
+	struct tc_context_info info;
+} Marker;
 
 typedef struct solver {
-	DdManager * manager;
-	DdNode * state;
-	uint32_t bit_variable_count;
+	ID id;
+
+	uint32_t context_element_count;
 } Solver;
 
-void solver_initialize(Solver * ctx);
+Solver solver_initialize();
 
-char solver_decompose(Solver * ctx, ID id1, ID id2, DdNode * world);
-char solver_unify(Solver * solver, ID id1, ID id2, DdNode * world);
-void solver_add_variable_group_requirement(Solver * ctx, ID id1, ID id2, DdNode * world);
-
-void solver_generate_where_constraints(Solver * solver, Arena where_arena, Arena templates, DdNode * parent_choice);
-void solver_generate_template_constraints(Solver * solver, ID node_id, Arena * templates, DdNode * parent_choice);
-
-#define CUDD_DEREF(SOLVER, NODE) if ((NODE) != NULL) { Cudd_RecursiveDeref((SOLVER)->manager, NODE); }
-#define CUDD_FUNC(FUNC, VAR, SOLVER, NODE1, NODE2) \
-	DdNode * VAR; \
-	if ((NODE1) == NULL) { \
-		(VAR) = (NODE2); \
-	} else if ((NODE2) == NULL) { \
-		(VAR) = (NODE1); \
-	} else { \
-		VAR = Cudd_bdd##FUNC((SOLVER)->manager, (NODE1), (NODE2)); \
-	} \
-	ASSERT1((VAR) != NULL); \
-	Cudd_Ref(VAR);
-
-#define CUDD_AND(VAR, SOLVER, NODE1, NODE2) CUDD_FUNC(And, VAR, SOLVER, NODE1, NODE2)
-#define CUDD_OR(VAR, SOLVER, NODE1, NODE2) CUDD_FUNC(Or, VAR, SOLVER, NODE1, NODE2)
-
-#define SOLVER_AND(SOLVER, NODE) { \
-	CUDD_AND(tmp, SOLVER, NODE, (SOLVER)->state); \
-	Cudd_RecursiveDeref((SOLVER)->manager, (SOLVER)->state); \
-	(SOLVER)->state = tmp; \
+void * tc_allocate(enum id_type type);
+static inline void * solver_allocate(Solver * solver, enum id_type type) { 
+	void * ref = tc_allocate(type); 
+	((struct tc_context_info *) ref)->context_order_id = ++solver->context_element_count;
+	return ref;
 }
-// if (tmp == Cudd_ReadLogicZero((SOLVER)->manager)) { print_possibilities(SOLVER, (SOLVER)->state); println("AND"); print_possibilities(SOLVER, NODE); }
 
-#define SOLVER_OR(SOLVER, NODE) { \
-	CUDD_OR(tmp, SOLVER, NODE, (SOLVER)->state); \
-	Cudd_RecursiveDeref((SOLVER)->manager, (SOLVER)->state); \
-	(SOLVER)->state = tmp; \
-}
-// if (tmp == Cudd_ReadLogicZero((SOLVER)->manager)) { print_possibilities(SOLVER, (SOLVER)->state); println("OR"); print_possibilities(SOLVER, NODE); }
-
-#define SOLVER_ADD_INVALID(SOLVER, INVALIDATE) SOLVER_AND(SOLVER, Cudd_Not(INVALIDATE))
-
+void solver_collect_templates(Solver * solver, ID node_id);
+ID solver_get_template_type(ID name_id);
+ID solver_replace_templates(ID type_id);
