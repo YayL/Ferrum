@@ -19,11 +19,55 @@ ID module_lookup_id(a_module * module, ID name_id, enum id_type type_to_find) {
 	return INVALID_ID;
 }
 
+ID qualify_symbol_in_scope(a_symbol * symbol) {
+	ASSERT1(symbol->name_ids.size == 1);
+
+	ID scope_id = symbol->info.scope_id;
+	ID name_id = symbol->name_id;
+
+	do {
+		if (!ID_IS(scope_id, ID_AST_SCOPE)) {
+			// println("scope: {s}", ast_to_string(scope_id));
+			scope_id = ast_get_scope_id(scope_id);
+			continue;
+		}
+
+		ASSERT1(ID_IS(scope_id, ID_AST_SCOPE));
+		a_scope scope = LOOKUP(scope_id, a_scope);
+
+		for (size_t i = 0; i < scope.declarations.size; ++i) {
+			ID declaration_id = ARENA_GET(scope.declarations, i, ID);
+			if (ID_IS_EQUAL(ast_get_interner_id(declaration_id), name_id)) {
+				switch (declaration_id.type) {
+					case ID_AST_SYMBOL: {
+						a_symbol symbol = LOOKUP(declaration_id, a_symbol);
+						ASSERT1(!ID_IS_INVALID(symbol.node_id));
+						return symbol.node_id;
+					default: FATAL("Unimplemented declaration lookup type: {s}", id_type_to_string(declaration_id.type));
+					}
+				}
+			} else {
+			}
+		}
+
+		scope_id = scope.info.scope_id;
+	} while (!ID_IS_INVALID(scope_id) && !ID_IS(scope_id, ID_AST_ROOT));
+
+	return INVALID_ID;
+}
+
 ID qualify_symbol(a_symbol * symbol, enum id_type type_to_find) {
 	ASSERT1(symbol->name_ids.size > 0);
 
 	if (!ID_IS_INVALID(symbol->node_id)) {
 		return symbol->node_id;
+	}
+
+	if (symbol->name_ids.size == 1) {
+		ID node_id = qualify_symbol_in_scope(symbol);
+		if (!ID_IS_INVALID(node_id)) {
+			return symbol->node_id = node_id;
+		}
 	}
 
 	a_module * module = get_scope(ID_AST_MODULE, symbol->info.scope_id);

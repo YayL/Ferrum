@@ -4,6 +4,7 @@
 #include "tables/registry_manager.h"
 #include "tables/member_functions.h"
 #include "checker/typing/checking.h"
+#include "checker/symbol.h"
 
 ID synthesis_operator_call(Solver * solver, a_operator * op) {
 	ASSERT1(ID_IS(op->info.node_id, ID_AST_OP) && op->op.key == ASSIGNMENT);
@@ -12,10 +13,30 @@ ID synthesis_operator_call(Solver * solver, a_operator * op) {
 
 ID synthesis_symbol(Solver * solver, ID node_id) {
 	ASSERT1(ID_IS(node_id, ID_AST_SYMBOL));
+	a_symbol * symbol = lookup(node_id);
+	
+	if (ID_IS_INVALID(symbol->node_id)) {
+		if (ID_IS_INVALID(qualify_symbol(symbol, ID_AST_SYMBOL))) {
+			ERROR("Unable to find symbol: {s}", ast_to_string(node_id));
+			exit(1);
+		}
+	}
+
+	ASSERT1(!ID_IS_INVALID(symbol->node_id));
+
+	ID * type_id_ref = NULL;
+	switch (symbol->node_id.type) {
+		case ID_AST_VARIABLE: type_id_ref = &(&LOOKUP(symbol->node_id, a_variable))->type_id; break;
+		default: FATAL("Unimplemented type: {s}", id_type_to_string(symbol->node_id.type));
+	}
+
+	if (ID_IS(*type_id_ref, ID_EXISTENIAL)) {
+		return *type_id_ref;
+	}
 
 	TermVar * term_var = solver_allocate(solver, ID_TERM_VAR);
 	term_var->symbol_id = node_id;
-	term_var->type = ((Existential *) solver_allocate(solver, ID_EXISTENIAL))->info.id;
+	*type_id_ref = term_var->type = ((Existential *) solver_allocate(solver, ID_EXISTENIAL))->info.id;
 
 	return term_var->type;
 }
@@ -31,6 +52,7 @@ ID synthesis_apply(Solver * solver, ID function_id, ID expr_id) {
 	ASSERT1(ID_IS(function_id, ID_AST_FUNCTION));
 	a_function function = LOOKUP(function_id, a_function);
 
+	Marker * marker = solver_allocate(solver, ID_MARKER);
 	solver_collect_templates(solver, function_id);
 	ID fixed_fn_type_id = solver_replace_templates(function.type);
 	Fn_T fn_type = LOOKUP(fixed_fn_type_id, Fn_T);
@@ -76,14 +98,26 @@ ID synthesis_operator(Solver * solver, ID node_id) {
 		ARENA_APPEND(&expression->children, op->right_id);
 	}
 
+	ID ret_type = INVALID_ID;
+
 	for (size_t i = 0; i < candidates.size; ++i) {
 		ID candidate_id = ARENA_GET(candidates, i, ID);
-		println("{u}) {s}", i + 1, ast_to_string(candidate_id));
-		ID ret_type = synthesis_apply(solver, candidate_id, expression->info.node_id);
-		println("\t{s}", type_to_str(ret_type));
+		ID temp = synthesis_apply(solver, candidate_id, expression->info.node_id);
+
+		if (ID_IS_INVALID(temp)) {
+			continue;
+		} else if (!ID_IS_INVALID(ret_type)) {
+			FATAL("Ambigious");
+		}
+
+		ret_type = temp;
 	}
 
-	FATAL("Unimplemented");
+	if (ID_IS_INVALID(ret_type)) {
+		FATAL("Unable to decide operator implementation");
+	}
+
+	return ret_type;
 }
 
 ID synthesis_expression(Solver * solver, ID node_id) {
@@ -102,6 +136,62 @@ ID synthesis_expression(Solver * solver, ID node_id) {
 	}
 	
 	return tuple_type->info.type_id;
+}
+
+ID synthesis_declaration(Solver * solver, ID node_id) {
+	ASSERT1(ID_IS(node_id, ID_AST_DECLARATION));
+	a_declaration declaration = LOOKUP(node_id, a_declaration);
+
+	ASSERT1(ID_IS(declaration.expression_id, ID_AST_EXPR));
+	a_expression expr = LOOKUP(declaration.expression_id, a_expression);
+
+	for (size_t i = 0; i < expr.children.size; ++i) {
+		ID child_id = ARENA_GET(expr.children, i, ID);
+
+		if (ID_IS(child_id, ID_AST_OP)) {
+			a_operator op = LOOKUP(child_id, a_operator);
+			if (op.op.key != ASSIGNMENT) {
+				ERROR("Declaration without assignment");
+				continue;
+			}
+
+			ASSERT1(ID_IS(op.left_id, ID_AST_SYMBOL));
+			a_symbol symbol = LOOKUP(op.left_id, a_symbol);
+			ASSERT1(ID_IS(symbol.node_id, ID_AST_VARIABLE));
+			a_variable * variable = lookup(symbol.node_id);
+
+			if (!ID_IS_INVALID(variable->type_id)) {
+				TermVar * term_var_pre = solver_allocate(solver, ID_TERM_VAR);
+				term_var_pre->symbol_id = symbol.info.node_id;
+
+				Place_T * place_type_pre = type_allocate(ID_PLACE_TYPE);
+				place_type_pre->basetype_id = variable->type_id;
+				place_type_pre->is_mut = 1;
+				term_var_pre->type = place_type_pre->info.type_id;
+
+				check(solver, child_id, variable->type_id);
+
+				TermVar * term_var_post = solver_allocate(solver, ID_TERM_VAR);
+				term_var_post->symbol_id = symbol.info.node_id;
+
+				Place_T * place_type_post = type_allocate(ID_PLACE_TYPE);
+				place_type_post->basetype_id = variable->type_id;
+				place_type_post->is_mut = declaration.is_mut;
+				term_var_post->type = place_type_post->info.type_id;
+
+				continue;
+			} else {
+				TermVar * term_var = solver_allocate(solver, ID_TERM_VAR);
+				term_var->symbol_id = symbol.info.node_id;
+				term_var->type = variable->type_id;
+			}
+		}
+
+		ID expr_type = synthesis(solver, child_id);
+		println("Expr type: {s}", type_to_str(expr_type));
+	}
+
+	return VOID_TYPE;
 }
 
 ID synthesis_if(Solver * solver, ID node_id) {
@@ -123,6 +213,7 @@ ID synthesis_if(Solver * solver, ID node_id) {
 ID synthesis(Solver * solver, ID node_id) {
 	switch (node_id.type) {
 		case ID_AST_EXPR: return synthesis_expression(solver, node_id);
+		case ID_AST_DECLARATION: return synthesis_declaration(solver, node_id);
 		case ID_AST_OP: return synthesis_operator(solver, node_id);
 		case ID_AST_IF: return synthesis_if(solver, node_id);
 		case ID_AST_SYMBOL: return synthesis_symbol(solver, node_id);

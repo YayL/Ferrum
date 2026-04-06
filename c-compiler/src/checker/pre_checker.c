@@ -61,96 +61,9 @@ ID find_implicit_cast_trait() {
 	FATAL("Unable to find \"#ImplicitCast\" trait");
 }
 
-void index_implicit_casts(ID root_id) {
-	a_trait imp_cast_trait = LOOKUP(context_get_implicit_cast_trait(), a_trait);
-
-	a_implementation * identity_impl = ast_allocate(ID_AST_IMPL, root_id);
-
-	a_symbol * trait_symbol = ast_allocate(ID_AST_SYMBOL, root_id);
-	trait_symbol->node_id = imp_cast_trait.info.node_id;
-	trait_symbol->name_id = imp_cast_trait.name_id;
-	ARENA_APPEND(&trait_symbol->name_ids, imp_cast_trait.name_id);
-
-	identity_impl->trait_symbol_id = trait_symbol->info.node_id;
-
-	a_symbol * identity_impl_generic_template_symbol = ast_allocate(ID_AST_SYMBOL, identity_impl->info.node_id);
-	identity_impl_generic_template_symbol->name_ids.size = 0;
-	identity_impl_generic_template_symbol->name_id = interner_intern(source_span_init_from_string(STRING_FROM_LITERAL("T")));
-	ARENA_APPEND(&identity_impl_generic_template_symbol->name_ids, identity_impl_generic_template_symbol->name_id);
-
-	Symbol_T * identity_impl_generic_template_type = type_allocate(ID_SYMBOL_TYPE);
-	identity_impl_generic_template_type->symbol_id = identity_impl_generic_template_symbol->info.node_id;
-
-	ARENA_APPEND(&identity_impl->generics, identity_impl_generic_template_symbol->info.node_id);
-
-	a_symbol * identity_type_from_symbol = ast_allocate(ID_AST_SYMBOL, identity_impl->info.node_id);
-	a_variable * identity_type_from_variable = ast_allocate(ID_AST_VARIABLE, identity_impl->info.node_id);
-
-	identity_type_from_variable->name_id = interner_intern(source_span_init_from_string(STRING_FROM_LITERAL("From"))); 
-	identity_type_from_variable->type_id = identity_impl_generic_template_type->info.type_id;
-
-	identity_type_from_symbol->name_id = identity_type_from_variable->name_id;
-	ARENA_APPEND(&identity_type_from_symbol->name_ids, identity_type_from_variable->name_id);
-	identity_type_from_symbol->node_id = identity_type_from_variable->info.node_id;
-
-	a_symbol * identity_type_to_symbol = ast_allocate(ID_AST_SYMBOL, identity_impl->info.node_id);
-	a_variable * identity_type_to_variable = ast_allocate(ID_AST_VARIABLE, identity_impl->info.node_id);
-
-	identity_type_to_variable->name_id = interner_intern(source_span_init_from_string(STRING_FROM_LITERAL("To")));
-	identity_type_to_variable->type_id = identity_impl_generic_template_type->info.type_id;
-
-	identity_type_to_symbol->name_id = identity_type_to_variable->name_id;
-	ARENA_APPEND(&identity_type_to_symbol->name_ids, identity_type_to_variable->name_id);
-	identity_type_to_symbol->node_id = identity_type_to_variable->info.node_id;
-
-	arena_grow(&identity_impl->templates, 2);
-	ARENA_APPEND(&identity_impl->templates, identity_type_from_symbol->info.node_id);
-	ARENA_APPEND(&identity_impl->templates, identity_type_to_symbol->info.node_id);
-
-	uint32_t sorted[imp_cast_trait.implementations.size];
-	memset(sorted, 0, sizeof(sorted));
-
-	// Setup initial list of candidates
-	for (size_t i = 0; i < imp_cast_trait.implementations.size; ++i) {
-		if (sorted[i]) {
-			continue;
-		}
-
-		sorted[i] = 1;
-
-		a_implementation impl1 = LOOKUP(ARENA_GET(imp_cast_trait.implementations, i, ID), a_implementation);
-		ID from_type_id1 = ast_get_type_of(ARENA_GET(impl1.templates, 0, ID));
-
-		Arena candidates = arena_init(sizeof(ID));
-		
-		ASSERT1(impl1.generics.size == 1);
-
-		ARENA_APPEND(&candidates, identity_impl->info.node_id);
-		ARENA_APPEND(&candidates, impl1.info.node_id);
-
-		// Retrieve all implicit casts with same From type
-		for (size_t j = i + 1; j < imp_cast_trait.implementations.size; ++j) {
-			if (sorted[j]) {
-				continue;
-			}
-
-			a_implementation impl2 = LOOKUP(ARENA_GET(imp_cast_trait.implementations, j, ID), a_implementation);
-			ID from_type_id2 = ast_get_type_of(ARENA_GET(impl2.templates, 0, ID));
-
-			if (type_check_equal(from_type_id1, from_type_id2)) {
-				ARENA_APPEND(&candidates, impl2.info.node_id);
-				sorted[j] = 1;
-			}
-		}
-
-		context_add_implicit_casts(from_type_id1, candidates);
-	}
-}
-
 void pre_checker(a_root * root) {
 	resolve_impls();
 	context_init(find_implicit_cast_trait());
-	index_implicit_casts(root->info.node_id);
 
 	// LOOP_OVER_REGISTRY(a_symbol, symbol, {
 	// 	if (ID_IS(symbol->node_id, ID_PLACE_TYPE)) {

@@ -59,6 +59,7 @@ void block_arena_add_block(BArena * barena) {
 
 void block_arena_remove(BArena * barena, uint32_t remove_count) {
 	ASSERT1(barena != NULL);
+	// println("remove_count = {u}, item_count = {u}", remove_count, barena->item_count);
 	ASSERT1(barena->item_count >= remove_count);
 	barena->item_count -= remove_count;
 }

@@ -45,6 +45,23 @@ void checker_check_function(Solver * solver, ID node_id) {
     Fn_T fn_type = LOOKUP(function.type, Fn_T);
     check(solver, function.body_id, fn_type.ret_type);
 
+    a_scope scope = LOOKUP(function.body_id, a_scope);
+    for (size_t i = 0; i < scope.declarations.size; ++i) {
+        ID decl_id = ARENA_GET(scope.declarations, i, ID);
+        ASSERT1(ID_IS(decl_id, ID_AST_SYMBOL));
+        a_symbol symbol = LOOKUP(decl_id, a_symbol);
+        ASSERT1(ID_IS(symbol.node_id, ID_AST_VARIABLE));
+        a_variable * var = lookup(symbol.node_id);
+
+        // puts("1");
+        // println("type: {s}\n", type_to_str(var->type_id));
+        // puts("2");
+        println("1");
+        var->type_id = solver_deflate_type(var->type_id);
+        println("3");
+        print_ast_tree(decl_id);
+    }
+
     context_remove_declaration_list(function.arguments);
 }
 

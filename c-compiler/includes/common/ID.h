@@ -101,5 +101,14 @@ static kh_inline char _id_is_equal(ID id1, ID id2) {
 	return id1.id == id2.id;
 }
 
+#define ID_IS_TYPE_TEST_GEN(ENUM, ...) case ENUM:
+static inline char id_is_type(ID id) {
+	switch (id.type) {
+		TYPE_REGISTRY_KINDS(ID_IS_TYPE_TEST_GEN)
+		case ID_VOID_TYPE: return 1;
+		default: return 0;
+	}
+}
+
 KHASH_MAP_INIT_STR(map_string_to_id, ID);
 KHASH_INIT(map_id_to_id, ID, ID, KHASH_IS_MAP, _id_hash, _id_is_equal);

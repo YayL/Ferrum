@@ -40,3 +40,4 @@ target_include_directories(compiler PRIVATE
 )
 
 target_link_libraries(compiler PRIVATE fmt backtrace)
+target_compile_definitions(compiler PRIVATE "DEBUG_MODE=$<IF:$<CONFIG:Debug>,1,0>")

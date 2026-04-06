@@ -42,7 +42,7 @@ static inline void type_init_intrinsic_type(enum id_type type, void * type_ref) 
 
 #define FILL_INTERNER_ID(REF, INTERNER_ID) (((struct interner_entry *) REF)->id = INTERNER_ID);
 #define FILL_SYMBOL_ID(REF, SYMBOL_ID) (((struct symbol_map_entry *) REF)->symbol_id = SYMBOL_ID);
-#define FILL_TC_ID(REF, TC_ID) (((struct tc_context_info *) REF)->id = TC_ID);
+#define FILL_TC_ID(REF, TC_ID) (((struct tc_context_info *) REF)->id = TC_ID); solver_type_init(TC_ID.type, REF);
 #define FILL_TYPE_ID(REF, TYPE_ID) (((struct type_info *) REF)->type_id = TYPE_ID); type_init_intrinsic_type(TYPE_ID.type, REF);
 #define FILL_AST_ID(REF, NODE_ID) (((struct AST_info *) REF)->node_id = NODE_ID); ast_init_node(NODE_ID.type, REF);
 
@@ -105,8 +105,16 @@ static inline void registry_manager_free(struct registry_manager * manager) {
 	} \
 }
 
+
 void registry_manager_setup_instance();
 const struct registry_manager registry_manager_get();
+struct registry_manager * _registry_manager_get_ref();
+void registry_manager_set_barena_item_count(uint32_t count);
+
+#define REGISTRY_MANAGER_SET_ITEM_COUNT(REGISTRY, COUNT) { \
+    BArena * barena = &(_registry_manager_get_ref()->REGISTRY.entries); \
+    block_arena_remove(barena, barena->item_count - COUNT); \
+}
 
 struct symbol_map_entry * symbol_allocate();
 struct interner_entry * interner_allocate();

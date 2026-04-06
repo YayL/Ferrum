@@ -122,5 +122,9 @@ static inline struct tm get_time() {
 #endif
 #endif
 
+#if(DEBUG_MODE)
 #define ASSERT(EXPR, FMT, ...) if (!(EXPR)) { FATAL(FMT, ##__VA_ARGS__); }
+#else
+#define ASSERT(...)
+#endif
 #define ASSERT1(EXPR) ASSERT(EXPR, "Assertion failed: " #EXPR)

@@ -10,6 +10,10 @@ const struct registry_manager registry_manager_get() {
 	return manager;
 }
 
+struct registry_manager * _registry_manager_get_ref() {
+	return &manager;
+}
+
 struct symbol_map_entry * symbol_allocate() {
 	return registry_manager_allocate(&manager, ID_SYMBOL);
 }

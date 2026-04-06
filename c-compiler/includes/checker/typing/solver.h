@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/ID.h"
+#include "common/memory/arena.h"
 
 struct tc_context_info {
 	ID id;
@@ -31,8 +32,11 @@ typedef struct existenial {
 	ID solved_type;
 } Existential;
 
+#define MARKER_COUNT_GET(TYPE) TYPE##_count
+#define MARKER_COUNT_GEN(ENUM, _, TYPE, ...) uint32_t MARKER_COUNT_GET(TYPE);
 typedef struct marker {
 	struct tc_context_info info;
+	TYPE_CHECKING_CONTEXT_KINDS(MARKER_COUNT_GEN);
 } Marker;
 
 typedef struct solver {
@@ -50,6 +54,12 @@ static inline void * solver_allocate(Solver * solver, enum id_type type) {
 	return ref;
 }
 
+void solver_type_init(enum id_type type, void * ref);
+
 void solver_collect_templates(Solver * solver, ID node_id);
 ID solver_get_template_type(ID name_id);
 ID solver_replace_templates(ID type_id);
+ID solver_deflate_type(ID id);
+char solver_implementation_is_valid(Solver * solver, ID implementation_id, const Arena templates);
+
+void solver_reset_to_marker(Solver * solver, ID marker_id);
