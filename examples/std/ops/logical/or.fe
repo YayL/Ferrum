@@ -1,0 +1,15 @@
+trait #LogicalOr<L, R, T> {
+	fn #OP_LOGICAL_OR(left: L, right: R) -> T
+}
+
+impl #LogicalOr<L: bool, R: bool, T: bool> {
+	fn inline #OP_LOGICAL_OR(lazy left: L, lazy right: R) -> T {
+		if (left) {
+			return 1
+		} else if (right) {
+			return 1
+		} else {
+			return 0
+		}
+	}
+}

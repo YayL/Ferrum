@@ -28,6 +28,8 @@ void checker_check_function(Solver * solver, ID node_id) {
     a_function function = LOOKUP(node_id, a_function);
     context_add_declaration_list(function.arguments);
 
+    Marker * marker = solver_allocate(solver, ID_MARKER);
+
     for (int i = 0; i < function.arguments.size; ++i) {
         ID child_node_id = ARENA_GET(function.arguments, i, ID);
         ASSERT(ID_IS(child_node_id, ID_AST_SYMBOL), "Function arguments currently only support declarations");
@@ -43,25 +45,23 @@ void checker_check_function(Solver * solver, ID node_id) {
 
     ASSERT1(ID_IS(function.type, ID_FN_TYPE));
     Fn_T fn_type = LOOKUP(function.type, Fn_T);
-    check(solver, function.body_id, fn_type.ret_type);
-
-    a_scope scope = LOOKUP(function.body_id, a_scope);
-    for (size_t i = 0; i < scope.declarations.size; ++i) {
-        ID decl_id = ARENA_GET(scope.declarations, i, ID);
-        ASSERT1(ID_IS(decl_id, ID_AST_SYMBOL));
-        a_symbol symbol = LOOKUP(decl_id, a_symbol);
-        ASSERT1(ID_IS(symbol.node_id, ID_AST_VARIABLE));
-        a_variable * var = lookup(symbol.node_id);
-
-        // puts("1");
-        // println("type: {s}\n", type_to_str(var->type_id));
-        // puts("2");
-        println("1");
-        var->type_id = solver_deflate_type(var->type_id);
-        println("3");
-        print_ast_tree(decl_id);
+    if (!check(solver, function.body_id, fn_type.ret_type)) {
+        ERROR("Function body doesn't match return type");
     }
 
+    // a_scope scope = LOOKUP(function.body_id, a_scope);
+    // for (size_t i = 0; i < scope.declarations.size; ++i) {
+    //     ID decl_id = ARENA_GET(scope.declarations, i, ID);
+    //     ASSERT1(ID_IS(decl_id, ID_AST_SYMBOL));
+    //     a_symbol symbol = LOOKUP(decl_id, a_symbol);
+    //     ASSERT1(ID_IS(symbol.node_id, ID_AST_VARIABLE));
+    //     a_variable * var = lookup(symbol.node_id);
+    //
+    //     var->type_id = solver_deflate_type(var->type_id);
+    //     print_ast_tree(decl_id);
+    // }
+
+    solver_reset_to_marker(solver, marker->info.id);
     context_remove_declaration_list(function.arguments);
 }
 
@@ -106,6 +106,7 @@ void checker_check(a_root root) {
     Solver solver = solver_initialize();
 
     checker_check_module(&solver, root.entry_point);
+
     return;
 
     // println("entry: {s}", root.entry_point);

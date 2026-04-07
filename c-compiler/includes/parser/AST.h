@@ -132,7 +132,8 @@ typedef struct a_variable {
     struct AST_info info;
     ID type_id;
     ID name_id;
-    unsigned int reg;
+    unsigned int reg : sizeof(unsigned int) - 1;
+    unsigned int is_lazy : 1;
 } a_variable;
 
 typedef struct a_literal {

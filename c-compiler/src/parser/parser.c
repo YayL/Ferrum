@@ -59,6 +59,12 @@ void parser_eat_keyword(struct Parser * parser, enum Keywords keyword) {
     parser_eat(parser, TOKEN_ID);
 }
 
+static inline void parser_eat_optional_line_break(Parser * parser) {
+    if (parser->lexer.tok.type == TOKEN_LINE_BREAK) {
+        parser_eat(parser, TOKEN_LINE_BREAK);
+    }
+}
+
 Arena parser_parse_template_list(struct Parser * parser) {
     Arena arena = arena_init(sizeof(ID));
 
@@ -210,6 +216,7 @@ void parser_parse_where(struct Parser * parser, Arena * arena) {
     parser_eat_keyword(parser, KEYWORD_WHERE);
 
     do {
+        parser_eat_optional_line_break(parser);
         ARENA_APPEND(arena, parser_parse_type(parser));
     } while (parser->lexer.tok.type == TOKEN_COMMA && (parser_eat(parser, TOKEN_COMMA), 1));
 }
@@ -478,10 +485,12 @@ ID parser_parse_impl(struct Parser * parser) {
     impl->trait_symbol_id = parser_parse_symbol(parser);
     impl->templates = parser_parse_template_list(parser);
 
+    parser_eat_optional_line_break(parser);
     if (parser->lexer.tok.type == TOKEN_ID) {
         parser_parse_where(parser, &impl->where);
     }
 
+    parser_eat_optional_line_break(parser);
     parser_eat(parser, TOKEN_LBRACE);
 
     while (1) {
@@ -732,14 +741,30 @@ ID parser_parse_function(struct Parser * parser) {
     Fn_T * fn = type_allocate(ID_FN_TYPE);
     Tuple_T * args = type_allocate(ID_TUPLE_TYPE);
 
-    char mut = 0;
     parser_eat(parser, TOKEN_LPAREN);
     if (parser->lexer.tok.type != TOKEN_RPAREN) {
+        char mut, lazy;
         do {
             mut = 0;
-            if (parser->lexer.tok.type == TOKEN_ID && ID_IS_EQUAL(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUT))) {
-                parser_eat(parser, TOKEN_ID);
-                mut = 1;
+            lazy = 0;
+            while (parser->lexer.tok.type == TOKEN_ID) {
+                if (ID_IS_EQUAL(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_MUT))) {
+                    parser_eat(parser, TOKEN_ID);
+                    mut = 1;
+                    continue;
+                }
+
+                if (ID_IS_EQUAL(parser->lexer.tok.interner_id, keyword_get_intern_id(KEYWORD_LAZY))) {
+                    parser_eat(parser, TOKEN_ID);
+                    lazy = 1;
+                    continue;
+                }
+
+                break;
+            }
+
+            if (mut && lazy) {
+                ERROR("Unable to use lazy and mut together");
             }
 
             ID arg_id = parser_parse_id(parser);
@@ -751,6 +776,7 @@ ID parser_parse_function(struct Parser * parser) {
             place_type->basetype_id = arg_var->type_id;
 
             arg_var->type_id = place_type->info.type_id;
+            arg_var->is_lazy = lazy;
 
             ARENA_APPEND(&args->types, place_type->basetype_id);
             ARENA_APPEND(&function->arguments, arg_id);

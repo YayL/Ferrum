@@ -18,29 +18,41 @@ void resolve_impl(a_implementation * impl) {
 
 	if (impl->templates.size != trait->templates.size) {
 		ERROR("Implementation does not declare all template types");
+		println("{s}", ast_to_string(impl->info.node_id));
 		print_trace();
 		exit(1);
 	}
 
+	char errored = 0;
 	for (size_t i = 0; i < impl->templates.size; ++i) {
 		a_symbol impl_symbol = LOOKUP(ARENA_GET(impl->templates, i, ID), a_symbol);
 		a_symbol trait_symbol = LOOKUP(ARENA_GET(trait->templates, i, ID), a_symbol);
 
 		if (!ID_IS_EQUAL(impl_symbol.name_id, trait_symbol.name_id)) {
 			ERROR("Implementation does not match trait template type order");
+			println("{s}", ast_to_string(impl->info.node_id));
 			print_trace();
 			exit(1);
 		}
 
 		// println("{s}", ast_to_string(impl_symbol.info.node_id));
 
-		ASSERT1(ID_IS(impl_symbol.node_id, ID_AST_VARIABLE));
+		if (!ID_IS(impl_symbol.node_id, ID_AST_VARIABLE)) {
+			ERROR("Trait implementation doesn't specify template {s}", interner_lookup_str(impl_symbol.name_id)._ptr);
+			errored = 1;
+			continue;
+		}
+
 		ID type_id = LOOKUP(impl_symbol.node_id, a_variable).type_id;
 		if (ID_IS_INVALID(type_id)) {
 			ERROR("Implementation does not specify template type \"{s}\"", interner_lookup_str(trait_symbol.name_id)._ptr);
 			print_trace();
 			exit(1);
 		}
+	}
+
+	if (errored) {
+		exit(1);
 	}
 }
 

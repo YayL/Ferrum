@@ -5,10 +5,12 @@ trait #Post_Decrement<ValueType, RetType> {
 	fn inline #OP_POST_DECREMENT(ref: ValueType) -> RetType
 }
 
-impl<T> #Post_Decrement<ValueType: MutPlace<T>, RetType: T> where subtraction::#Subtraction<T, T, T> {
+impl<T> #Post_Decrement<ValueType: MutPlace<T>, RetType: T> where 
+	subtraction::#Subtraction<T, T, T>, numeric::Numeric<T>
+{
 	fn inline #OP_POST_DECREMENT(value: ValueType) -> RetType {
 		let old = value
-		value = value - 1 to T
+		value = value - (1 to T)
 		old
 	}
 }

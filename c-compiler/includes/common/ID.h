@@ -12,7 +12,8 @@
 	f(ID_TYPE_VAR,		"TypeVar",		TypeVar,		TC) \
 	f(ID_EXISTENIAL,	"Existential",	Existential,	TC) \
 	f(ID_MARKER,		"Marker",		Marker,			TC) \
-	f(ID_TEMPLATE,		"Template",		Template,		TC)
+	f(ID_TEMPLATE,		"Template",		Template,		TC) \
+	f(ID_OBLIGATION,	"Obligation",	Obligation,		TC)
 
 #define TYPE_REGISTRY_KINDS(f) \
 	f(ID_NUMERIC_TYPE,	"NumericT",		Numeric_T,	TYPE) \

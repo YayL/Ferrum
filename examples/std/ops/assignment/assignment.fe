@@ -1,5 +1,5 @@
 trait #Assignable<Dest, Src> {
-    fn inline #OP_ASSIGNMENT(dest: Dest, value: Src) -> Src
+    fn #OP_ASSIGNMENT(dest: Dest, value: Src) -> Src
 }
 
 impl<T> #Assignable<Dest: MutPlace<T>, Src: T> {

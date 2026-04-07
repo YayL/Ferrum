@@ -1,0 +1,13 @@
+trait #LogicalAnd<L, R, T> {
+	fn #OP_LOGICAL_AND(left: L, right: R) -> T
+}
+
+impl #LogicalAnd<L: bool, R: bool, T: bool> {
+	fn inline #OP_LOGICAL_AND(lazy left: L, lazy right: R) -> T {
+		if (left) {
+			return right
+		} else {
+			return 0
+		}
+	}
+}

@@ -1,0 +1,11 @@
+import "../../groups/numeric" as numeric
+
+trait #BitwiseAnd<LType, RType, ResType> {
+	fn #OP_BITWISE_AND(left: LType, right: RType) -> ResType
+}
+
+impl<T> #BitwiseAnd<LType: T, RType: T, ResType: T> where numeric::Integer<T> {
+	fn inline #OP_BITWISE_AND(left: LType, right: RType) -> ResType {
+		#llvm_op("and", left, right)
+	}
+}

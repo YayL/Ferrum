@@ -1,8 +1,13 @@
 import "std/lib" as std
 
 fn main(argc: i32) -> i32 {
-    let x = 0
-    let y = x
+    let x: i32 = 0
+    let mut y: i32 = x + x - x
     y = 2
+    other(x, y)
     y
+}
+
+fn other(a: i32, b: i32) -> void {
+
 }

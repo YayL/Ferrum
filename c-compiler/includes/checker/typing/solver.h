@@ -32,6 +32,18 @@ typedef struct existenial {
 	ID solved_type;
 } Existential;
 
+typedef struct obligation {
+	struct tc_context_info info;
+	ID type_id;
+	ID offender_id;
+
+	enum obligation_type {
+		IMPLEMENTATION_OBLIGATION, // Known candidate but unresolved implementation check due to existential type
+		MEMBER_OBLIGATION, // Member access on existential type
+		FUNCTION_OBLIGATION // Multiple function candidates with existential in arguments
+	} obligation_type;
+} Obligation;
+
 #define MARKER_COUNT_GET(TYPE) TYPE##_count
 #define MARKER_COUNT_GEN(ENUM, _, TYPE, ...) uint32_t MARKER_COUNT_GET(TYPE);
 typedef struct marker {
@@ -57,9 +69,12 @@ static inline void * solver_allocate(Solver * solver, enum id_type type) {
 void solver_type_init(enum id_type type, void * ref);
 
 void solver_collect_templates(Solver * solver, ID node_id);
+ID solver_find_symbol_term_var(Solver * solver, ID symbol_id);
 ID solver_get_template_type(ID name_id);
 ID solver_replace_templates(ID type_id);
 ID solver_deflate_type(ID id);
 char solver_implementation_is_valid(Solver * solver, ID implementation_id, const Arena templates);
+char solver_validate_trait_implementation(Solver * solver, ID id);
+char solver_validate_where_clauses(Solver * solver, ID node_id);
 
 void solver_reset_to_marker(Solver * solver, ID marker_id);

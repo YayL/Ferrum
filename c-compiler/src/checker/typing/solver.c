@@ -3,6 +3,7 @@
 #include "common/ID.h"
 #include "tables/registry_manager.h"
 #include "checker/typing/subtyping.h"
+#include "checker/symbol.h"
 
 Solver solver_initialize() {
 	return (Solver) {
@@ -11,8 +12,9 @@ Solver solver_initialize() {
 }
 
 ID solver_find_symbol_term_var(Solver * solver, ID symbol_id) {
+	ID interner_id = ast_get_interner_id(symbol_id);
 	LOOP_OVER_REGISTRY_REV(TermVar, term_var, {
-		if (ID_IS_EQUAL(term_var->symbol_id, symbol_id)) {
+		if (ID_IS_EQUAL(ast_get_interner_id(term_var->symbol_id), interner_id)) {
 			return term_var->info.id;
 		}
 	});
@@ -105,18 +107,78 @@ char solver_implementation_is_valid(Solver * solver, ID implementation_id, const
 		ASSERT1(!ID_IS_INVALID(variable.type_id));
 
 		ID fixed_template_type_id = solver_replace_templates(variable.type_id);
-		if (!is_subtype_strict(solver, ARENA_GET(templates, i, ID), fixed_template_type_id)) {
+		const ID template_id = ARENA_GET(templates, i, ID);
+		if (!is_subtype_strict(solver, template_id, fixed_template_type_id)) {
 			solver_reset_to_marker(solver, marker->info.id);
 			return 0;
 		}
 	}
 
-	for (size_t i = 0; i < templates.size; ++i) {
-		println("{u}) {s}", i + 1, type_to_str(ARENA_GET(templates, i, ID)));
+	for (size_t i = 0; i < impl.where.size; ++i) {
+		if (!solver_validate_trait_implementation(solver, ARENA_GET(impl.where, i, ID))) {
+			return 0;
+		}
 	}
 
 	solver_reset_to_marker(solver, marker->info.id);
 	return 1;
+}
+
+char solver_validate_trait_implementation(Solver * solver, ID symbol_type_id) {
+	ASSERT1(ID_IS(symbol_type_id, ID_SYMBOL_TYPE));
+	Symbol_T symbol_type = LOOKUP(symbol_type_id, Symbol_T);
+	ASSERT1(!ID_IS_INVALID(symbol_type.symbol_id));
+	a_symbol * symbol = lookup(symbol_type.symbol_id);
+
+	if (ID_IS_INVALID(qualify_symbol(symbol, ID_SYMBOL_TYPE))) {
+		FATAL("Unable to qualify: {s}", ast_to_string(symbol_type.symbol_id));
+	}
+
+	ASSERT(ID_IS(symbol->node_id, ID_AST_TRAIT), "Non trait found in where clause");
+	const a_trait trait = LOOKUP(symbol->node_id, a_trait);
+
+	ASSERT1(symbol_type.templates.size > 0);
+	Arena templates = arena_init(sizeof(ID));
+	arena_grow(&templates, symbol_type.templates.size);
+
+	for (size_t i = 0; i < symbol_type.templates.size; ++i) {
+		ARENA_APPEND(&templates, solver_replace_templates(ARENA_GET(symbol_type.templates, i, ID)));
+	}
+
+	for (size_t i = 0; i < trait.implementations.size; ++i) {
+		if (solver_implementation_is_valid(solver, ARENA_GET(trait.implementations, i, ID), templates)) {
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+static inline char solver_validate_where_clause(Solver * solver, const Arena clauses) {
+	for (size_t i = 0; i < clauses.size; ++i) {
+		if (!solver_validate_trait_implementation(solver, ARENA_GET(clauses, i, ID))) {
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
+char solver_validate_where_clauses(Solver * solver, ID node_id) {
+	switch (node_id.type) {
+		case ID_AST_FUNCTION: {
+			a_function function = LOOKUP(node_id, a_function);
+			return solver_validate_where_clause(solver, function.where) 
+					&& solver_validate_where_clauses(solver, function.info.scope_id);
+		} break;
+		case ID_AST_IMPL: {
+			a_implementation impl = LOOKUP(node_id, a_implementation);
+			return solver_validate_where_clause(solver, impl.where)
+					&& solver_validate_where_clauses(solver, impl.info.scope_id);
+		}
+		case ID_AST_MODULE: return 1;
+		default: FATAL("Unimplemented scope \"{s}\"", id_type_to_string(node_id.type));
+	}
 }
 
 #include "checker/symbol.h"
@@ -264,29 +326,10 @@ ID solver_replace_templates(ID type_id) {
 
 ID solver_deflate_type(ID id) {
 	switch (id.type) {
+		case ID_INVALID_TYPE:
 		case ID_NUMERIC_TYPE:
+		case ID_PLACE_TYPE:
 		case ID_VOID_TYPE: return id;
-		case ID_PLACE_TYPE: {
-			Place_T place = LOOKUP(id, Place_T);
-
-			ID deflated_type_id = solver_deflate_type(place.basetype_id);
-
-			// Remove place in place
-			if (ID_IS(deflated_type_id, ID_PLACE_TYPE)) {
-				Place_T base_place = LOOKUP(deflated_type_id, Place_T);
-				ASSERT1(place.is_mut == base_place.is_mut);
-				return deflated_type_id;
-			}
-
-			if (ID_IS_EQUAL(place.basetype_id, deflated_type_id)) {
-				return id;
-			}
-
-			Place_T * new_place = type_allocate(ID_PLACE_TYPE);
-			new_place->basetype_id = deflated_type_id;
-			new_place->is_mut = place.is_mut;
-			return new_place->info.type_id;
-		}
 		case ID_REF_TYPE: {
 			Ref_T ref = LOOKUP(id, Ref_T);
 

@@ -19,6 +19,7 @@ enum Keywords_usage {
     \
     f(KEYWORD_LET, ANY, "let") \
     f(KEYWORD_MUT, ANY, "mut") \
+    f(KEYWORD_LAZY, FUNCTION_ONLY, "lazy") \
     \
     f(KEYWORD_FN, GLOBAL_ONLY, "fn") \
     f(KEYWORD_IMPORT, GLOBAL_ONLY, "import") \

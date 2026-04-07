@@ -1,0 +1,13 @@
+trait #LogicalNot<P, T> {
+	fn #OP_LOGICAL_NOT(predicate: P) -> T
+}
+
+impl #LogicalNot<P: bool, T: bool> {
+	fn inline #OP_LOGICAL_NOT(lazy predicate: P) -> T {
+		if (predicate) {
+			return 0
+		} else {
+			return 1
+		}
+	}
+}

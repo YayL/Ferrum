@@ -4,33 +4,7 @@
 #include "parser/types.h"
 #include "tables/registry_manager.h"
 #include "checker/context.h"
-
-char is_free_from_variable(ID type, ID var_id) {
-	if (ID_IS_EQUAL(type, var_id)) {
-		return 0;
-	}
-
-	switch (type.type) {
-		case ID_EXISTENIAL:
-		case ID_VOID_TYPE:
-		case ID_NUMERIC_TYPE: return 1;
-		case ID_REF_TYPE: return is_free_from_variable(LOOKUP(type, Ref_T).basetype_id, var_id);
-		case ID_ARRAY_TYPE: return is_free_from_variable(LOOKUP(type, Array_T).basetype_id, var_id);
-		case ID_PLACE_TYPE: return is_free_from_variable(LOOKUP(type, Place_T).basetype_id, var_id);
-		case ID_TUPLE_TYPE: {
-			Tuple_T tuple = LOOKUP(type, Tuple_T);
-			for (size_t i = 0; i < tuple.types.size; ++i) {
-				if (!is_free_from_variable(ARENA_GET(tuple.types, i, ID), var_id)) {
-					return 0;
-				}
-			}
-		} break;
-		
-		default: FATAL("Unimplemented type \"{s}\"", id_type_to_string(type.type));
-	}
-
-	return 1;
-}
+#include "checker/typing/utils.h"
 
 char instantiate(Solver * solver, ID var_id, ID type_id) {
 	ASSERT1(ID_IS(var_id, ID_EXISTENIAL));
@@ -62,10 +36,10 @@ char instaniate_tuple(Solver * solver, ID tuple_id, ID expected_id) {
 	for (size_t i = 0; i < tuple.types.size; ++i) {
 		ID A = ARENA_GET(tuple.types, i, ID), B = ARENA_GET(expected_tuple.types, i, ID);
 		if (!is_subtype(solver, A, B)) {
-			println("{s} <!: {s}", type_to_str(A), type_to_str(B));
+			// println("{s} <!: {s}", type_to_str(A), type_to_str(B));
 			return 0;
 		}
-		println("{s} <: {s}", type_to_str(A), type_to_str(B));
+		// println("{s} <: {s}", type_to_str(A), type_to_str(B));
 	}
 
 	return 1;
@@ -77,6 +51,8 @@ char is_subtype_strict(Solver * solver, ID lower, ID upper) {
 	}
 
 	lower = solver_deflate_type(lower), upper = solver_deflate_type(upper);
+
+	// println("{s} <?: {s}", type_to_str(lower), type_to_str(upper));
 
 	if (ID_IS_EQUAL(lower, upper)) {
 		return 1;
@@ -95,22 +71,14 @@ char is_subtype_strict(Solver * solver, ID lower, ID upper) {
 	}
 
 	if (id_is_type(lower) && id_is_type(upper)) {
-		if (lower.type == upper.type && subtype_check_equal(solver, lower, upper)) {
-			return 1;
-		}
-
-		return 0;
+		return lower.type == upper.type && subtype_check_equal(solver, lower, upper);
 	}
 
 	FATAL("Unimplemented: [{s}] [{s}]", type_to_str(lower), type_to_str(upper));
 }
 
 char is_subtype(Solver * solver, ID lower, ID upper) {
-	if (is_subtype_strict(solver, lower, upper)) {
-		return 1;
-	}
-
-	return is_subtype_implicit(solver, lower, upper);
+	return is_subtype_strict(solver, lower, upper) || is_implicit_subtype(solver, lower, upper);
 }
 
 char instantiate_solve(Solver * solver, ID A, ID B) {
@@ -139,6 +107,9 @@ char instantiate_solve(Solver * solver, ID A, ID B) {
 	ASSERT1(!ID_IS_INVALID(src));
 
 	if (ID_IS_INVALID(*dest)) {
+		if (ID_IS(src, ID_PLACE_TYPE)) {
+			src = LOOKUP(src, Place_T).basetype_id;
+		}
 		*dest = src;
 	} else {
 		return is_subtype(solver, *dest, src);
@@ -221,7 +192,7 @@ char subtype_check_equal(Solver * solver, ID type_id1, ID type_id2) {
 	}
 }
 
-char is_subtype_implicit(Solver * solver, ID lower, ID upper) {
+char is_implicit_subtype(Solver * solver, ID lower, ID upper) {
 	const a_trait imp_trait = LOOKUP(context_get_implicit_cast_trait(), a_trait);
 	Arena arena = arena_init(sizeof(ID));
 	arena_grow(&arena, 2);

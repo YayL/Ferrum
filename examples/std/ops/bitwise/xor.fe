@@ -1,0 +1,9 @@
+trait #BitwiseXor<LType, RType, ResType> {
+	fn #OP_BITWISE_XOR(left: LType, right: RType) -> ResType
+}
+
+impl<T> #BitwiseXor<LType: T, RType: T, ResType: T> {
+	fn inline #OP_BITWISE_XOR(left: LType, right: RType) -> ResType {
+		#llvm_op("xor", left, right)
+	}
+}

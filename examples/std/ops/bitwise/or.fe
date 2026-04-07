@@ -1,0 +1,9 @@
+trait #BitwiseOr<LType, RType, ResType> {
+	fn #OP_BITWISE_OR(left: LType, right: RType) -> ResType
+}
+
+impl<T> #BitwiseOr<LType: T, RType: T, ResType: T> {
+	fn inline #OP_BITWISE_OR(left: LType, right: RType) -> ResType {
+		#llvm_op("or", left, right)
+	}
+}
