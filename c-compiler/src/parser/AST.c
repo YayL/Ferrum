@@ -39,6 +39,7 @@ void ast_init_node(enum id_type type, void * node_ref) {
             ((a_structure *) node_ref)->declarations = arena_init(sizeof(ID));
             ((a_structure *) node_ref)->members = arena_init(sizeof(ID));
             ((a_structure *) node_ref)->templates = arena_init(sizeof(ID));
+            ((a_structure *) node_ref)->where = arena_init(sizeof(ID));
             ((a_structure *) node_ref)->name_id = INVALID_ID;
             break;
         case ID_AST_TRAIT:
@@ -250,17 +251,6 @@ void _print_ast_tree(ID node_id, String pad, char is_last) {
             }
             free_string(next_pad);
         } break;
-
-        case ID_AST_SYMBOL: {
-            a_symbol * symbol = lookup(node_id);
-
-            if (!ID_IS_INVALID(symbol->node_id)) {
-                String next_pad = string_copy(pad);
-                _print_ast_tree(symbol->node_id, next_pad, 1);
-                free_string(next_pad);
-            }
-
-        } break;
         default:
             break;
     }
@@ -285,6 +275,8 @@ void print_ast_tree_from_root(a_root root) {
     free_string(next_pad);
 }
 
+#define COMMA GREY ", "
+
 char * ast_to_string(ID node_id) {
     const char * type_str = id_type_to_string(node_id.type);
 
@@ -293,18 +285,18 @@ char * ast_to_string(ID node_id) {
     switch (node_id.type) {
         case ID_AST_MODULE: {
             a_module module = LOOKUP(node_id, a_module);
-            ast_str = format("{s} " GREY "<" BLUE "Definitions" RESET ": {i}, " BLUE "Path" RESET ": {s}" GREY ">" RESET, ast_str, module.members.size, module.file_path);
+            ast_str = format("{s} " GREY "<" BLUE "Definitions" RESET ": {i}" COMMA BLUE "Path" RESET ": {s}" GREY ">" RESET, ast_str, module.members.size, module.file_path);
         } break;
 
         case ID_AST_FUNCTION: {
             a_function func = LOOKUP(node_id, a_function);
             const char * func_name = interner_lookup_str(func.name_id)._ptr;
-            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, func_name, type_to_str(func.type));
+            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}" COMMA BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, func_name, type_to_str(func.type));
         } break;
 
         case ID_AST_SCOPE: {
             a_scope scope = LOOKUP(node_id, a_scope);
-            ast_str = format("{s} " GREY "<" BLUE "Declarations" RESET ": {i}, " BLUE "Nodes" RESET ": {i}" GREY ">" RESET, ast_str, scope.declarations.size, scope.nodes.size);
+            ast_str = format("{s} " GREY "<" BLUE "Declarations" RESET ": {i}" COMMA BLUE "Nodes" RESET ": {i}" GREY ">" RESET, ast_str, scope.declarations.size, scope.nodes.size);
         } break;
 
         case ID_AST_IMPL: {
@@ -320,18 +312,18 @@ char * ast_to_string(ID node_id) {
         case ID_AST_TRAIT: {
             a_trait trait = LOOKUP(node_id, a_trait);
             ASSERT1(!ID_IS_INVALID(trait.name_id));
-            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Templates" RESET ": {u}" GREY ">" RESET, ast_str, interner_lookup_str(trait.name_id)._ptr, trait.templates.size);
+            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}" COMMA BLUE "Templates" RESET ": {u}" GREY ">" RESET, ast_str, interner_lookup_str(trait.name_id)._ptr, trait.templates.size);
         } break;
 
         case ID_AST_OP: {
             a_operator op = LOOKUP(node_id, a_operator);
-            ast_str = format("{s} " GREY "<" BLUE "Op" RESET ": '{s}', " BLUE "Mode" RESET ": {s}, " BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, op.op.str, op.op.mode == BINARY ? "Binary" : "Unary", type_to_str(op.type_id));
+            ast_str = format("{s} " GREY "<" BLUE "Op" RESET ": '{s}'" COMMA BLUE "Mode" RESET ": {s}" COMMA BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, op.op.str, op.op.mode == BINARY ? "Binary" : "Unary", type_to_str(op.type_id));
         } break;
 
         case ID_AST_VARIABLE: {
             a_variable var = LOOKUP(node_id, a_variable);
             const char * var_name = interner_lookup_str(var.name_id)._ptr;
-            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, var_name, type_to_str(var.type_id));
+            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}" COMMA BLUE "Type" RESET ": {s}" GREY ">" RESET, ast_str, var_name, type_to_str(var.type_id));
         } break;
         case ID_AST_LITERAL: {
             a_literal literal = LOOKUP(node_id, a_literal);
@@ -339,10 +331,10 @@ char * ast_to_string(ID node_id) {
 
             switch (literal.literal_type) {
                 case LITERAL_NUMBER:
-                    fmt_string = "{s} " GREY "<" BLUE "Literal" RESET ": Number, " BLUE "Type" RESET ": {s}, " BLUE "Value" RESET ": {s}" GREY ">" RESET;
+                    fmt_string = "{s} " GREY "<" BLUE "Literal" RESET ": Number" COMMA BLUE "Type" RESET ": {s}" COMMA BLUE "Value" RESET ": {s}" GREY ">" RESET;
                     break;
                 case LITERAL_STRING:
-                    fmt_string = "{s} " GREY "<" BLUE "Literal" RESET ": String, " BLUE "Type" RESET ": {s}, " BLUE "Value" RESET ": \"{s}\"" GREY ">" RESET;
+                    fmt_string = "{s} " GREY "<" BLUE "Literal" RESET ": String" COMMA BLUE "Type" RESET ": {s}" COMMA BLUE "Value" RESET ": \"{s}\"" GREY ">" RESET;
                     break;
             }
 
@@ -356,12 +348,12 @@ char * ast_to_string(ID node_id) {
 
         case ID_AST_SYMBOL: {
             a_symbol symbol = LOOKUP(node_id, a_symbol);
-            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Found" RESET ": {b}" GREY ">" RESET, ast_str, interner_lookup_str(symbol.name_id)._ptr, !ID_IS_INVALID(symbol.node_id));
+            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}" COMMA RESET "{s}" GREY ">" RESET, ast_str, interner_lookup_str(symbol.name_id)._ptr, ast_to_string(symbol.node_id));
         } break;
 
         case ID_AST_STRUCT: {
             a_structure structure = LOOKUP(node_id, a_structure);
-            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}, " BLUE "Members" RESET ": {u}" GREY ">" RESET, ast_str, interner_lookup_str(structure.name_id)._ptr, structure.members.size);
+            ast_str = format("{s} " GREY "<" BLUE "Name" RESET ": {s}" COMMA BLUE "Members" RESET ": {u}" GREY ">" RESET, ast_str, interner_lookup_str(structure.name_id)._ptr, structure.members.size);
         } break;
 
         default: {

@@ -46,9 +46,19 @@ static char is_free_from_existentials(ID type_id) {
 		case ID_ARRAY_TYPE: return is_free_from_existentials(LOOKUP(type_id, Array_T).basetype_id);
 		case ID_PLACE_TYPE: return is_free_from_existentials(LOOKUP(type_id, Place_T).basetype_id);
 		case ID_TUPLE_TYPE: {
-			Tuple_T tuple = LOOKUP(type_id, Tuple_T);
-			for (size_t i = 0; i < tuple.types.size; ++i) {
-				if (!is_free_from_existentials(ARENA_GET(tuple.types, i, ID))) {
+			Tuple_T tuple_type = LOOKUP(type_id, Tuple_T);
+			for (size_t i = 0; i < tuple_type.types.size; ++i) {
+				if (!is_free_from_existentials(ARENA_GET(tuple_type.types, i, ID))) {
+					return 0;
+				}
+			}
+
+			return 1;
+		}
+		case ID_SYMBOL_TYPE: {
+			Symbol_T symbol_type = LOOKUP(type_id, Symbol_T);
+			for (size_t i = 0; i < symbol_type.templates.size; ++i) {
+				if (!is_free_from_existentials(ARENA_GET(symbol_type.templates, i, ID))) {
 					return 0;
 				}
 			}

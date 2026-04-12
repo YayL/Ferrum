@@ -85,6 +85,7 @@ typedef struct a_structure {
     Arena templates;
     Arena declarations;
     Arena members;
+    Arena where;
 } a_structure;
 
 typedef struct a_enumeration {

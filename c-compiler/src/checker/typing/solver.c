@@ -66,6 +66,7 @@ void solver_collect_templates(Solver * solver, ID node_id) {
 
 	switch (node_id.type) {
 		case ID_AST_FUNCTION: _collect_templates(solver, LOOKUP(node_id, a_function).templates); break;
+		case ID_AST_STRUCT: _collect_templates(solver, LOOKUP(node_id, a_structure).templates); break;
 		case ID_AST_IMPL: {
 			a_implementation impl = LOOKUP(node_id, a_implementation);
 			_collect_templates(solver, impl.generics);
@@ -108,10 +109,13 @@ char solver_implementation_is_valid(Solver * solver, ID implementation_id, const
 
 		ID fixed_template_type_id = solver_replace_templates(variable.type_id);
 		const ID template_id = ARENA_GET(templates, i, ID);
+		// println("{u}) {s} <: {s}", i + 1, type_to_str(template_id), type_to_str(fixed_template_type_id));
 		if (!is_subtype_strict(solver, template_id, fixed_template_type_id)) {
+			// println("\t nope");
 			solver_reset_to_marker(solver, marker->info.id);
 			return 0;
 		}
+		// println("\t yup");
 	}
 
 	for (size_t i = 0; i < impl.where.size; ++i) {
@@ -175,6 +179,10 @@ char solver_validate_where_clauses(Solver * solver, ID node_id) {
 			a_implementation impl = LOOKUP(node_id, a_implementation);
 			return solver_validate_where_clause(solver, impl.where)
 					&& solver_validate_where_clauses(solver, impl.info.scope_id);
+		}
+		case ID_AST_STRUCT: {
+			a_structure _struct = LOOKUP(node_id, a_structure);
+			return solver_validate_where_clause(solver, _struct.where);
 		}
 		case ID_AST_MODULE: return 1;
 		default: FATAL("Unimplemented scope \"{s}\"", id_type_to_string(node_id.type));
@@ -328,8 +336,20 @@ ID solver_deflate_type(ID id) {
 	switch (id.type) {
 		case ID_INVALID_TYPE:
 		case ID_NUMERIC_TYPE:
-		case ID_PLACE_TYPE:
 		case ID_VOID_TYPE: return id;
+		case ID_PLACE_TYPE: {
+			Place_T place = LOOKUP(id, Place_T);
+
+			ID deflated_type_id = solver_deflate_type(place.basetype_id);
+			if (ID_IS_EQUAL(place.basetype_id, deflated_type_id)) {
+				return id;
+			}
+
+			Place_T * new_place = type_allocate(ID_PLACE_TYPE);
+			new_place->basetype_id = deflated_type_id;
+			new_place->is_mut = place.is_mut;
+			return new_place->info.type_id;
+		}
 		case ID_REF_TYPE: {
 			Ref_T ref = LOOKUP(id, Ref_T);
 

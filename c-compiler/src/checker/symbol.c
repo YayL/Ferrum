@@ -46,7 +46,6 @@ ID qualify_symbol_in_scope(a_symbol * symbol) {
 					default: FATAL("Unimplemented declaration lookup type: {s}", id_type_to_string(declaration_id.type));
 					}
 				}
-			} else {
 			}
 		}
 

@@ -26,6 +26,10 @@ void arena_grow(Arena * arena, uint32_t new_capacity) {
 		arena->arena = malloc(arena->item_size * arena->capacity);
 	} else {
 		ASSERT1(arena->arena != NULL);
+		if (new_capacity <= arena->capacity) {
+			return;
+		}
+
 		ASSERT1(arena->capacity < new_capacity);
 		arena->capacity = new_capacity;
 		arena->arena = realloc(arena->arena, arena->item_size * arena->capacity);

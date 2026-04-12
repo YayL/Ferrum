@@ -356,6 +356,11 @@ ID parser_parse_struct(struct Parser * parser) {
 
     _struct->templates = parser_parse_template_list(parser);
 
+    parser_eat_optional_line_break(parser);
+    if (parser->lexer.tok.type == TOKEN_ID) {
+        parser_parse_where(parser, &_struct->where);
+    }
+
     parser_eat(parser, TOKEN_LBRACE);
 
     // Add Self template to generics

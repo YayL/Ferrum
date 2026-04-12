@@ -13,8 +13,8 @@ ID synthesis_symbol(Solver * solver, ID node_id) {
 	a_symbol * symbol = lookup(node_id);
 	
 	if (ID_IS_INVALID(symbol->node_id) && ID_IS_INVALID(qualify_symbol(symbol, ID_AST_SYMBOL))) {
-			ERROR("Unable to find symbol: {s}", ast_to_string(node_id));
-			exit(1);
+		ERROR("Unable to find symbol: {s}", ast_to_string(node_id));
+		exit(1);
 	}
 
 	ASSERT1(!ID_IS_INVALID(symbol->node_id));
@@ -54,10 +54,11 @@ ID synthesis_apply(Solver * solver, ID function_id, ID expr_type_id) {
 	Fn_T fn_type = LOOKUP(fixed_fn_type_id, Fn_T);
 
 	// Unify
-	if (!is_subtype(solver, expr_type_id, fn_type.arg_type)) {
+	if (!is_subtype(solver, expr_type_id, fn_type.arg_type, 0)) {
 		solver_reset_to_marker(solver, marker->info.id);
 		return INVALID_ID;
 	}
+
 
 	// Verify
 	if (!solver_validate_where_clauses(solver, function_id)) {
@@ -65,10 +66,10 @@ ID synthesis_apply(Solver * solver, ID function_id, ID expr_type_id) {
 		return INVALID_ID;
 	}
 
-
 	// Return
 	ID deflated_type_id = solver_deflate_type(fn_type.ret_type);
 	ASSERT1(is_free_from_existentials(deflated_type_id));
+	solver_reset_to_marker(solver, marker->info.id);
 
 	// solver_reset_to_marker(solver, marker->info.id);
 	return deflated_type_id;
@@ -102,7 +103,6 @@ ID synthesis_operator_member_access(Solver * solver, a_operator * op) {
 	ASSERT1(ID_IS(op->info.node_id, ID_AST_OP));
 
 	ID left_type_id = ast_get_type_of(op->left_id);
-	println("left type: {s}", type_to_str(left_type_id));
 
 	FATAL("Unimplemented");
 }
@@ -167,7 +167,6 @@ ID synthesis_operator(Solver * solver, ID node_id) {
 	}
 
 	op->type_id = solver_deflate_type(ret_type);
-	// println("OPERATOR: {s}", type_to_str(op->type_id));
 
 	return ret_type;
 }
@@ -229,14 +228,14 @@ ID synthesis_declaration(Solver * solver, ID node_id) {
 			expr_type_id = existential->info.id;
 		}
 
-		if (!ID_IS_INVALID(variable->type_id) && !is_subtype(solver, expr_type_id, variable->type_id)) {
+		if (!ID_IS_INVALID(variable->type_id) && !is_subtype(solver, expr_type_id, variable->type_id, 0)) {
 			ERROR("Type Error: {s} <: {s}", type_to_str(expr_type_id), type_to_str(variable->type_id));
 		}
 
 		Place_T * place = type_allocate(ID_PLACE_TYPE);
 		place->is_mut = declaration.is_mut;
-		place->basetype_id = expr_type_id;
-		variable->type_id = solver_deflate_type(place->info.type_id);
+		place->basetype_id = solver_deflate_type(expr_type_id);
+		variable->type_id = place->info.type_id;
 	}
 
 	return VOID_TYPE;

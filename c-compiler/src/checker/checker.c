@@ -30,17 +30,25 @@ void checker_check_function(Solver * solver, ID node_id) {
 
     Marker * marker = solver_allocate(solver, ID_MARKER);
 
-    for (int i = 0; i < function.arguments.size; ++i) {
-        ID child_node_id = ARENA_GET(function.arguments, i, ID);
-        ASSERT(ID_IS(child_node_id, ID_AST_SYMBOL), "Function arguments currently only support declarations");
-        a_symbol symbol = LOOKUP(child_node_id, a_symbol);
-        ASSERT1(symbol.name_ids.size == 1);
-        ASSERT1(ID_IS(symbol.node_id, ID_AST_VARIABLE));
-        a_variable variable = LOOKUP(symbol.node_id, a_variable);
+    if (function.arguments.size > 0) {
+        ASSERT1(ID_IS(function.body_id, ID_AST_SCOPE));
+        a_scope * function_scope = lookup(function.body_id);
+        arena_grow(&function_scope->declarations, function_scope->declarations.size + function.arguments.size);
 
-        TermVar * var = solver_allocate(solver, ID_TERM_VAR);
-        var->symbol_id = symbol.info.node_id;
-        var->type = variable.type_id;
+        for (int i = 0; i < function.arguments.size; ++i) {
+            ID child_node_id = ARENA_GET(function.arguments, i, ID);
+            ASSERT(ID_IS(child_node_id, ID_AST_SYMBOL), "Function arguments currently only support declarations");
+            a_symbol symbol = LOOKUP(child_node_id, a_symbol);
+            ASSERT1(symbol.name_ids.size == 1);
+            ASSERT1(ID_IS(symbol.node_id, ID_AST_VARIABLE));
+            a_variable variable = LOOKUP(symbol.node_id, a_variable);
+
+            TermVar * var = solver_allocate(solver, ID_TERM_VAR);
+            var->symbol_id = symbol.info.node_id;
+            var->type = variable.type_id;
+
+            ARENA_APPEND(&function_scope->declarations, child_node_id);
+        }
     }
 
     ASSERT1(ID_IS(function.type, ID_FN_TYPE));
