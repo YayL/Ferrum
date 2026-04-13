@@ -54,7 +54,7 @@ ID synthesis_apply(Solver * solver, ID function_id, ID expr_type_id) {
 	Fn_T fn_type = LOOKUP(fixed_fn_type_id, Fn_T);
 
 	// Unify
-	if (!is_subtype(solver, expr_type_id, fn_type.arg_type, 0)) {
+	if (!is_subtype(solver, expr_type_id, fn_type.arg_type)) {
 		solver_reset_to_marker(solver, marker->info.id);
 		return INVALID_ID;
 	}
@@ -228,7 +228,7 @@ ID synthesis_declaration(Solver * solver, ID node_id) {
 			expr_type_id = existential->info.id;
 		}
 
-		if (!ID_IS_INVALID(variable->type_id) && !is_subtype(solver, expr_type_id, variable->type_id, 0)) {
+		if (!ID_IS_INVALID(variable->type_id) && !is_subtype(solver, expr_type_id, variable->type_id)) {
 			ERROR("Type Error: {s} <: {s}", type_to_str(expr_type_id), type_to_str(variable->type_id));
 		}
 

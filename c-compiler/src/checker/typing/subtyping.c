@@ -6,84 +6,7 @@
 #include "checker/context.h"
 #include "checker/typing/utils.h"
 
-#define IMPLICIT_MODE 0
-#define STRICT_MODE 1
-
-char instantiate(Solver * solver, ID var_id, ID type_id, char is_strict) {
-	ASSERT1(ID_IS(var_id, ID_EXISTENIAL));
-
-	if (!is_free_from_variable(type_id, var_id)) {
-		return 0;
-	}
-
-	return instantiate_solve(solver, var_id, type_id, is_strict);
-}
-
-char instaniate_tuple(Solver * solver, ID lower, ID upper, char is_strict) {
-	ASSERT1(ID_IS(lower, ID_TUPLE_TYPE) || ID_IS(upper, ID_TUPLE_TYPE));
-
-	if (!ID_IS(upper, ID_TUPLE_TYPE)) {
-		Tuple_T tuple = LOOKUP(lower, Tuple_T);
-		return tuple.types.size == 1 && is_subtype(solver, ARENA_GET(tuple.types, 0, ID), upper, is_strict);
-	} else if (!ID_IS(lower, ID_TUPLE_TYPE)) {
-		Tuple_T tuple = LOOKUP(upper, Tuple_T);
-		return tuple.types.size == 1 && is_subtype(solver, lower, ARENA_GET(tuple.types, 0, ID), is_strict);
-	}
-
-	ASSERT1(ID_IS(lower, ID_TUPLE_TYPE));
-	ASSERT1(ID_IS(upper, ID_TUPLE_TYPE));
-
-	Tuple_T tuple = LOOKUP(lower, Tuple_T);
-	Tuple_T expected_tuple = LOOKUP(upper, Tuple_T);
-	if (tuple.types.size != expected_tuple.types.size) {
-		return 0;
-	}
-
-	for (size_t i = 0; i < tuple.types.size; ++i) {
-		ID A = ARENA_GET(tuple.types, i, ID), B = ARENA_GET(expected_tuple.types, i, ID);
-		if (!is_subtype(solver, A, B, is_strict)) {
-			// println("{s} <!: {s}", type_to_str(A), type_to_str(B));
-			return 0;
-		}
-		// println("{s} <: {s}", type_to_str(A), type_to_str(B));
-	}
-
-	return 1;
-}
-
-char is_subtype_strict(Solver * solver, ID lower, ID upper) {
-	if (ID_IS_EQUAL(lower, upper)) {
-		return 1;
-	}
-
-	lower = solver_deflate_type(lower), upper = solver_deflate_type(upper);
-
-	// println("{s} <?: {s}", type_to_str(lower), type_to_str(upper));
-
-	if (ID_IS_EQUAL(lower, upper)) {
-		return 1;
-	}
-
-	if (ID_IS(lower, ID_EXISTENIAL)) {
-		return instantiate(solver, lower, upper, 1);
-	} else if (ID_IS(upper, ID_EXISTENIAL)) {
-		return instantiate(solver, upper, lower, STRICT_MODE);
-	}
-
-	if (ID_IS(lower, ID_TUPLE_TYPE) || ID_IS(upper, ID_TUPLE_TYPE)) {
-		return instaniate_tuple(solver, lower, upper, STRICT_MODE);
-	}
-
-	if (id_is_type(lower) && id_is_type(upper)) {
-		return lower.type == upper.type && subtype_check_equal(solver, lower, upper, STRICT_MODE);
-	}
-
-	FATAL("Unimplemented: [{s}] [{s}]", type_to_str(lower), type_to_str(upper));
-}
-
-char is_subtype(Solver * solver, ID lower, ID upper, char is_strict) {
-	return is_subtype_strict(solver, lower, upper) || (is_strict && is_implicit_subtype(solver, lower, upper));
-}
+static inline char is_subtype_with_flag(Solver * solver, ID lower, ID upper, char is_strict);
 
 char instantiate_solve(Solver * solver, ID lower, ID upper, char is_strict) {
 	ID * dest = NULL, src = INVALID_ID;
@@ -99,7 +22,7 @@ char instantiate_solve(Solver * solver, ID lower, ID upper, char is_strict) {
 		} else if (ID_IS_INVALID(existential_b->solved_type)) {
 			dest = &existential_b->solved_type, src = lower;
 		} else {
-			return is_subtype(solver, existential_a->solved_type, existential_b->solved_type, is_strict);
+			return is_subtype_with_flag(solver, existential_a->solved_type, existential_b->solved_type, is_strict);
 		}
 	} else if (ID_IS(lower, ID_EXISTENIAL)) {
 		dest = &(LOOKUP(lower, Existential).solved_type), src = upper;
@@ -118,10 +41,92 @@ char instantiate_solve(Solver * solver, ID lower, ID upper, char is_strict) {
 
 		return 1;
 	} else {
-		return is_subtype(solver, *dest, src, is_strict);
+		return is_subtype_with_flag(solver, *dest, src, is_strict);
 	}
 
 	FATAL("Unimplemented instantiate_solve case");
+}
+
+char instantiate(Solver * solver, ID var_id, ID type_id, char is_strict) {
+	ASSERT1(ID_IS(var_id, ID_EXISTENIAL));
+
+	if (!is_free_from_variable(type_id, var_id)) {
+		return 0;
+	}
+
+	return instantiate_solve(solver, var_id, type_id, is_strict);
+}
+
+char instaniate_tuple(Solver * solver, ID lower, ID upper, char is_strict) {
+	ASSERT1(ID_IS(lower, ID_TUPLE_TYPE) || ID_IS(upper, ID_TUPLE_TYPE));
+
+	if (!ID_IS(upper, ID_TUPLE_TYPE)) {
+		Tuple_T tuple = LOOKUP(lower, Tuple_T);
+		return tuple.types.size == 1 && is_subtype_with_flag(solver, ARENA_GET(tuple.types, 0, ID), upper, is_strict);
+	} else if (!ID_IS(lower, ID_TUPLE_TYPE)) {
+		Tuple_T tuple = LOOKUP(upper, Tuple_T);
+		return tuple.types.size == 1 && is_subtype_with_flag(solver, lower, ARENA_GET(tuple.types, 0, ID), is_strict);
+	}
+
+	ASSERT1(ID_IS(lower, ID_TUPLE_TYPE));
+	ASSERT1(ID_IS(upper, ID_TUPLE_TYPE));
+
+	Tuple_T tuple = LOOKUP(lower, Tuple_T);
+	Tuple_T expected_tuple = LOOKUP(upper, Tuple_T);
+	if (tuple.types.size != expected_tuple.types.size) {
+		return 0;
+	}
+
+	for (size_t i = 0; i < tuple.types.size; ++i) {
+		ID A = ARENA_GET(tuple.types, i, ID), B = ARENA_GET(expected_tuple.types, i, ID);
+		if (!is_subtype_with_flag(solver, A, B, is_strict)) {
+			// println("{s} <!: {s}", type_to_str(A), type_to_str(B));
+			return 0;
+		}
+		// println("{s} <: {s}", type_to_str(A), type_to_str(B));
+	}
+
+	return 1;
+}
+
+char is_actual_subtype(Solver * solver, ID lower, ID upper, char is_strict) {
+	if (ID_IS_EQUAL(lower, upper)) {
+		return 1;
+	}
+
+	lower = solver_deflate_type(lower), upper = solver_deflate_type(upper);
+
+	if (ID_IS_EQUAL(lower, upper)) {
+		return 1;
+	}
+
+	if (ID_IS(lower, ID_EXISTENIAL)) {
+		return instantiate(solver, lower, upper, 1);
+	} else if (ID_IS(upper, ID_EXISTENIAL)) {
+		return instantiate(solver, upper, lower, is_strict);
+	}
+
+	if (ID_IS(lower, ID_TUPLE_TYPE) || ID_IS(upper, ID_TUPLE_TYPE)) {
+		return instaniate_tuple(solver, lower, upper, is_strict);
+	}
+
+	if (id_is_type(lower) && id_is_type(upper)) {
+		return lower.type == upper.type && subtype_check_equal(solver, lower, upper, is_strict);
+	}
+
+	FATAL("Unimplemented: [{s}] [{s}]", type_to_str(lower), type_to_str(upper));
+}
+
+static inline char is_subtype_with_flag(Solver * solver, ID lower, ID upper, char is_strict) {
+	return is_actual_subtype(solver, lower, upper, is_strict) || (!is_strict && is_implicit_subtype(solver, lower, upper));
+}
+
+char is_subtype_strict(Solver * solver, ID lower, ID upper) {
+	return is_subtype_with_flag(solver, lower, upper, 1);
+}
+
+char is_subtype(Solver * solver, ID lower, ID upper) {
+	return is_subtype_with_flag(solver, lower, upper, 0);
 }
 
 char subtype_check_equal(Solver * solver, ID type_id1, ID type_id2, char is_strict) {
