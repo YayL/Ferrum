@@ -461,10 +461,22 @@ ID solver_deflate_type(ID id) {
 #define MARKER_COUNT_GEN_SET(ENUM, _, TYPE, ...) marker->MARKER_COUNT_GET(TYPE) = registry_manager_get().TYPE.entries.item_count;
 void solver_type_init(enum id_type type, void * ref) {
 	switch (type) {
+		case ID_TERM_VAR: {
+			((TermVar *) ref)->symbol_id = INVALID_ID;
+			((TermVar *) ref)->type = INVALID_ID;
+		} break;
+		case ID_EXISTENIAL: {
+			((Existential *) ref)->solved_type = INVALID_ID;
+		} break;
+		case ID_TEMPLATE: {
+			((Template *) ref)->name_id = INVALID_ID;
+			((Template *) ref)->type_id = INVALID_ID;
+		} break;
 		case ID_MARKER: {
 			Marker * marker = ref;
 			TYPE_CHECKING_CONTEXT_KINDS(MARKER_COUNT_GEN_SET);
 		} break;
-		default: break;
+		case ID_TYPE_VAR: break;
+		default: FATAL("Unimplemented type: {s}", id_type_to_string(type));
 	}
 }

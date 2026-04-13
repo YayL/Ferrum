@@ -1,8 +1,8 @@
 import "std/lib" as std
 
 fn main(argc: i32) -> i32 {
-    let x = 0 + 0
-    let a = x + x
-    let b = &mut x
-    0
+    let x = 0
+    let y = x + x
+    let x_ref = &y
+    *x_ref
 }

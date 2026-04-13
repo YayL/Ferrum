@@ -125,6 +125,8 @@ void context_remove_declaration_list(Arena arena) {
 
 				symbol_map_remove(&context.symbol_table.declarations, function.name_id);
 			} break;
+			default:
+				FATAL("Invalid id type: {s}", id_type_to_string(arg_id.type));
 		}
 	}
 }

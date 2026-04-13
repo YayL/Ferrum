@@ -71,7 +71,6 @@ ID synthesis_apply(Solver * solver, ID function_id, ID expr_type_id) {
 	ASSERT1(is_free_from_existentials(deflated_type_id));
 	solver_reset_to_marker(solver, marker->info.id);
 
-	// solver_reset_to_marker(solver, marker->info.id);
 	return deflated_type_id;
 }
 
@@ -150,8 +149,6 @@ ID synthesis_operator(Solver * solver, ID node_id) {
 		ID candidate_id = ARENA_GET(candidates, i, ID);
 		ID temp = synthesis_apply(solver, candidate_id, tuple_type->info.type_id);
 
-		// println("Candidate: {s}", ast_to_string(candidate_id));
-
 		if (ID_IS_INVALID(temp)) {
 			continue;
 		} else if (!ID_IS_INVALID(ret_type)) {
@@ -162,7 +159,7 @@ ID synthesis_operator(Solver * solver, ID node_id) {
 	}
 
 	if (ID_IS_INVALID(ret_type)) {
-		ERROR("Unable to find operator implementation");
+		ERROR("Unable to find valid operator implementation({u}): {s}", candidates.size, ast_to_string(node_id));
 		return INVALID_ID;
 	}
 
