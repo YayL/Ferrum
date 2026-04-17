@@ -229,9 +229,14 @@ ID synthesis_declaration(Solver * solver, ID node_id) {
 			ERROR("Type Error: {s} <: {s}", type_to_str(expr_type_id), type_to_str(variable->type_id));
 		}
 
+		ID deflated_type_id = solver_deflate_type(expr_type_id);
+		if (ID_IS(deflated_type_id, ID_PLACE_TYPE)) {
+			deflated_type_id = LOOKUP(deflated_type_id, Place_T).basetype_id;
+		}
+
 		Place_T * place = type_allocate(ID_PLACE_TYPE);
 		place->is_mut = declaration.is_mut;
-		place->basetype_id = solver_deflate_type(expr_type_id);
+		place->basetype_id = deflated_type_id;
 		variable->type_id = place->info.type_id;
 	}
 
