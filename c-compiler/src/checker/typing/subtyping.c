@@ -4,6 +4,7 @@
 #include "parser/types.h"
 #include "tables/registry_manager.h"
 #include "checker/context.h"
+#include "checker/symbol.h"
 #include "checker/typing/utils.h"
 
 static inline char is_subtype_with_flag(Solver * solver, ID lower, ID upper, char is_strict);
@@ -159,8 +160,14 @@ char subtype_check_equal(Solver * solver, ID type_id1, ID type_id2, char is_stri
             }
 
 			a_symbol * symbol1 = lookup(symbol_type1.symbol_id), * symbol2 = lookup(symbol_type2.symbol_id);
-            ASSERT1(!ID_IS_INVALID(symbol1->node_id));
-            ASSERT1(!ID_IS_INVALID(symbol2->node_id));
+			if (ID_IS_INVALID(symbol1->node_id)) {
+				qualify_symbol(symbol1, ID_SYMBOL_TYPE);
+				ASSERT1(!ID_IS_INVALID(symbol1->node_id));
+			}
+			if (ID_IS_INVALID(symbol2->node_id)) {
+				qualify_symbol(symbol2, ID_SYMBOL_TYPE);
+				ASSERT1(!ID_IS_INVALID(symbol2->node_id));
+			}
 
             if (!ID_IS_EQUAL(symbol1->node_id, symbol2->node_id)) {
                 return 0;

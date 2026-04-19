@@ -8,3 +8,6 @@ impl<T> #ImplicitCast<From: Place<T>, To: T> {}
 
 impl<T> #ImplicitCast<From: MutPlace<T>, To: T> {}
 impl<T> #ImplicitCast<From: MutPlace<T>, To: Place<T>> {}
+
+// This should be removed
+impl<T> #ImplicitCast<From: MutPlace<T>, To: &mut T> {}

@@ -24,6 +24,14 @@ static char is_free_from_variable(ID type_id, ID var_id) {
 				}
 			}
 		} break;
+		case ID_SYMBOL_TYPE: {
+			Symbol_T symbol = LOOKUP(type_id, Symbol_T);
+			for (size_t i = 0; i < symbol.templates.size; ++i) {
+				if (!is_free_from_variable(ARENA_GET(symbol.templates, i, ID), var_id)) {
+					return 0;
+				}
+			}
+		} break;
 		default: FATAL("Unimplemented type \"{s}\"", id_type_to_string(type_id.type));
 	}
 
