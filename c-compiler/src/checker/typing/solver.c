@@ -4,6 +4,7 @@
 #include "tables/registry_manager.h"
 #include "checker/typing/subtyping.h"
 #include "checker/symbol.h"
+#include "checker/typing/utils.h"
 
 Solver solver_initialize() {
 	return (Solver) {
@@ -27,7 +28,23 @@ void solver_reset_to_marker(Solver * solver, ID marker_id) {
 	ASSERT1(ID_IS(marker_id, ID_MARKER));
 	Marker marker = LOOKUP(marker_id, Marker);
 
-	TYPE_CHECKING_CONTEXT_KINDS(MARKER_SET_ITEM_COUNT);
+	BArena *barena = &(_registry_manager_get_ref()->TermVar.entries);
+	block_arena_remove(barena, barena->item_count - marker.TermVar_count);
+
+	barena = &(_registry_manager_get_ref()->TypeVar.entries);
+	block_arena_remove(barena, barena->item_count - marker.TypeVar_count);
+
+	// barena = &(_registry_manager_get_ref()->Existential.entries);
+	// block_arena_remove(barena, barena->item_count - marker.Existential_count);
+
+	barena = &(_registry_manager_get_ref()->Marker.entries);
+	block_arena_remove(barena, barena->item_count - marker.Marker_count);
+
+	barena = &(_registry_manager_get_ref()->Template.entries);
+	block_arena_remove(barena, barena->item_count - marker.Template_count);
+
+	// barena = &(_registry_manager_get_ref()->Obligation.entries);
+	// block_arena_remove(barena, barena->item_count - marker.Obligation_count);
 }
 
 static inline void _collect_templates(Solver * solver, const Arena node_templates) {
@@ -130,27 +147,30 @@ char solver_implementation_is_valid(Solver * solver, ID implementation_id, const
 
 char solver_validate_trait_implementation(Solver * solver, ID symbol_type_id) {
 	ASSERT1(ID_IS(symbol_type_id, ID_SYMBOL_TYPE));
-	Symbol_T symbol_type = LOOKUP(symbol_type_id, Symbol_T);
-	ASSERT1(!ID_IS_INVALID(symbol_type.symbol_id));
-	a_symbol * symbol = lookup(symbol_type.symbol_id);
+	ID fixed_symbol_type_id = solver_replace_templates(symbol_type_id);
+	ASSERT1(!ID_IS_INVALID(fixed_symbol_type_id));
+	Symbol_T fixed_symbol_type = LOOKUP(fixed_symbol_type_id, Symbol_T);
+	a_symbol * symbol = lookup(fixed_symbol_type.symbol_id);
 
 	if (ID_IS_INVALID(qualify_symbol(symbol, ID_SYMBOL_TYPE))) {
-		FATAL("Unable to qualify: {s}", ast_to_string(symbol_type.symbol_id));
+		FATAL("Unable to qualify: {s}", ast_to_string(fixed_symbol_type.symbol_id));
 	}
 
 	ASSERT(ID_IS(symbol->node_id, ID_AST_TRAIT), "Non trait found in where clause");
-	const a_trait trait = LOOKUP(symbol->node_id, a_trait);
 
-	ASSERT1(symbol_type.templates.size > 0);
-	Arena templates = arena_init(sizeof(ID));
-	arena_grow(&templates, symbol_type.templates.size);
+	if (!is_free_from_existentials(fixed_symbol_type_id)) {
+		Obligation * obligation = solver_allocate(solver, ID_OBLIGATION);
+		obligation->obligation_type = IMPLEMENTATION_OBLIGATION;
+		obligation->offender_id = symbol->node_id;
+		obligation->type_id = fixed_symbol_type_id;
 
-	for (size_t i = 0; i < symbol_type.templates.size; ++i) {
-		ARENA_APPEND(&templates, solver_replace_templates(ARENA_GET(symbol_type.templates, i, ID)));
+		return 1;
 	}
 
+	const a_trait trait = LOOKUP(symbol->node_id, a_trait);
+
 	for (size_t i = 0; i < trait.implementations.size; ++i) {
-		if (solver_implementation_is_valid(solver, ARENA_GET(trait.implementations, i, ID), templates)) {
+		if (solver_implementation_is_valid(solver, ARENA_GET(trait.implementations, i, ID), fixed_symbol_type.templates)) {
 			return 1;
 		}
 	}

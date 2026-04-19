@@ -16,11 +16,15 @@ char instantiate_solve(Solver * solver, ID lower, ID upper, char is_strict) {
 					* existential_b = lookup(upper);
 
 		if (ID_IS_INVALID(existential_a->solved_type) && ID_IS_INVALID(existential_b->solved_type)) {
-			FATAL("Unimplemented");
+			if (existential_a->info.context_order_id > existential_b->info.context_order_id) {
+				dest = &existential_a->solved_type, src = existential_b->info.id;
+			} else {
+				dest = &existential_b->solved_type, src = existential_a->info.id;
+			}
 		} else if (ID_IS_INVALID(existential_a->solved_type)) {
-			dest = &existential_a->solved_type, src = upper;
+			dest = &existential_a->solved_type, src = existential_b->info.id;
 		} else if (ID_IS_INVALID(existential_b->solved_type)) {
-			dest = &existential_b->solved_type, src = lower;
+			dest = &existential_b->solved_type, src = existential_a->info.id;
 		} else {
 			return is_subtype_with_flag(solver, existential_a->solved_type, existential_b->solved_type, is_strict);
 		}

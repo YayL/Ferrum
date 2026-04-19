@@ -69,12 +69,15 @@ static inline void * solver_allocate(Solver * solver, enum id_type type) {
 void solver_type_init(enum id_type type, void * ref);
 
 void solver_collect_templates(Solver * solver, ID node_id);
+
 ID solver_find_symbol_term_var(Solver * solver, ID symbol_id);
 ID solver_get_template_type(ID name_id);
 ID solver_replace_templates(ID type_id);
 ID solver_deflate_type(ID id);
+
 char solver_implementation_is_valid(Solver * solver, ID implementation_id, const Arena templates);
 char solver_validate_trait_implementation(Solver * solver, ID id);
 char solver_validate_where_clauses(Solver * solver, ID node_id);
 
+void solver_check_obligations(Solver * solver);
 void solver_reset_to_marker(Solver * solver, ID marker_id);

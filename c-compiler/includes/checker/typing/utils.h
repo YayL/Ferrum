@@ -45,6 +45,10 @@ static char is_free_from_existentials(ID type_id) {
 		case ID_REF_TYPE: return is_free_from_existentials(LOOKUP(type_id, Ref_T).basetype_id);
 		case ID_ARRAY_TYPE: return is_free_from_existentials(LOOKUP(type_id, Array_T).basetype_id);
 		case ID_PLACE_TYPE: return is_free_from_existentials(LOOKUP(type_id, Place_T).basetype_id);
+		case ID_FN_TYPE: {
+			Fn_T fn_type = LOOKUP(type_id, Fn_T);
+			return is_free_from_existentials(fn_type.arg_type) && is_free_from_existentials(fn_type.ret_type);
+		}
 		case ID_TUPLE_TYPE: {
 			Tuple_T tuple_type = LOOKUP(type_id, Tuple_T);
 			for (size_t i = 0; i < tuple_type.types.size; ++i) {

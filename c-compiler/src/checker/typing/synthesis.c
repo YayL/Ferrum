@@ -51,14 +51,14 @@ ID synthesis_apply(Solver * solver, ID function_id, ID expr_type_id) {
 	Marker * marker = solver_allocate(solver, ID_MARKER);
 	solver_collect_templates(solver, function_id);
 	ID fixed_fn_type_id = solver_replace_templates(function.type);
-	Fn_T fn_type = LOOKUP(fixed_fn_type_id, Fn_T);
+	Fn_T * fn_type = lookup(fixed_fn_type_id);
 
 	// Unify
-	if (!is_subtype(solver, expr_type_id, fn_type.arg_type)) {
+	// println("{s} | {s}", type_to_str(expr_type_id), type_to_str(fn_type->arg_type));
+	if (!is_subtype(solver, expr_type_id, fn_type->arg_type)) {
 		solver_reset_to_marker(solver, marker->info.id);
 		return INVALID_ID;
 	}
-
 
 	// Verify
 	if (!solver_validate_where_clauses(solver, function_id)) {
@@ -67,8 +67,9 @@ ID synthesis_apply(Solver * solver, ID function_id, ID expr_type_id) {
 	}
 
 	// Return
-	ID deflated_type_id = solver_deflate_type(fn_type.ret_type);
-	ASSERT1(is_free_from_existentials(deflated_type_id));
+	ID deflated_type_id = solver_deflate_type(fn_type->ret_type);
+	// println("type: {s}", type_to_str(solver_deflate_type(fixed_fn_type_id)));
+	// println("return: {s}", type_to_str(deflated_type_id));
 	solver_reset_to_marker(solver, marker->info.id);
 
 	return deflated_type_id;
@@ -143,6 +144,11 @@ ID synthesis_operator(Solver * solver, ID node_id) {
 	}
 
 	ID ret_type = INVALID_ID;
+	// print_ast_tree(node_id);
+
+	if (candidates.size > 1 && !is_free_from_existentials(tuple_type->info.type_id)) {
+		FATAL("Unimplemented");
+	}
 
 	// println("Type: {s}", type_to_str(tuple_type->info.type_id));
 	for (size_t i = 0; i < candidates.size; ++i) {
@@ -163,9 +169,15 @@ ID synthesis_operator(Solver * solver, ID node_id) {
 		return INVALID_ID;
 	}
 
-	op->type_id = solver_deflate_type(ret_type);
+	ID deflated_ret_type_id = solver_deflate_type(ret_type);
 
-	return ret_type;
+	if (ID_IS_INVALID(op->type_id)) {
+		return op->type_id = deflated_ret_type_id;
+	} else if (!is_subtype(solver, op->type_id, solver_deflate_type(ret_type))) {
+		FATAL("Invalid function return type");
+	}
+
+	return op->type_id;
 }
 
 ID synthesis_expression(Solver * solver, ID node_id) {
@@ -307,15 +319,22 @@ ID synthesis_scope(Solver * solver, ID node_id) {
 ID synthesis(Solver * solver, ID node_id) {
 	ID res_type_id = INVALID_ID;
 	switch (node_id.type) {
-		case ID_AST_EXPR: return synthesis_expression(solver, node_id);
-		case ID_AST_DECLARATION: return synthesis_declaration(solver, node_id);
-		case ID_AST_OP: return synthesis_operator(solver, node_id);
-		case ID_AST_IF: return synthesis_if(solver, node_id);
-		case ID_AST_SYMBOL: return synthesis_symbol(solver, node_id);
-		case ID_AST_LITERAL: return synthesis_literal(solver, node_id);
-		case ID_AST_SCOPE: return synthesis_scope(solver, node_id);
-		case ID_AST_FOR: return synthesis_for(solver, node_id);
+		case ID_AST_EXPR: res_type_id = synthesis_expression(solver, node_id); break;
+		case ID_AST_DECLARATION: res_type_id = synthesis_declaration(solver, node_id); break;
+		case ID_AST_OP: res_type_id = synthesis_operator(solver, node_id); break;
+		case ID_AST_IF: res_type_id = synthesis_if(solver, node_id); break;
+		case ID_AST_SYMBOL: res_type_id = synthesis_symbol(solver, node_id); break;
+		case ID_AST_LITERAL: res_type_id = synthesis_literal(solver, node_id); break;
+		case ID_AST_SCOPE: res_type_id = synthesis_scope(solver, node_id); break;
+		case ID_AST_FOR: res_type_id = synthesis_for(solver, node_id); break;
 		default:
 			FATAL("Unimplemented AST type \"{s}\"", id_type_to_string(node_id.type));
 	}
+
+	if (ID_IS_INVALID(res_type_id)) {
+		ERROR("Had to fill in INVALID synthesis with existential");
+		res_type_id = ((Existential *) solver_allocate(solver, ID_EXISTENIAL))->info.id;
+	}
+
+	return res_type_id;
 }
