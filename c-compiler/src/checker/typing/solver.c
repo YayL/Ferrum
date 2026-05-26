@@ -23,31 +23,15 @@ ID solver_find_symbol_term_var(Solver * solver, ID symbol_id) {
 	return INVALID_ID;
 }
 
-#define MARKER_SET_ITEM_COUNT(ENUM, _, TYPE, ...) REGISTRY_MANAGER_SET_ITEM_COUNT(TYPE, marker.MARKER_COUNT_GET(TYPE));
+#define MARKER_SET_ITEM_COUNT(ENUM, _, TYPE, __, SET) if (SET) { REGISTRY_MANAGER_SET_ITEM_COUNT(TYPE, marker.MARKER_COUNT_GET(TYPE)); }
 void solver_reset_to_marker(Solver * solver, ID marker_id) {
 	ASSERT1(ID_IS(marker_id, ID_MARKER));
 	Marker marker = LOOKUP(marker_id, Marker);
 
-	BArena *barena = &(_registry_manager_get_ref()->TermVar.entries);
-	block_arena_remove(barena, barena->item_count - marker.TermVar_count);
-
-	barena = &(_registry_manager_get_ref()->TypeVar.entries);
-	block_arena_remove(barena, barena->item_count - marker.TypeVar_count);
-
-	// barena = &(_registry_manager_get_ref()->Existential.entries);
-	// block_arena_remove(barena, barena->item_count - marker.Existential_count);
-
-	barena = &(_registry_manager_get_ref()->Marker.entries);
-	block_arena_remove(barena, barena->item_count - marker.Marker_count);
-
-	barena = &(_registry_manager_get_ref()->Template.entries);
-	block_arena_remove(barena, barena->item_count - marker.Template_count);
-
-	// barena = &(_registry_manager_get_ref()->Obligation.entries);
-	// block_arena_remove(barena, barena->item_count - marker.Obligation_count);
+	TYPE_CHECKING_CONTEXT_KINDS(MARKER_SET_ITEM_COUNT);
 }
 
-static inline void _collect_templates(Solver * solver, const Arena node_templates) {
+static inline void _collect_templates(Solver * solver, const Arena node_templates, char is_existential) {
 	for (size_t i = 0; i < node_templates.size; ++i) {
 		ID template_symbol_id = ARENA_GET(node_templates, i, ID);
 		ASSERT1(ID_IS(template_symbol_id, ID_AST_SYMBOL));
@@ -68,28 +52,37 @@ static inline void _collect_templates(Solver * solver, const Arena node_template
 
 			ASSERT1(!ID_IS_INVALID(variable.type_id));
 			template->type_id = solver_replace_templates(variable.type_id);
-		} else {
+		} else if (is_existential) {
 			template->type_id = ((Existential *) solver_allocate(solver, ID_EXISTENIAL))->info.id;
+		} else {
+			template->type_id = ((TypeVar *) solver_allocate(solver, ID_TYPE_VAR))->info.id;
 		}
 	}
 }
 
-void solver_collect_templates(Solver * solver, ID node_id) {
+void solver_collect_templates(Solver * solver, ID node_id, char is_existential) {
 	if (ID_IS(node_id, ID_AST_MODULE)) {
 		return;
 	}
 
-	solver_collect_templates(solver, ast_get_scope_id(node_id));
+	solver_collect_templates(solver, ast_get_scope_id(node_id), is_existential);
 
 	switch (node_id.type) {
-		case ID_AST_FUNCTION: _collect_templates(solver, LOOKUP(node_id, a_function).templates); break;
-		case ID_AST_STRUCT: _collect_templates(solver, LOOKUP(node_id, a_structure).templates); break;
+		case ID_AST_FUNCTION: _collect_templates(solver, LOOKUP(node_id, a_function).templates, is_existential); break;
+		case ID_AST_STRUCT: _collect_templates(solver, LOOKUP(node_id, a_structure).templates, is_existential); break;
 		case ID_AST_IMPL: {
 			a_implementation impl = LOOKUP(node_id, a_implementation);
-			_collect_templates(solver, impl.generics);
-			_collect_templates(solver, impl.templates);
+			_collect_templates(solver, impl.generics, is_existential);
+			_collect_templates(solver, impl.templates, is_existential);
 		} break;
 		default: FATAL("Unimplemented node: {s}", id_type_to_string(node_id.type));
+	}
+}
+
+void solver_collect_where_attributes(Solver * solver, Arena where_clauses) {
+	for (size_t i = 0; i < where_clauses.size; ++i) {
+		TV_Attribute * attribute = solver_allocate(solver, ID_TV_ATTRIBUTE);
+		attribute->attribute_id = solver_replace_templates(ARENA_GET(where_clauses, i, ID));
 	}
 }
 
@@ -114,7 +107,7 @@ char solver_implementation_is_valid(Solver * solver, ID implementation_id, const
 	Marker * marker = solver_allocate(solver, ID_MARKER);
 
 	ASSERT1(ID_IS(impl.info.scope_id, ID_AST_MODULE));
-	_collect_templates(solver, impl.generics);
+	_collect_templates(solver, impl.generics, 1);
 
 	for (size_t i = 0; i < templates.size; ++i) {
 		ID template_symbol_id = ARENA_GET(impl.templates, i, ID);
@@ -126,7 +119,6 @@ char solver_implementation_is_valid(Solver * solver, ID implementation_id, const
 
 		ID fixed_template_type_id = solver_replace_templates(variable.type_id);
 		const ID template_id = ARENA_GET(templates, i, ID);
-		// println("{u}) {s} <: {s}", i + 1, type_to_str(template_id), type_to_str(fixed_template_type_id));
 		if (!is_subtype_strict(solver, template_id, fixed_template_type_id)) {
 			// println("\t nope");
 			solver_reset_to_marker(solver, marker->info.id);
@@ -137,11 +129,13 @@ char solver_implementation_is_valid(Solver * solver, ID implementation_id, const
 
 	for (size_t i = 0; i < impl.where.size; ++i) {
 		if (!solver_validate_trait_implementation(solver, ARENA_GET(impl.where, i, ID))) {
+			solver_reset_to_marker(solver, marker->info.id);
 			return 0;
 		}
 	}
 
 	solver_reset_to_marker(solver, marker->info.id);
+
 	return 1;
 }
 
@@ -149,6 +143,7 @@ char solver_validate_trait_implementation(Solver * solver, ID symbol_type_id) {
 	ASSERT1(ID_IS(symbol_type_id, ID_SYMBOL_TYPE));
 	ID fixed_symbol_type_id = solver_replace_templates(symbol_type_id);
 	ASSERT1(!ID_IS_INVALID(fixed_symbol_type_id));
+
 	Symbol_T fixed_symbol_type = LOOKUP(fixed_symbol_type_id, Symbol_T);
 	a_symbol * symbol = lookup(fixed_symbol_type.symbol_id);
 
@@ -158,17 +153,19 @@ char solver_validate_trait_implementation(Solver * solver, ID symbol_type_id) {
 
 	ASSERT(ID_IS(symbol->node_id, ID_AST_TRAIT), "Non trait found in where clause");
 
-	if (!is_free_from_existentials(fixed_symbol_type_id)) {
-		Obligation * obligation = solver_allocate(solver, ID_OBLIGATION);
-		obligation->obligation_type = IMPLEMENTATION_OBLIGATION;
-		obligation->offender_id = symbol->node_id;
-		obligation->type_id = fixed_symbol_type_id;
-
-		return 1;
+	char has_typevar = !is_free_from_typevar(fixed_symbol_type_id);
+	if (has_typevar) {
+		// Loop over skolem implementations
+		LOOP_OVER_REGISTRY_REV(TV_Attribute, attribute, {
+			if (is_subtype_strict(solver, fixed_symbol_type_id, attribute->attribute_id)) {
+				DEBUG("Valid skolem attribute: {s}", type_to_str(attribute->attribute_id));
+				return 1;
+			}
+		});
 	}
 
-	const a_trait trait = LOOKUP(symbol->node_id, a_trait);
 
+	const a_trait trait = LOOKUP(symbol->node_id, a_trait);
 	for (size_t i = 0; i < trait.implementations.size; ++i) {
 		if (solver_implementation_is_valid(solver, ARENA_GET(trait.implementations, i, ID), fixed_symbol_type.templates)) {
 			return 1;
@@ -177,6 +174,7 @@ char solver_validate_trait_implementation(Solver * solver, ID symbol_type_id) {
 
 	return 0;
 }
+
 
 static inline char solver_validate_where_clause(Solver * solver, const Arena clauses) {
 	for (size_t i = 0; i < clauses.size; ++i) {
@@ -216,6 +214,7 @@ ID solver_replace_templates(ID type_id) {
 		case ID_NUMERIC_TYPE:
 		case ID_TERM_VAR:
 		case ID_EXISTENIAL:
+		case ID_TYPE_VAR:
 		case ID_VOID_TYPE:
 				return type_id;
 		case ID_TUPLE_TYPE: {
@@ -234,7 +233,7 @@ ID solver_replace_templates(ID type_id) {
 			}
 
 			if (failed_index == -1) {
-					return type_id;
+				return type_id;
 			}
 
 			Tuple_T * new_tuple = type_allocate(ID_TUPLE_TYPE);
@@ -289,6 +288,7 @@ ID solver_replace_templates(ID type_id) {
 		case ID_PLACE_TYPE: {
 			Place_T place = LOOKUP(type_id, Place_T);
 			ID fixed_type = solver_replace_templates(place.basetype_id);
+
 			if (ID_IS_EQUAL(place.basetype_id, fixed_type)) {
 				return type_id; // Nothing changed
 			}
@@ -308,6 +308,7 @@ ID solver_replace_templates(ID type_id) {
 			}
 
 			if (symbol_type->templates.size != 0) {
+				// TODO: Change this to not always allocate, check if there is a change after solver_replace_templates
 				Symbol_T * new_symbol = type_allocate(ID_SYMBOL_TYPE);
 				new_symbol->symbol_id = symbol_type->symbol_id;
 				new_symbol->templates = arena_init(sizeof(ID));
@@ -356,6 +357,7 @@ ID solver_deflate_type(ID id) {
 	switch (id.type) {
 		case ID_INVALID_TYPE:
 		case ID_NUMERIC_TYPE:
+		case ID_TYPE_VAR:
 		case ID_VOID_TYPE: return id;
 		case ID_PLACE_TYPE: {
 			Place_T place = LOOKUP(id, Place_T);
@@ -498,8 +500,11 @@ void solver_type_init(enum id_type type, void * ref) {
 			((Template *) ref)->type_id = INVALID_ID;
 		} break;
 		case ID_OBLIGATION: {
-			((Obligation *) ref)->offender_id = INVALID_ID;
-			((Obligation *) ref)->type_id = INVALID_ID;
+			((Obligation *) ref)->impl.type_id = INVALID_ID;
+			((Obligation *) ref)->impl.trait_id = INVALID_ID;
+		} break;
+		case ID_TV_ATTRIBUTE: {
+			((TV_Attribute *) ref)->attribute_id = INVALID_ID;
 		} break;
 		default: FATAL("Unimplemented type: {s}", id_type_to_string(type));
 	}

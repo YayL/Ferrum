@@ -42,8 +42,8 @@ char instantiate_solve(Solver * solver, ID lower, ID upper, char is_strict) {
 		if (ID_IS(src, ID_PLACE_TYPE)) {
 			src = LOOKUP(src, Place_T).basetype_id;
 		}
-		*dest = src;
 
+		*dest = src;
 		return 1;
 	} else {
 		return is_subtype_with_flag(solver, *dest, src, is_strict);
@@ -94,6 +94,29 @@ char instaniate_tuple(Solver * solver, ID lower, ID upper, char is_strict) {
 	return 1;
 }
 
+char instantiate_skolem(Solver * solver, ID lower, ID upper, char is_strict) {
+	ASSERT1(ID_IS(lower, ID_TYPE_VAR) || ID_IS(upper, ID_TYPE_VAR));
+
+	// Dont like this, seems like it will cause issues
+	if (!is_free_from_existentials(lower) || !is_free_from_existentials(upper)) {
+		return 0;
+	}
+
+	if (ID_IS(lower, ID_TYPE_VAR)) {
+		if (id_is_type(upper)) {
+			return 0;
+		}
+
+		char ret = subtype_check_equal(solver, lower, upper, is_strict);
+		return ret;
+	} else if (ID_IS(upper, ID_TYPE_VAR)) {
+		char ret = subtype_check_equal(solver, lower, upper, is_strict);
+		return ret;
+	}
+
+	return subtype_check_equal(solver, lower, upper, is_strict);
+}
+
 char is_actual_subtype(Solver * solver, ID lower, ID upper, char is_strict) {
 	if (ID_IS_EQUAL(lower, upper)) {
 		return 1;
@@ -105,10 +128,17 @@ char is_actual_subtype(Solver * solver, ID lower, ID upper, char is_strict) {
 		return 1;
 	}
 
+	// println("Lower: {s}", type_to_str(lower));
+	// println("Upper: {s}", type_to_str(upper));
+
 	if (ID_IS(lower, ID_EXISTENIAL)) {
 		return instantiate(solver, lower, upper, 1);
 	} else if (ID_IS(upper, ID_EXISTENIAL)) {
 		return instantiate(solver, upper, lower, is_strict);
+	}
+
+	if (ID_IS(lower, ID_TYPE_VAR) || ID_IS(upper, ID_TYPE_VAR)) {
+		return instantiate_skolem(solver, lower, upper, is_strict);
 	}
 
 	if (ID_IS(lower, ID_TUPLE_TYPE) || ID_IS(upper, ID_TUPLE_TYPE)) {
@@ -191,6 +221,9 @@ char subtype_check_equal(Solver * solver, ID type_id1, ID type_id2, char is_stri
         }
         case ID_TUPLE_TYPE: FATAL("NO");
         case ID_VOID_TYPE: return 1;
+		case ID_TYPE_VAR: {
+			return ID_IS_EQUAL(type_id1, type_id2);
+		}
 		default: FATAL("Unimplemented id {s}", id_type_to_string(type_id1.type));
 	}
 }
@@ -207,6 +240,7 @@ char is_implicit_subtype(Solver * solver, ID lower, ID upper) {
 		ID implementation_id = ARENA_GET(imp_trait.implementations, i, ID);
 
 		if (solver_implementation_is_valid(solver, implementation_id, arena)) {
+			DEBUG("Valid implicit cast({i})", i + 1);
 			count += 1;
 		}
 	}

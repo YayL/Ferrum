@@ -1,5 +1,20 @@
 import "std/lib" as std
 
-fn foo<T>(a: T) -> T where std::numeric::Unsigned<T> {
-    return a
+fn inline swap<T>(a: MutPlace<T>, b: MutPlace<T>) {
+    let temp1 = a
+    let temp2 = b
+    a = temp2
+    b = temp1
+}
+
+fn add<T, U>(a: T, b: U) -> T where std::numeric::Signed<T>, std::numeric::Signed<U> {
+    (a + b to T)
+}
+
+fn main() -> i32 {
+    let mut a = 1
+    let mut b = 2
+    swap(a, b)
+
+    0
 }

@@ -10,6 +10,9 @@ typedef struct block_arena {
 	uint16_t block_max_item_count;
 } BArena;
 
+#define INDEX_TO_BLOCK(INDEX, BLOCK_MAX_ITEM_COUNT) ((INDEX) / (BLOCK_MAX_ITEM_COUNT))
+#define INDEX_TO_BLOCK_INDEX(INDEX, BLOCK_MAX_ITEM_COUNT) ((INDEX) % (BLOCK_MAX_ITEM_COUNT))
+#define BARENA_GET_REF(BARENA, INDEX) ((BARENA)->blocks[INDEX_TO_BLOCK(INDEX, (BARENA)->block_max_item_count)] + ((BARENA)->item_size * INDEX_TO_BLOCK_INDEX(INDEX, (BARENA)->block_max_item_count)))
 
 BArena block_arena_init(uint32_t item_size);
 void block_arena_free(BArena * barena);

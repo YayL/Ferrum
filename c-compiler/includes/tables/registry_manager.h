@@ -46,7 +46,7 @@ static inline void type_init_intrinsic_type(enum id_type type, void * type_ref) 
 #define FILL_TYPE_ID(REF, TYPE_ID) (((struct type_info *) REF)->type_id = TYPE_ID); type_init_intrinsic_type(TYPE_ID.type, REF);
 #define FILL_AST_ID(REF, NODE_ID) (((struct AST_info *) REF)->node_id = NODE_ID); ast_init_node(NODE_ID.type, REF);
 
-#define AST_REGISTRY_MANAGER_REGISTRY_ALLOCATE(ENUM, STR, TYPE, KIND) \
+#define AST_REGISTRY_MANAGER_REGISTRY_ALLOCATE(ENUM, STR, TYPE, KIND, ...) \
     case ENUM: ptr = registry_allocate(&manager->TYPE, &node_id); FILL_##KIND##_ID(ptr, node_id); break;
 static inline void * registry_manager_allocate(struct registry_manager * manager, enum id_type type) {
     ID node_id;

@@ -26,6 +26,10 @@ static inline void * registry_lookup(struct registry registry, ID key) {
 	return block_arena_get_ref(registry.entries, key.id - 1);
 }
 
+static inline void * registry_get_index(struct registry registry, uint32_t index) {
+	return BARENA_GET_REF(&registry.entries, index);
+}
+
 static inline void * registry_allocate(struct registry * registry, ID * key) {
 	key->id = registry->entries.item_count + 1;
 	key->type = registry->valid_type;

@@ -29,6 +29,9 @@ void checker_check_function(Solver * solver, ID node_id) {
     context_add_declaration_list(function.arguments);
 
     Marker * marker = solver_allocate(solver, ID_MARKER);
+    solver_collect_templates(solver, node_id, 0);
+
+    solver_collect_where_attributes(solver, function.where);
 
     if (function.arguments.size > 0) {
         ASSERT1(ID_IS(function.body_id, ID_AST_SCOPE));
@@ -45,7 +48,7 @@ void checker_check_function(Solver * solver, ID node_id) {
 
             TermVar * var = solver_allocate(solver, ID_TERM_VAR);
             var->symbol_id = symbol.info.node_id;
-            var->type = variable.type_id;
+            var->type = solver_replace_templates(variable.type_id);
 
             ARENA_APPEND(&function_scope->declarations, child_node_id);
         }
@@ -53,21 +56,9 @@ void checker_check_function(Solver * solver, ID node_id) {
 
     ASSERT1(ID_IS(function.type, ID_FN_TYPE));
     Fn_T fn_type = LOOKUP(function.type, Fn_T);
-    if (!check(solver, function.body_id, fn_type.ret_type)) {
+    if (!check(solver, function.body_id, solver_replace_templates(fn_type.ret_type)) && (!ID_IS(fn_type.ret_type, ID_VOID_TYPE))) {
         ERROR("Function body doesn't match return type");
     }
-
-    // a_scope scope = LOOKUP(function.body_id, a_scope);
-    // for (size_t i = 0; i < scope.declarations.size; ++i) {
-    //     ID decl_id = ARENA_GET(scope.declarations, i, ID);
-    //     ASSERT1(ID_IS(decl_id, ID_AST_SYMBOL));
-    //     a_symbol symbol = LOOKUP(decl_id, a_symbol);
-    //     ASSERT1(ID_IS(symbol.node_id, ID_AST_VARIABLE));
-    //     a_variable * var = lookup(symbol.node_id);
-    //
-    //     var->type_id = solver_deflate_type(var->type_id);
-    //     print_ast_tree(decl_id);
-    // }
 
     solver_reset_to_marker(solver, marker->info.id);
     context_remove_declaration_list(function.arguments);

@@ -366,6 +366,17 @@ const char * type_to_str(ID type_id) {
 
             return format("{u}?({s})", existential.info.id.id, type_to_str(existential.solved_type));
         }
+        case ID_TYPE_VAR: {
+            TypeVar typevar = LOOKUP(type_id, TypeVar);
+            return format("{u}!", typevar.info.id.id);
+        }
+        case ID_TEMPLATE: {
+            Template template = LOOKUP(type_id, Template);
+            return format("{s}({s})", interner_lookup_str(template.name_id)._ptr, type_to_str(template.type_id));
+        }
+        case ID_AST_TRAIT: {
+            return ast_to_string(type_id);
+        }
         default: 
             FATAL("Unimplemented type_to_str type: {s}", id_type_to_string(type_id.type));
     }

@@ -8,12 +8,13 @@
 	f(ID_SYMBOL,			"SymbolID",			symbol_map_entry,		SYMBOL)
 
 #define TYPE_CHECKING_CONTEXT_KINDS(f) \
-	f(ID_TERM_VAR,		"TermVar",		TermVar,		TC) \
-	f(ID_TYPE_VAR,		"TypeVar",		TypeVar,		TC) \
-	f(ID_EXISTENIAL,	"Existential",	Existential,	TC) \
-	f(ID_MARKER,		"Marker",		Marker,			TC) \
-	f(ID_TEMPLATE,		"Template",		Template,		TC) \
-	f(ID_OBLIGATION,	"Obligation",	Obligation,		TC)
+	f(ID_TERM_VAR,		"TermVar",		TermVar,		TC, 1) \
+	f(ID_TYPE_VAR,		"TypeVar",		TypeVar,		TC, 0) \
+	f(ID_EXISTENIAL,	"Existential",	Existential,	TC, 0) \
+	f(ID_MARKER,		"Marker",		Marker,			TC, 1) \
+	f(ID_TEMPLATE,		"Template",		Template,		TC, 1) \
+	f(ID_OBLIGATION,	"Obligation",	Obligation,		TC, 0) \
+	f(ID_TV_ATTRIBUTE,	"TV_Attribute",	TV_Attribute,	TC, 1)
 
 #define TYPE_REGISTRY_KINDS(f) \
 	f(ID_NUMERIC_TYPE,	"NumericT",		Numeric_T,	TYPE) \

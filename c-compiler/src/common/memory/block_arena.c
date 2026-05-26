@@ -7,10 +7,6 @@ const uint32_t blocksize = 8192;
 
 #define BARENA_INITIAL_BLOCK_COUNT 1
 
-#define INDEX_TO_BLOCK(INDEX, BLOCK_MAX_ITEM_COUNT) ((INDEX) / (BLOCK_MAX_ITEM_COUNT))
-#define INDEX_TO_BLOCK_INDEX(INDEX, BLOCK_MAX_ITEM_COUNT) ((INDEX) % (BLOCK_MAX_ITEM_COUNT))
-#define BARENA_GET_REF(BARENA, INDEX) ((BARENA)->blocks[INDEX_TO_BLOCK(INDEX, (BARENA)->block_max_item_count)] + ((BARENA)->item_size * INDEX_TO_BLOCK_INDEX(INDEX, (BARENA)->block_max_item_count)))
-
 BArena block_arena_init(uint32_t item_size) {
 	ASSERT1(blocksize > item_size);
 	BArena barena = {

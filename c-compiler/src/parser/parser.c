@@ -776,14 +776,18 @@ ID parser_parse_function(struct Parser * parser) {
             a_symbol arg_symbol = LOOKUP(arg_id, a_symbol);
             a_variable * arg_var = lookup(arg_symbol.node_id);
 
-            Place_T * place_type = type_allocate(ID_PLACE_TYPE);
-            place_type->is_mut = mut;
-            place_type->basetype_id = arg_var->type_id;
-
-            arg_var->type_id = place_type->info.type_id;
             arg_var->is_lazy = lazy;
+            if (!ID_IS(arg_var->type_id, ID_PLACE_TYPE)) {
+                Place_T * place_type = type_allocate(ID_PLACE_TYPE);
+                place_type->is_mut = mut;
+                place_type->basetype_id = arg_var->type_id;
 
-            ARENA_APPEND(&args->types, place_type->basetype_id);
+                arg_var->type_id = place_type->info.type_id;
+                ARENA_APPEND(&args->types, place_type->basetype_id);
+            } else {
+                ARENA_APPEND(&args->types, arg_var->type_id);
+            }
+
             ARENA_APPEND(&function->arguments, arg_id);
         } while (parser->lexer.tok.type == TOKEN_COMMA && (parser_eat(parser, TOKEN_COMMA), 1));
     }
