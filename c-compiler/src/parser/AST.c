@@ -66,13 +66,20 @@ void ast_init_node(enum id_type type, void * node_ref) {
             ((a_operator *) node_ref)->right_id = INVALID_ID;
             ((a_operator *) node_ref)->type_id = INVALID_ID;
             ((a_operator *) node_ref)->op = operator_get(OP_NOT_FOUND);
+            break;
         case ID_AST_VARIABLE:
             ((a_variable *) node_ref)->name_id = INVALID_ID;
             ((a_variable *) node_ref)->type_id = INVALID_ID;
-        case ID_AST_IMPORT:
+            break;
         case ID_AST_FUNCTION:
-        case ID_AST_DECLARATION:
+            ((a_function *) node_ref)->where = arena_init(sizeof(ID));
+            break;
         case ID_AST_EXPR:
+            ((a_expression *) node_ref)->children = arena_init(sizeof(ID));
+            ((a_expression *) node_ref)->type_id = INVALID_ID;
+            break;
+        case ID_AST_IMPORT:
+        case ID_AST_DECLARATION:
         case ID_AST_LITERAL:
         case ID_AST_RETURN:
         case ID_AST_FOR:

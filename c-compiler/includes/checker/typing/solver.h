@@ -109,3 +109,4 @@ char solver_validate_where_clauses(Solver * solver, ID node_id);
 
 void solver_check_obligations(Solver * solver);
 void solver_reset_to_marker(Solver * solver, ID marker_id);
+void solver_reset_marker_existentials(Solver * solver, ID marker_id);

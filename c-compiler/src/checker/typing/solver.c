@@ -31,6 +31,18 @@ void solver_reset_to_marker(Solver * solver, ID marker_id) {
 	TYPE_CHECKING_CONTEXT_KINDS(MARKER_SET_ITEM_COUNT);
 }
 
+void solver_reset_marker_existentials(Solver * solver, ID marker_id) {
+	Marker marker = LOOKUP(marker_id, Marker);
+
+	LOOP_OVER_REGISTRY_REV(Existential, existential, {
+		if (existential->info.id.id <= marker.Existential_count) {
+			return;
+		}
+
+		existential->solved_type = INVALID_ID;
+	});
+}
+
 static inline void _collect_templates(Solver * solver, const Arena node_templates, char is_existential) {
 	for (size_t i = 0; i < node_templates.size; ++i) {
 		ID template_symbol_id = ARENA_GET(node_templates, i, ID);

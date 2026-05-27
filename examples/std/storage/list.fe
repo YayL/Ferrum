@@ -1,7 +1,7 @@
 import "../groups/numeric" as numeric
 
 struct List<T> {
-    let mut buf: &T
+    let buf: &mut T
     let mut size: u64
     let mut capacity: u64
 
@@ -9,10 +9,10 @@ struct List<T> {
         let item: T
         let list: Self
         // list.buf = calloc(1, #sizeof(item))
-        list.size = 0
-        list.capacity = 1
+        list.size = 0 to u64
+        list.capacity = 1 to u64
 
-        return list
+        list
     }
 
     fn reserve<U>(self: &mut Self, additional: U) -> void where numeric::Unsigned<U> {
@@ -29,7 +29,7 @@ struct List<T> {
         self.buf[self.size++] = item
     }
 
-    fn at(self: Self, index: u32) -> T {
+    fn at(self: Self, index: u32) -> T  {
         self.buf[index]
     }
     

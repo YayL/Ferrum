@@ -8,6 +8,61 @@
 #include "checker/typing/subtyping.h"
 #include "checker/typing/utils.h"
 
+#define GET_FIRST_IN_OPTIONAL_TUPLE(TYPE_ID) (ID_IS(TYPE_ID, ID_TUPLE_TYPE) ? ARENA_GET(LOOKUP(TYPE_ID, Tuple_T).types, 0, ID) : (TYPE_ID))
+
+ID get_type_for_member_access(ID node_id) {
+	ID basetype_id = node_id;
+	if (ID_IS(basetype_id, ID_PLACE_TYPE)) {
+		basetype_id = solver_replace_templates(LOOKUP(basetype_id, Place_T).basetype_id);
+	}
+
+	if (ID_IS(basetype_id, ID_REF_TYPE)) {
+		basetype_id = solver_replace_templates(LOOKUP(basetype_id, Ref_T).basetype_id);
+	}
+
+	return basetype_id;
+}
+
+// TODO: Fix this function & modify AST on success
+char apply_auto_implicit_argument(Solver * solver, a_expression * expr, ID expected_type_id) {
+	ID parameter_type_id = GET_FIRST_IN_OPTIONAL_TUPLE(expr->type_id);
+	ID expected_parameter_type_id = GET_FIRST_IN_OPTIONAL_TUPLE(expected_type_id);
+	ID implicit_parameter = ARENA_GET(expr->children, 0, ID);
+
+	a_operator * operator = NULL;
+
+	if (ID_IS(parameter_type_id, ID_PLACE_TYPE) && ID_IS(expected_parameter_type_id, ID_REF_TYPE)) {
+		operator = ast_allocate(ID_AST_OP, expr->info.scope_id);
+		if (LOOKUP(parameter_type_id, Place_T).is_mut) {
+			operator->op = operator_get(MUT_ADDRESS_OF);
+		} else {
+			operator->op = operator_get(ADDRESS_OF);
+		}
+	} else if (ID_IS(parameter_type_id, ID_REF_TYPE)) {
+		operator = ast_allocate(ID_AST_OP, expr->info.scope_id);
+		operator->op = operator_get(DEREFERENCE);
+	} else {
+		return 0;
+	}
+
+	ASSERT1(operator != NULL);
+	operator->right_id = implicit_parameter;
+	ID implicit_parameter_type_id = synthesis(solver, operator->info.node_id);
+
+	if (ID_IS_INVALID(implicit_parameter_type_id)) {
+		return 0;
+	}
+
+	ARENA_GET(expr->children, 0, ID) = operator->info.node_id;
+	if (ID_IS(expr->type_id, ID_TUPLE_TYPE)) {
+		ARENA_GET(LOOKUP(expr->type_id, Tuple_T).types, 0, ID) = implicit_parameter_type_id;
+	} else {
+		expr->type_id = implicit_parameter_type_id;
+	}
+
+	return 1;
+}
+
 ID synthesis_symbol(Solver * solver, ID node_id) {
 	ASSERT1(ID_IS(node_id, ID_AST_SYMBOL));
 	a_symbol * symbol = lookup(node_id);
@@ -48,7 +103,7 @@ ID synthesis_operator_member_access(Solver * solver, a_operator * op) {
 	ASSERT1(ID_IS(op->info.node_id, ID_AST_OP));
 
 	if (!ID_IS(op->right_id, ID_AST_SYMBOL)) {
-		FATAL("Member access must be retrieving a symbol");
+		FATAL("Missing symbol in member access");
 	}
 
 	a_symbol * right_member_symbol = lookup(op->right_id);
@@ -60,24 +115,18 @@ ID synthesis_operator_member_access(Solver * solver, a_operator * op) {
 	ID member_name_id = right_member_symbol->name_id;
 	ID left_type_id = synthesis(solver, op->left_id);
 
-	print_ast_tree(op->info.node_id);
-	ID symbol_type_id = INVALID_ID;
-	switch (left_type_id.type) {
-		case ID_PLACE_TYPE: symbol_type_id = LOOKUP(left_type_id, Place_T).basetype_id; break;
-		case ID_REF_TYPE: symbol_type_id = LOOKUP(left_type_id, Ref_T).basetype_id; break;
-		default: break;
-	}
-	
+	ASSERT1(ID_IS(left_type_id, ID_PLACE_TYPE));
+
+	ID symbol_type_id = get_type_for_member_access(left_type_id);
+
 	if (!ID_IS(symbol_type_id, ID_SYMBOL_TYPE)) {
 		return INVALID_ID;
 	}
 
-	println("Symbol type: {s}", type_to_str(symbol_type_id));
 	Symbol_T symbol_type = LOOKUP(symbol_type_id, Symbol_T);
 	a_symbol symbol = LOOKUP(symbol_type.symbol_id, a_symbol);
 	ASSERT1(!ID_IS_INVALID(symbol.node_id));
 
-	println("{s}", ast_to_string(symbol.node_id));
 	Arena declarations = {0};
 	switch (symbol.node_id.type) {
 		case ID_AST_STRUCT: declarations = LOOKUP(symbol.node_id, a_structure).members; break;
@@ -87,47 +136,67 @@ ID synthesis_operator_member_access(Solver * solver, a_operator * op) {
 	ASSERT1(declarations.size > 0);
 	right_member_symbol->node_id = qualify_declaration(declarations, member_name_id);
 
-	return ast_get_type_of(right_member_symbol->node_id);
+	ID return_type_id = solver_replace_templates(ast_get_type_of(right_member_symbol->node_id));
+
+	return return_type_id;
 }
 
-ID synthesis_apply(Solver * solver, ID function_id, ID expr_type_id) {
+ID synthesis_apply(Solver * solver, ID function_id, ID expr_id, char has_implicit_argument) {
 	ASSERT1(ID_IS(function_id, ID_AST_FUNCTION));
 	a_function function = LOOKUP(function_id, a_function);
+	ASSERT1(ID_IS(expr_id, ID_AST_EXPR));
+	a_expression * args_expr = lookup(expr_id);
 
 	// Instantiate
 	Marker * marker = solver_allocate(solver, ID_MARKER);
-	// println("1");
 	solver_collect_templates(solver, function_id, 1);
-	// println("2");
 	ID fixed_fn_type_id = solver_replace_templates(function.type);
 	Fn_T * fn_type = lookup(fixed_fn_type_id);
 
+	if (ID_IS_INVALID(args_expr->type_id)) {
+		args_expr->type_id = synthesis(solver, expr_id);
+	}
+
 	// Unify
-	// println("3");
-	if (!is_subtype(solver, expr_type_id, fn_type->arg_type)) {
-		solver_reset_to_marker(solver, marker->info.id);
-		return INVALID_ID;
+	if (!is_subtype(solver, args_expr->type_id, fn_type->arg_type)) {
+		if (!has_implicit_argument) {
+			solver_reset_to_marker(solver, marker->info.id);
+			return INVALID_ID;
+		}
+
+		solver_reset_marker_existentials(solver, marker->info.id);
+
+		ID first_parameter = ARENA_GET(args_expr->children, 0, ID);
+		ID pre_type_id = (ID_IS(args_expr->type_id, ID_TUPLE_TYPE))
+							? ARENA_GET(LOOKUP(args_expr->type_id, Tuple_T).types, 0, ID)
+							: args_expr->type_id;
+		apply_auto_implicit_argument(solver, args_expr, fn_type->arg_type);
+
+		DEBUG("Auto implicit: {s} => {s}", type_to_str(pre_type_id), type_to_str(GET_FIRST_IN_OPTIONAL_TUPLE(args_expr->type_id)));
+
+		// try again but with auto-(de)ref
+		if (!is_subtype(solver, args_expr->type_id, fn_type->arg_type)) {
+			solver_reset_to_marker(solver, marker->info.id);
+			ARENA_GET(args_expr->children, 0, ID) = first_parameter;
+			return INVALID_ID;
+		}
 	}
 
 	if (!is_free_from_existentials(fixed_fn_type_id)) {
-		DEBUG("Function application still has existential: {s}{s}: {s}", interner_lookup_str(function.name_id)._ptr, type_to_str(expr_type_id), type_to_str(solver_deflate_type(fixed_fn_type_id)));
+		DEBUG("Function application still has existential: {s}{s}: {s}", interner_lookup_str(function.name_id)._ptr, type_to_str(args_expr->type_id), type_to_str(solver_deflate_type(fixed_fn_type_id)));
 	}
 
 	// Verify
-	// println("4");
 	if (!solver_validate_where_clauses(solver, function_id)) {
 		solver_reset_to_marker(solver, marker->info.id);
 		return INVALID_ID;
 	}
 
 	// Return
-	// println("5");
 	ID deflated_type_id = solver_deflate_type(fn_type->ret_type);
 	// println("type: {s}", type_to_str(solver_deflate_type(fixed_fn_type_id)));
 	// println("return: {s}", type_to_str(deflated_type_id));
 	solver_reset_to_marker(solver, marker->info.id);
-
-	// println("6");
 	return deflated_type_id;
 }
 
@@ -151,7 +220,8 @@ ID synthesis_operator_call_direct(Solver * solver, a_operator * op) {
 	ASSERT1(!ID_IS_INVALID(function_id));
 	ASSERT1(ID_IS(function_id, ID_AST_FUNCTION));
 	ASSERT1(ID_IS(called_function_type, ID_FN_TYPE));
-	return synthesis_apply(solver, function_id, synthesis(solver, op->right_id));
+
+	return synthesis_apply(solver, function_id, op->right_id, 0);
 }
 
 ID synthesis_operator_call_member(Solver * solver, a_operator * op, a_operator * dot_op) {
@@ -176,54 +246,37 @@ ID synthesis_operator_call_member(Solver * solver, a_operator * op, a_operator *
 
 	// Add left of member access as first argument
 	ARENA_GET(call_arguments->children, 0, ID) = dot_op->left_id;
-
-	Tuple_T * tuple_type = type_allocate(ID_TUPLE_TYPE);
-	arena_grow(&tuple_type->types, call_arguments->children.size);
-
-	for (size_t i = 0; i < call_arguments->children.size; ++i) {
-		ARENA_APPEND(&tuple_type->types, synthesis(solver, ARENA_GET(call_arguments->children, i, ID)));
-	}
+	call_arguments->type_id = synthesis(solver, call_arguments->info.node_id);
 
 	ID lhs_type_id = ast_get_type_of(dot_op->left_id);
-
-	ID member_of_type_id = INVALID_ID;
-	switch (lhs_type_id.type) {
-		case ID_INVALID_TYPE: FATAL("Invalid");
-		case ID_PLACE_TYPE: member_of_type_id = LOOKUP(lhs_type_id, Place_T).basetype_id; break;
-		case ID_REF_TYPE: member_of_type_id = LOOKUP(lhs_type_id, Ref_T).basetype_id; break;
-		default: break;
+	ID member_of_type_id = get_type_for_member_access(lhs_type_id);
+	if (!ID_IS(member_of_type_id, ID_SYMBOL_TYPE)) {
+		return INVALID_ID;
 	}
 
-	if (!ID_IS_INVALID(member_of_type_id)) {
-		ASSERT1(ID_IS(member_of_type_id, ID_SYMBOL_TYPE));
-		Symbol_T symbol_type = LOOKUP(member_of_type_id, Symbol_T);
-		a_symbol symbol = LOOKUP(symbol_type.symbol_id, a_symbol);
+	ASSERT1(ID_IS(member_of_type_id, ID_SYMBOL_TYPE));
+	Symbol_T symbol_type = LOOKUP(member_of_type_id, Symbol_T);
+	a_symbol symbol = LOOKUP(symbol_type.symbol_id, a_symbol);
 
-		Arena declarations = {0};
-		switch (symbol.node_id.type) {
-			case ID_AST_STRUCT: declarations = LOOKUP(symbol.node_id, a_structure).members; break;
-			default: FATAL("Unimplemented: {s}", id_type_to_string(symbol.node_id.type));
-		}
-
-		ASSERT1(declarations.size != 0);
-
-		ASSERT1(ID_IS_INVALID(member_name_symbol->node_id));
-		ID found_member_id = qualify_declaration(declarations, member_name_id);
-		ASSERT1(ID_IS(found_member_id, ID_AST_FUNCTION));
-
-		if (!ID_IS_INVALID(found_member_id)) {
-			ID res = synthesis_apply(solver, found_member_id, tuple_type->info.type_id);
-			if (!ID_IS_INVALID(res)) {
-				member_name_symbol->node_id = found_member_id;
-				return res;
-			}
-		}
+	Arena declarations = {0};
+	switch (symbol.node_id.type) {
+		case ID_AST_STRUCT: declarations = LOOKUP(symbol.node_id, a_structure).members; break;
+		default: FATAL("Unimplemented: {s}", id_type_to_string(symbol.node_id.type));
 	}
 
-	print_ast_tree(op->info.node_id);
-	// println("res: {s}", type_to_str(call_argument_type_id));
+	ASSERT1(declarations.size != 0);
 
-	ERROR("Unimplemented");
+	ASSERT1(ID_IS_INVALID(member_name_symbol->node_id));
+	ID found_member_id = qualify_declaration(declarations, member_name_id);
+	ASSERT1(ID_IS(found_member_id, ID_AST_FUNCTION));
+
+	ID res = synthesis_apply(solver, found_member_id, call_arguments->info.node_id, 1);
+	if (!ID_IS_INVALID(res)) {
+		member_name_symbol->node_id = found_member_id;
+		return res;
+	}
+
+	ERROR("Unimplemented: Should lookup impl functions");
 	exit(1);
 }
 
@@ -273,33 +326,34 @@ ID synthesis_operator(Solver * solver, ID node_id) {
 	Arena candidates = member_function_index_lookup(name_id);
 
 	ASSERT(candidates.size > 0, "No implementations found for operator: {s}", interner_lookup_str(name_id)._ptr);
-
-	Tuple_T * tuple_type = type_allocate(ID_TUPLE_TYPE);
+	a_expression * call_arguments = ast_allocate(ID_AST_EXPR, op->info.scope_id);
 
 	if (op->op.mode == BINARY) {
-		arena_grow(&tuple_type->types, 2);
+		arena_grow(&call_arguments->children, 2);
 
 		ASSERT1(!ID_IS_INVALID(op->left_id));
-		ARENA_APPEND(&tuple_type->types, synthesis(solver, op->left_id));
+		ARENA_APPEND(&call_arguments->children, op->left_id);
 
 		ASSERT1(!ID_IS_INVALID(op->right_id));
-		ARENA_APPEND(&tuple_type->types, synthesis(solver, op->right_id));
+		ARENA_APPEND(&call_arguments->children, op->right_id);
 	} else {
-		arena_grow(&tuple_type->types, 1);
+		arena_grow(&call_arguments->children, 1);
 
 		ASSERT1(!ID_IS_INVALID(op->right_id));
-		ARENA_APPEND(&tuple_type->types, synthesis(solver, op->right_id));
+		ARENA_APPEND(&call_arguments->children, op->right_id);
 	}
 
+	call_arguments->type_id = synthesis(solver, call_arguments->info.node_id);
+
+	if (candidates.size > 1 && !is_free_from_existentials(call_arguments->type_id)) {
+		FATAL("Unimplemented: function call obligation");
+	}
+
+	DEBUG("Checking operator: '{s}'", operator_get_runtime_name(op->op.key));
 	ID ret_type = INVALID_ID;
-
-	if (candidates.size > 1 && !is_free_from_existentials(tuple_type->info.type_id)) {
-		FATAL("Unimplemented");
-	}
-
 	for (size_t i = 0; i < candidates.size; ++i) {
 		ID candidate_id = ARENA_GET(candidates, i, ID);
-		ID temp = synthesis_apply(solver, candidate_id, tuple_type->info.type_id);
+		ID temp = synthesis_apply(solver, candidate_id, call_arguments->info.node_id, 0);
 
 		if (ID_IS_INVALID(temp)) {
 			continue;
@@ -310,15 +364,26 @@ ID synthesis_operator(Solver * solver, ID node_id) {
 		ret_type = temp;
 	}
 
+	// if (op->op.mode == BINARY) {
+	// 	op->left_id = ARENA_GET(call_arguments->children, 0, ID);
+	// 	op->right_id = ARENA_GET(call_arguments->children, 1, ID);
+	// } else {
+	// 	op->right_id = ARENA_GET(call_arguments->children, 0, ID);
+	// }
+
+	// print_ast_tree(call_arguments->info.node_id);
+	// println("");
+	// print_ast_tree(op->info.node_id);
+
 	if (ID_IS_INVALID(ret_type)) {
-		ERROR("Unable to find valid operator implementation({u}): {s} | {s}", candidates.size, ast_to_string(node_id), type_to_str(tuple_type->info.type_id));
+		ERROR("Unable to find valid operator implementation({u}): {s} | {s}", candidates.size, ast_to_string(node_id), type_to_str(call_arguments->type_id));
 		return INVALID_ID;
 	}
 
 	ID deflated_ret_type_id = solver_deflate_type(ret_type);
 
 	if (ID_IS_INVALID(op->type_id)) {
-		return op->type_id = deflated_ret_type_id;
+		op->type_id = deflated_ret_type_id;
 	} else if (!is_subtype(solver, op->type_id, deflated_ret_type_id)) {
 		FATAL("Invalid function return type");
 	}

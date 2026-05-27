@@ -8,20 +8,38 @@
 #include "checker/typing/solver.h"
 #include "checker/typing/checking.h"
 
+#include "parser/keywords.h"
+
 void checker_check_struct(Solver * solver, ID node_id) {
-    FATAL("Unimplemented");
+    a_structure structure = LOOKUP(node_id, a_structure);
+
+    Marker * marker = solver_allocate(solver, ID_MARKER);
+    solver_collect_templates(solver, node_id, 0);
+
+    for (size_t i = 0; i < structure.members.size; ++i) {
+        ID member_id = ARENA_GET(structure.members, i, ID);
+
+        // println("{i}) {s}", i + 1, ast_to_string(member_id));
+        switch (member_id.type) {
+            case ID_AST_SYMBOL: break;
+            case ID_AST_FUNCTION: checker_check_function(solver, member_id); break;
+            default: FATAL("Invalid member type: {s}", id_type_to_string(member_id.type));
+        }
+    }
+
+    solver_reset_to_marker(solver, marker->info.id);
 }
 
 void checker_check_impl(Solver * solver, ID node_id) {
-    FATAL("Unimplemented");
+    WARN("Unimplemented impl");
 }
 
 void checker_check_trait(Solver * solver, ID node_id) { 
-    FATAL("Unimplemented");
+    WARN("Unimplemented trait");
 }
 
 void checker_check_declaration(Solver * solver, ID node_id) {
-    FATAL("Unimplemented");
+    WARN("Unimplemented declaration");
 }
 
 void checker_check_function(Solver * solver, ID node_id) {
@@ -92,6 +110,8 @@ void checker_check_module(Solver * solver, ID node_id) {
     a_module module = LOOKUP(node_id, a_module);
     context_enter_module(module);
 
+    INFO("Checking module '{s}'", module.file_path);
+
     for (int i = 0; i < module.members.size; ++i) {
         checker_check_definitions(solver, ARENA_GET(module.members, i, ID));
     }
@@ -104,11 +124,6 @@ void checker_check(a_root root) {
 
     Solver solver = solver_initialize();
 
-    checker_check_module(&solver, root.entry_point);
-
-    return;
-
-    // println("entry: {s}", root.entry_point);
     kh_foreach_value(&root.modules, module_id, {
         checker_check_module(&solver, module_id);
     });

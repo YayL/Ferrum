@@ -1,10 +1,11 @@
 import "../groups/numeric" as numeric
 
+/*
 struct Slice<T> {
 	let buf: &T
 	let length: u32
 
-	fn static new<U>(buf: &T, length: U) -> Self where numeric::Unsigned<U> {
+	fn new<U>(buf: &T, length: U) -> Self where numeric::Unsigned<U> {
 		let new_slice: Self
 
 		new_slice.buf = buf
@@ -20,3 +21,4 @@ impl<T, U> subscript::#Indexable<RefType: Slice<T>, BaseType: T, IndexType: U> w
 		ref.buf[index]
 	}
 }
+*/
